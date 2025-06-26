@@ -14,6 +14,7 @@
             ./devices/${hostName}/default.nix
             ./modules/boot.nix
             ./modules/fs.nix
+            ./modules/misc.nix
             ./modules/net.nix
             ./modules/users.nix
           ];

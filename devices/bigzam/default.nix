@@ -16,6 +16,5 @@
     hostId = "4cfde750";
   };
 
-  system.stateVersion = "25.05";
   nixpkgs.system = "x86_64-linux";
 }
