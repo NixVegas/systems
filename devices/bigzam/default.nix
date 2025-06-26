@@ -11,9 +11,19 @@
     kernelModules = [ "kvm-amd" ];
   };
 
+  hardware.nvidia = {
+    enable = true;
+    open = true;
+  };
+
   networking = {
     hostName = "bigzam";
     hostId = "4cfde750";
+  };
+
+  services = {
+    desktopManager.cosmic.enable = true;
+    displayManager.cosmic-greeter.enable = true;
   };
 
   nixpkgs.system = "x86_64-linux";

@@ -1,8 +1,11 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixos-cosmic.url = "github:lilyinstarlight/nixos-cosmic";
+  };
 
   outputs =
-    { self, nixpkgs }:
+    { self, nixpkgs, nixos-cosmic }:
     let
       inherit (nixpkgs) lib;
     in
@@ -17,6 +20,7 @@
             ./modules/misc.nix
             ./modules/net.nix
             ./modules/users.nix
+            nixos-cosmic.nixosModules.default
           ];
         }
       );
