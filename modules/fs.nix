@@ -17,32 +17,32 @@ in
     "/" = {
       device = "${hostName}/system/root";
       fsType = "zfs";
-      options = [ "zfsutil" ];
     };
     "/boot" = {
       device = "/dev/disk/by-partlabel/${hostName}.boot";
       fsType = "vfat";
+      options = [
+        "fmask=0022"
+        "dmask=0022"
+      ];
     };
     "/nix" = {
       device = "${hostName}/local/nix";
       fsType = "zfs";
-      options = [ "zfsutil" ];
     };
     "/home" = {
       device = "${hostName}/user/home";
       fsType = "zfs";
-      options = [ "zfsutil" ];
     };
     "/var" = {
       device = "${hostName}/system/var";
       fsType = "zfs";
-      options = [ "zfsutil" ];
     };
   };
 
   swapDevices = [
     {
-      label = "${hostName}.swap";
+      device = "/dev/disk/by-partlabel/${hostName}.swap";
       randomEncryption.enable = true;
     }
   ];
