@@ -11,9 +11,9 @@
     kernelModules = [ "kvm-amd" ];
   };
 
-  hardware.nvidia = {
-    enable = true;
-    open = true;
+  hardware = {
+    nvidia.open = true;
+    graphics.enable = true;
   };
 
   networking = {
