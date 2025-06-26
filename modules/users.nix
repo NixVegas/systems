@@ -1,4 +1,9 @@
 {
+  config,
+  lib,
+  ...
+}:
+{
   security.sudo = {
     enable = true;
     execWheelOnly = true;

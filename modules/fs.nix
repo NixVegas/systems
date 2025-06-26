@@ -1,4 +1,4 @@
-{ config }:
+{ config, ... }:
 let
   inherit (config.networking) hostName;
 in
@@ -8,7 +8,7 @@ in
       trim.enable = true;
       autoScrub = {
         enable = true;
-        pool = [ hostName ];
+        pools = [ hostName ];
       };
     };
   };
