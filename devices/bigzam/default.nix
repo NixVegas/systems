@@ -1,5 +1,9 @@
 { ... }:
 {
+  imports = [
+    ../modules/swap.nix
+  ];
+
   boot = {
     initrd.availableKernelModules = [
       "xhci_pci"
