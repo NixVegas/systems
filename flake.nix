@@ -5,12 +5,16 @@
   };
 
   outputs =
-    { self, nixpkgs, nixos-cosmic }:
+    {
+      self,
+      nixpkgs,
+      nixos-cosmic,
+    }:
     let
       inherit (nixpkgs) lib;
     in
     {
-      nixosConfigurations = lib.genAttrs [ "bigzam" ] (
+      nixosConfigurations = lib.genAttrs [ "bigzam" "gurren" "lagann" ] (
         hostName:
         nixpkgs.lib.nixosSystem {
           modules = [
