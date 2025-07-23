@@ -12,7 +12,11 @@
     hostId = "6e2e597d";
   };
 
-  services.hydra.enable = true;
+  services.hydra = {
+    enable = true;
+    hydraURL = "http://saitama.local";
+    port = 80;
+  };
 
   nixpkgs.system = "aarch64-linux";
 }
