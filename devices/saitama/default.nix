@@ -16,6 +16,7 @@
     enable = true;
     hydraURL = "http://saitama.local";
     port = 80;
+    notificationSender = "nobody@saitama.local";
   };
 
   nixpkgs.system = "aarch64-linux";
