@@ -1,5 +1,9 @@
 { ... }:
 {
+  imports = [
+    ../../modules/builder
+  ];
+
   boot.initrd.availableKernelModules = [
     "xhci_pci"
     "nvme"
