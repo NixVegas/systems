@@ -14,7 +14,7 @@
       inherit (nixpkgs) lib;
     in
     {
-      nixosConfigurations = lib.genAttrs [ "bigzam" "tatsumaki" "genos" ] (
+      nixosConfigurations = lib.genAttrs [ "bigzam" "tatsumaki" "genos" "saitama" ] (
         hostName:
         nixpkgs.lib.nixosSystem {
           modules = [
