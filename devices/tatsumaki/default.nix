@@ -8,7 +8,7 @@
   ];
 
   networking = {
-    hostName = "gurren";
+    hostName = "tatsumaki";
     hostId = "7144d96e";
   };
 

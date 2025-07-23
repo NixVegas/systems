@@ -8,7 +8,7 @@
   ];
 
   networking = {
-    hostName = "lagann";
+    hostName = "genos";
     hostId = "d4af12b1";
   };
 
