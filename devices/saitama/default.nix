@@ -12,5 +12,7 @@
     hostId = "6e2e597d";
   };
 
+  services.hydra.enable = true;
+
   nixpkgs.system = "aarch64-linux";
 }
