@@ -1,4 +1,8 @@
-{ ... }:
+{ config, ... }:
+let
+  inherit (config.networking) hostName;
+  domainName = "${hostName}.${config.services.avahi.domainName}";
+in
 {
   boot.initrd.availableKernelModules = [
     "xhci_pci"
@@ -7,17 +11,33 @@
     "usbhid"
   ];
 
+  fileSystems."/var/lib/ncps" = {
+    device = "${hostName}/local/cache";
+    fsType = "zfs";
+  };
+
   networking = {
     hostName = "saitama";
     hostId = "6e2e597d";
   };
 
   services = {
+    ncps = {
+      enable = true;
+      server.addr = "localhost:8501";
+      cache = {
+        inherit hostName;
+      };
+      upstream = {
+        caches = [ "https://cache.nixos.org" ];
+        publicKeys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
+      };
+    };
     hydra = {
       enable = true;
-      hydraURL = "http://saitama.local";
+      hydraURL = "http://cache.${domainName}.local";
       port = 3000;
-      notificationSender = "nobody@saitama.local";
+      notificationSender = "nobody@${domainName}.local";
       useSubstitutes = true;
     };
     openssh.openFirewall = false;
@@ -28,9 +48,20 @@
       recommendedOptimisation = true;
       recommendedGzipSettings = true;
       recommendedProxySettings = true;
-      virtualHosts."hydra.saitama.local".locations."/" = {
-        proxyPass = "http://localhost:3000";
-        proxyWebsockets = true;
+      virtualHosts = {
+        "${domainName}" = {
+          default = true;
+          locations."/" = {
+            proxyPass = "http://${config.services.ncps.server.addr}";
+            proxyWebsockets = true;
+          };
+        };
+        "hydra.${domainName}" = {
+          locations."/" = {
+            proxyPass = "http://localhost:${builtins.toString config.services.hydra.port}";
+            proxyWebsockets = true;
+          };
+        };
       };
     };
   };
@@ -69,10 +100,12 @@
   networking.firewall.interfaces.enP3p3s0f0 = {
     allowedTCPPorts = [
       22
+      config.services.hydra.port
       80
     ];
     allowedUDPPorts = [
       22
+      config.services.hydra.port
       80
     ];
   };
