@@ -22,4 +22,9 @@
     };
     groups.wheel = { };
   };
+
+  nix.settings.trusted-users = [
+    "ross"
+    "numinit"
+  ];
 }

@@ -26,4 +26,6 @@
   users.users.builder = {
     isNormalUser = true;
   };
+
+  nix.settings.trusted-users = [ "builder" ];
 }
