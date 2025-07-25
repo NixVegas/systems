@@ -6,7 +6,9 @@
 {
   networking.useDHCP = lib.mkDefault true;
   services = {
-    openssh.enable = true;
+    openssh = {
+      enable = true;
+    };
     avahi = {
       enable = true;
       publish = {

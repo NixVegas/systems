@@ -11,16 +11,19 @@
 
   users = {
     users = {
+      deploy = {
+        isNormalUser = true;
+        extraGroups = [ "wheel" ];
+      };
       ross = {
         isNormalUser = true;
-        group = "wheel";
+        extraGroups = [ "wheel" ];
       };
       numinit = {
         isNormalUser = true;
-        group = "wheel";
+        extraGroups = [ "wheel" ];
       };
     };
-    groups.wheel = { };
   };
 
   nix.settings.trusted-users = [
