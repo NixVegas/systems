@@ -20,7 +20,7 @@ let
   modemInterfaces = [ "enp0s20f0u3" ];
   wanInterface = "enp3s0";
   wanInterfaces = lib.singleton wanInterface;
-  managementInterfaces = [
+  nocInterfaces = [
     "enp4s0"
     "enp5s0"
   ];
@@ -78,7 +78,6 @@ in
   boot.loader.efi.canTouchEfiVariables = true;
 
   boot.kernelParams = [
-    "console=ttyS0,115200n8"
     "console=ttyS1,115200n8"
   ];
   boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod_stable;
@@ -225,8 +224,8 @@ in
         interfaces = modemInterfaces;
       };
 
-      management = {
-        interfaces = managementInterfaces;
+      noc = {
+        interfaces = nocInterfaces;
       };
 
       trunk = {
