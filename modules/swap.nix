@@ -1,4 +1,7 @@
-{ ... }:
+{ config, ... }:
+let
+  inherit (config.networking) hostName;
+in
 {
   swapDevices = [
     {
