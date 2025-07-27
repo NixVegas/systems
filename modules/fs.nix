@@ -3,6 +3,10 @@ let
   inherit (config.networking) hostName;
 in
 {
+  boot.zfs = {
+    forceImportRoot = true;
+  };
+
   services = {
     zfs = {
       trim.enable = true;

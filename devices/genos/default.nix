@@ -16,7 +16,6 @@
   networking = {
     useDHCP = false;
     hostName = "genos";
-    hostId = "d4af12b1";
     vlans = {
       "trunk1.build" = {
         id = 2;

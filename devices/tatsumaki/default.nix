@@ -16,7 +16,6 @@
   networking = {
     useDHCP = false;
     hostName = "tatsumaki";
-    hostId = "7144d96e";
     vlans = {
       "trunk1.build" = {
         id = 2;

@@ -26,7 +26,6 @@
   networking = {
     useDHCP = false;
     hostName = "bigzam";
-    hostId = "4cfde750";
     vlans = {
       "trunk1.build" = {
         id = 2;

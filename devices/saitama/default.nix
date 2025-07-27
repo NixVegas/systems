@@ -26,7 +26,6 @@ in
 
   networking = {
     hostName = "saitama";
-    hostId = "6e2e597d";
   };
 
   services = {

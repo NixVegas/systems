@@ -147,7 +147,6 @@ in
 
   networking = {
     inherit hostName;
-    hostId = "c0dacafe";
 
     nameservers = [ "127.0.0.1" ];
 
