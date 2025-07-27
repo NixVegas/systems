@@ -12,8 +12,7 @@
 
 let
   hostName = "ghostgate";
-  domainBase = "nirn.aurb.is";
-  domain = "vivec.${domainBase}";
+  domain = "dc.nixos.lv";
 
   tsigSecret = "4YbnpPXSLEj7AWXMXWtC8a102HsNbSSWXjpUhCtikiY=";
 
@@ -28,14 +27,10 @@ let
   arenaInterfaces = [ arenaInterface ];
   trunkInterface1 = "enp2s0f0np0";
   trunkInterface2 = "enp2s0f1np1";
-  trunkInterfaces = [
-    trunkInterface1
-    trunkInterface2
-  ];
 
   # NOC managment network
   noc = rec {
-    id = 36;
+    id = 1;
     prefix = 24;
     subnet = "10.4.0.0/${builtins.toString prefix}";
     address = "10.4.0.1";
@@ -45,14 +40,14 @@ let
   };
 
   # Trunked sponsored servers
-  trunk = rec {
-    id = 37;
+  build = rec {
+    id = 2;
     prefix = 24;
     subnet = "10.4.1.0/${builtins.toString prefix}";
     address = "10.4.1.1";
     dhcpStart = "10.4.1.128";
     dhcpEnd = "10.4.1.254";
-    dhcpDomain = "trunk.${domain}";
+    dhcpDomain = "build.${domain}";
   };
 
   # Attendee network.
@@ -169,8 +164,10 @@ in
 
     dhcpcd.extraConfig = ''
       # deprioritize modem
-      interface wan
+      interface wan1
       metric 1000
+      interface wan2
+      metric 1001
       interface modem
       metric 2000
     '';
@@ -180,9 +177,29 @@ in
 
     useDHCP = false;
 
+    vlans = {
+      "trunk1.build" = {
+        inherit (build) id;
+        interface = trunkInterface1;
+      };
+      "trunk2.build" = {
+        inherit (build) id;
+        interface = trunkInterface2;
+      };
+      "trunk1.wan2" = {
+        id = 3;
+        interface = trunkInterface1;
+      };
+      "trunk2.wan2" = {
+        id = 3;
+        interface = trunkInterface2;
+      };
+    };
+
     interfaces = {
       # DHCP on the WAN interface.
-      wan.useDHCP = true;
+      wan1.useDHCP = true;
+      wan2.useDHCP = true;
 
       # And the WWAN interface.
       modem.useDHCP = true;
@@ -196,11 +213,11 @@ in
         ];
       };
 
-      trunk = {
+      build = {
         ipv4.addresses = [
           {
-            inherit (trunk) address;
-            prefixLength = trunk.prefix;
+            inherit (build) address;
+            prefixLength = build.prefix;
           }
         ];
       };
@@ -216,8 +233,12 @@ in
     };
 
     bridges = {
-      wan = {
+      wan1 = {
         interfaces = wanInterfaces;
+      };
+
+      wan2 = {
+        interfaces = [ "trunk1.wan2" "trunk2.wan2" ];
       };
 
       modem = {
@@ -228,8 +249,8 @@ in
         interfaces = nocInterfaces;
       };
 
-      trunk = {
-        interfaces = trunkInterfaces;
+      build = {
+        interfaces = [ "trunk1.build" "trunk2.build" ];
       };
 
       arena = {
@@ -254,19 +275,20 @@ in
               iifname {
                 "lo",
                 "noc",
-                "trunk",
+                "build",
                 "arena"
               } counter accept
 
               # Allow returning traffic from WAN and arena
-              iifname {"wan"} ct state { established, related } counter accept
+              iifname {"wan1", "wan2"} ct state { established, related } counter accept
 
               # Allow some ICMP by default
               ip protocol icmp icmp type { destination-unreachable, echo-request, time-exceeded, parameter-problem } accept
               ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, echo-request, time-exceeded, parameter-problem, packet-too-big } accept
 
               # Drop everything else from WAN
-              iifname "wan" drop
+              iifname "wan1" drop
+              iifname "wan2" drop
             }
 
             chain forward {
@@ -276,21 +298,23 @@ in
               iifname {
                 "lo",
                 "noc",
-                "trunk",
+                "build",
                 "arena"
               } oifname {
-                "wan"
-              } counter accept comment "Allow trusted trunk to WAN"
+                "wan1",
+                "wan2"
+              } counter accept comment "Allow trusted LAN to WAN"
 
               # Allow established WAN to return
               iifname {
-                "wan",
+                "wan1",
+                "wan2"
               } oifname {
                 "lo",
                 "noc",
-                "trunk",
+                "build",
                 "arena"
-              } ct state established,related counter accept comment "Allow established back to trunks"
+              } ct state established,related counter accept comment "Allow established back to LANs"
             }
           '';
         };
@@ -302,14 +326,15 @@ in
               type nat hook prerouting priority filter; policy accept;
 
               # Redirect DNS and NTP queries to us
-              iifname {"noc", "trunk", "arena"} udp dport {53, 123} counter redirect
-              iifname {"noc", "trunk", "arena"} tcp dport {53} counter redirect
+              iifname {"noc", "build", "arena"} udp dport {53, 123} counter redirect
+              iifname {"noc", "build", "arena"} tcp dport {53} counter redirect
             }
 
             # Setup NAT masquerading on the wan interface
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
-              oifname "wan" masquerade
+              oifname "wan1" masquerade
+              oifname "wan2" masquerade
             }
           '';
         };
@@ -348,7 +373,7 @@ in
           dhcp-socket-type = "raw";
           interfaces = [
             "noc"
-            "trunk"
+            "build"
             "arena"
           ];
         };
@@ -387,27 +412,27 @@ in
             ];
           }
           {
-            inherit (trunk) subnet id;
+            inherit (build) subnet id;
             pools = [
               {
-                pool = "${trunk.dhcpStart} - ${trunk.dhcpEnd}";
+                pool = "${build.dhcpStart} - ${build.dhcpEnd}";
               }
             ];
-            ddns-qualifying-suffix = "trunk.${domain}";
+            ddns-qualifying-suffix = "build.${domain}";
             option-data = [
               {
                 name = "routers";
-                data = trunk.address;
+                data = build.address;
                 always-send = true;
               }
               {
                 name = "domain-name-servers";
-                data = trunk.address;
+                data = build.address;
                 always-send = true;
               }
               {
                 name = "domain-name";
-                data = trunk.dhcpDomain;
+                data = build.dhcpDomain;
                 always-send = true;
               }
               /*
@@ -495,17 +520,15 @@ in
       };
     };
 
-    # Set up an authoritative nameserver, serving the `trunk.nixos.test`
-    # zone and configure an ACL that allows dynamic updates from
-    # the router's ip address.
-    # This ACL is likely insufficient for production usage. Please
-    # use TSIG keys.
     knot =
       let
         zone = pkgs.writeTextDir "${domain}.zone" ''
-          @ SOA ns.${domainBase} nox.${domainBase} 0 86400 7200 3600000 172800
+          @ SOA ns.${domain} nox.${domain} 0 86400 7200 3600000 172800
           @ NS nameserver
           nameserver A 127.0.0.1
+          hydra.saitama.build.${domain}. CNAME saitama.build.${domain}.
+          cache.saitama.build.${domain}. CNAME saitama.build.${domain}.
+          hydra.nixos.lv. CNAME hydra.saitama.build.${domain}.
         '';
         zonesDir = pkgs.buildEnv {
           name = "knot-zones";
@@ -561,7 +584,7 @@ in
       package = pkgs.knot-resolver.override { extraFeatures = true; };
       listenPlain = [
         "${noc.address}:53"
-        "${trunk.address}:53"
+        "${build.address}:53"
         "${arena.address}:53"
         "127.0.0.1:53"
         "[::1]:53"
@@ -581,7 +604,7 @@ in
         }
 
         -- Accept all requests from these subnets
-        subnets = { '${noc.subnet}', '${trunk.subnet}', '${arena.subnet}', '127.0.0.0/8' }
+        subnets = { '${noc.subnet}', '${build.subnet}', '${arena.subnet}', '127.0.0.0/8' }
         for i, v in ipairs(subnets) do
           view:addr(v, function(req, qry) return policy.PASS end)
         end
@@ -590,9 +613,9 @@ in
         view:addr('0.0.0.0/0', function (req, qry) return policy.DROP end)
 
         -- Forward requests for the local DHCP domains.
-        local_domains = { 'noc.${domain}', 'trunk.${domain}', 'arena.${domain}' }
+        local_domains = { 'noc.${domain}.', 'build.${domain}.', 'arena.${domain}.' }
         for i, v in ipairs(local_domains) do
-          policy:add(policy.suffix(policy.FORWARD({'127.0.0.1@5353'}), {todname(v)}))
+          policy:add(policy.suffix(policy.STUB('127.0.0.1@5353'), {todname(v)}))
         end
 
         -- Uncomment one of the following stanzas in case you want to forward all requests to 1.1.1.1 or 9.9.9.9 via DNS-over-TLS.
