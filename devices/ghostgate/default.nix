@@ -302,8 +302,12 @@ in
                 "arena"
               } oifname {
                 "wan1",
-                "wan2"
+                "wan2",
               } counter accept comment "Allow trusted LAN to WAN"
+
+              # Let NOC get to build.
+              iifname { "noc" } oifname { "build" } counter accept
+              iifname { "build" } oifname { "noc" } ct state established,related counter accept
 
               # Allow established WAN to return
               iifname {
@@ -333,6 +337,7 @@ in
             # Setup NAT masquerading on the wan interface
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
+              oifname "build" masquerade
               oifname "wan1" masquerade
               oifname "wan2" masquerade
             }
