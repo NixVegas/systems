@@ -40,21 +40,17 @@
       build = {
         allowedTCPPorts = [
           22
-          80
         ];
         allowedUDPPorts = [
           22
-          80
         ];
       };
       noc = {
         allowedTCPPorts = [
           22
-          80
         ];
         allowedUDPPorts = [
           22
-          80
         ];
       };
     };
