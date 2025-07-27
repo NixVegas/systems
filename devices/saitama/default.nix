@@ -1,4 +1,5 @@
-{ config, ... }:
+{ lib, config, ... }:
+
 let
   inherit (config.networking) hostName;
 
@@ -14,7 +15,12 @@ in
   ];
 
   fileSystems."/var/lib/ncps" = {
-    device = "${hostName}/local/cache";
+    device = "onepunch/local/cache";
+    fsType = "zfs";
+  };
+
+  fileSystems."/nix" = lib.mkForce {
+    device = "onepunch/local/nix";
     fsType = "zfs";
   };
 
