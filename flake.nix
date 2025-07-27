@@ -52,10 +52,6 @@
               version,
               # Modules to evaluate.
               modules ? [ ],
-              # The build system.
-              buildSystem ? "x86_64-linux",
-              # The target system.
-              targetSystem ? "x86_64-linux",
               # Any extra special args. The flake inputs are automatically provided,
               # as well as a hardcoded `extraModules`.
               specialArgs ? { },
@@ -64,15 +60,7 @@
               extraModules = [ self.nixosModules.default ];
             in
             nixpkgsVersions.${version}.lib.nixosSystem {
-              system = buildSystem;
-              modules = modules ++ extraModules ++ [
-                {
-                  nixpkgs = {
-                    buildPlatform = buildSystem;
-                    hostPlatform = targetSystem;
-                  };
-                }
-              ];
+              modules = modules ++ extraModules;
               specialArgs = inputs // {
                 inherit extraModules;
               } // specialArgs;

@@ -1,7 +1,9 @@
 { config, ... }:
 let
   inherit (config.networking) hostName;
-  domainName = "${hostName}.${config.services.avahi.domainName}";
+
+  hydraDomain = "hydra.saitama.build.dc.nixos.lv";
+  cacheDomain = "saitama.noc.dc.nixos.lv";
 in
 {
   boot.initrd.availableKernelModules = [
@@ -35,9 +37,9 @@ in
     };
     hydra = {
       enable = true;
-      hydraURL = "http://cache.${domainName}.local";
+      hydraURL = "http://${hydraDomain}";
       port = 3000;
-      notificationSender = "nobody@${domainName}.local";
+      notificationSender = "nobody@${hydraDomain}";
       useSubstitutes = true;
     };
     openssh.openFirewall = false;
@@ -49,14 +51,14 @@ in
       recommendedGzipSettings = true;
       recommendedProxySettings = true;
       virtualHosts = {
-        "${domainName}" = {
+        "${cacheDomain}" = {
           default = true;
           locations."/" = {
             proxyPass = "http://${config.services.ncps.server.addr}";
             proxyWebsockets = true;
           };
         };
-        "hydra.${domainName}" = {
+        "${hydraDomain}" = {
           locations."/" = {
             proxyPass = "http://localhost:${builtins.toString config.services.hydra.port}";
             proxyWebsockets = true;
@@ -68,7 +70,7 @@ in
 
   nix.buildMachines = [
     {
-      hostName = "tatsumaki.local";
+      hostName = "tatsumaki.build.dc.nixos.lv";
       system = "aarch64-linux";
       supportedFeatures = [
         "kvm"
@@ -82,7 +84,7 @@ in
       sshUser = "builder";
     }
     {
-      hostName = "genos.local";
+      hostName = "genos.build.dc.nixos.lv";
       system = "aarch64-linux";
       supportedFeatures = [
         "kvm"
@@ -97,17 +99,55 @@ in
     }
   ];
 
-  networking.firewall.interfaces.enP3p3s0f0 = {
-    allowedTCPPorts = [
-      22
-      config.services.hydra.port
-      80
-    ];
-    allowedUDPPorts = [
-      22
-      config.services.hydra.port
-      80
-    ];
+  networking = {
+    useDHCP = false;
+    vlans = {
+      "trunk1.build" = {
+        id = 2;
+        interface = "enP3p3s0f0";
+      };
+      "trunk2.build" = {
+        id = 2;
+        interface = "enP3p3s0f1";
+      };
+      "trunk1.wan" = {
+        id = 3;
+        interface = "enP3p3s0f0";
+      };
+    };
+    interfaces = {
+      build.useDHCP = true;
+      noc.useDHCP = true;
+      wan.useDHCP = true;
+      usb0.useDHCP = true;
+    };
+    bridges = {
+      build.interfaces = [ "trunk1.build" "trunk2.build" ];
+      wan.interfaces = [ "trunk1.wan" ];
+      noc.interfaces = [ "enP3p6s0" ];
+    };
+    firewall.interfaces = {
+      build = {
+        allowedTCPPorts = [
+          22
+          80
+        ];
+        allowedUDPPorts = [
+          22
+          80
+        ];
+      };
+      noc = {
+        allowedTCPPorts = [
+          22
+          80
+        ];
+        allowedUDPPorts = [
+          22
+          80
+        ];
+      };
+    };
   };
 
   nixpkgs.system = "aarch64-linux";
