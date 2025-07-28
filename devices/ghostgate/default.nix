@@ -105,7 +105,18 @@ in
     };
   };
 
-  services.nebula.networks.arena.tun.device = lib.mkForce "nebula.arena";
+  services.nebula.networks.arena = {
+    tun.device = lib.mkForce "nebula.arena";
+    settings.tun = {
+      unsafe_routes = [
+        {
+          route = "0.0.0.0/0";
+          via = "10.6.6.6";
+          install = false;
+        }
+      ];
+    };
+  };
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
@@ -152,7 +163,9 @@ in
     nameservers = [ "127.0.0.1" ];
 
     localCommands = ''
-      ${pkgs.iproute2}/bin/ip rule add from ${arena.subnet} table arena
+      ${pkgs.iproute2}/bin/ip rule replace from all fwmark 0x1 lookup arena
+      ${pkgs.iproute2}/bin/ip route replace 10.6.0.0/16 dev nebula.arena scope link src 10.6.7.1
+      ${pkgs.iproute2}/bin/ip route replace default via 10.6.6.6 table arena
     '';
 
     iproute2 = {
@@ -238,7 +251,10 @@ in
       };
 
       wan2 = {
-        interfaces = [ "trunk1.wan2" "trunk2.wan2" ];
+        interfaces = [
+          "trunk1.wan2"
+          "trunk2.wan2"
+        ];
       };
 
       modem = {
@@ -250,7 +266,10 @@ in
       };
 
       build = {
-        interfaces = [ "trunk1.build" "trunk2.build" ];
+        interfaces = [
+          "trunk1.build"
+          "trunk2.build"
+        ];
       };
 
       arena = {
@@ -339,8 +358,27 @@ in
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
               oifname "build" masquerade
+              oifname "noc" masquerade
               oifname "wan1" masquerade
               oifname "wan2" masquerade
+              oifname "nebula.arena" masquerade
+            }
+          '';
+        };
+
+        classify = {
+          family = "inet";
+          content = ''
+            chain output {
+              type route hook output priority filter; policy accept;
+              #iifname { "noc", "build", "arena" } counter ct mark set 0x00000001
+              #iifname { "noc", "build", "arena" } counter meta mark set ct mark
+            }
+
+            chain prerouting {
+              type filter hook prerouting priority mangle; policy accept;
+              #iifname { "noc", "build", "arena" } counter ct mark set 0x00000001
+              #iifname { "noc", "build", "arena" } counter meta mark set ct mark
             }
           '';
         };
@@ -365,7 +403,7 @@ in
         keyOptions = {
           algorithm = "EC";
           type = "secp256r1";
-          usage = ["sign"];
+          usage = [ "sign" ];
           soPinFile = "/etc/nixpkcs/yubikeys/6460026/so.pin";
           loginAsUser = false;
         };
@@ -391,7 +429,7 @@ in
         keyOptions = {
           algorithm = "EC";
           type = "secp256r1";
-          usage = ["sign"];
+          usage = [ "sign" ];
           soPinFile = "/etc/nixpkcs/yubikeys/6460026/so.pin";
           loginAsUser = false;
         };
@@ -687,13 +725,16 @@ in
           policy:add(policy.suffix(policy.STUB('127.0.0.1@5353'), {todname(v)}))
         end
 
+        -- Stub over Nebula
+        policy:add(policy.suffix(policy.STUB('10.6.6.6@53'), {todname('.')}))
+
         -- Uncomment one of the following stanzas in case you want to forward all requests to 1.1.1.1 or 9.9.9.9 via DNS-over-TLS.
-        policy:add(policy.all(policy.TLS_FORWARD({
-          { '9.9.9.9', hostname='dns.quad9.net', ca_file='/etc/ssl/certs/ca-certificates.crt' },
-          { '2620:fe::fe', hostname='dns.quad9.net', ca_file='/etc/ssl/certs/ca-certificates.crt' },
-          { '1.1.1.1', hostname='cloudflare-dns.com', ca_file='/etc/ssl/certs/ca-certificates.crt' },
-          { '2606:4700:4700::1111', hostname='cloudflare-dns.com', ca_file='/etc/ssl/certs/ca-certificates.crt' },
-        })))
+        --policy:add(policy.all(policy.TLS_FORWARD({
+        --  { '9.9.9.9', hostname='dns.quad9.net', ca_file='/etc/ssl/certs/ca-certificates.crt' },
+        --  { '2620:fe::fe', hostname='dns.quad9.net', ca_file='/etc/ssl/certs/ca-certificates.crt' },
+        --  { '1.1.1.1', hostname='cloudflare-dns.com', ca_file='/etc/ssl/certs/ca-certificates.crt' },
+        --  { '2606:4700:4700::1111', hostname='cloudflare-dns.com', ca_file='/etc/ssl/certs/ca-certificates.crt' },
+        --})))
 
         -- Prefetch learning (20-minute blocks over 24 hours)
         predict.config({ window = 20, period = 72 })
