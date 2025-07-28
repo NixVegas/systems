@@ -276,11 +276,12 @@ in
                 "lo",
                 "noc",
                 "build",
-                "arena"
+                "arena",
+                "nebula.arena"
               } counter accept
 
               # Allow returning traffic from WAN and arena
-              iifname {"wan1", "wan2"} ct state { established, related } counter accept
+              iifname {"wan1", "wan2", "nebula.arena"} ct state { established, related } counter accept
 
               # Allow some ICMP by default
               ip protocol icmp icmp type { destination-unreachable, echo-request, time-exceeded, parameter-problem } accept
