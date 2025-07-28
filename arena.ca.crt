@@ -1,6 +1,19 @@
 # nixos.lv core 10.6.6.0/24, 0.0.0.0, <core>
 # Core infra nodes.
+-----BEGIN NEBULA CERTIFICATE-----
+CocBChNjb3JlLmFyZW5hLm5peG9zLmx2EgmGjJhQgID8/w8aC4CMmFCA/v//DwAA
+IgRjb3JlKNHfm8QGMNGUqvEGOkEEjEIxanDKRvYoIEO6ciB7r/CDF9rxvcYK/ylo
+a8OMNjcoDcwNrJrQ4yE+vY33ELcFLBZva7dxMdH3fvRrgon5mUABoAYBEkcwRQIg
+JCSL9dBD2sMUNp+g8TQZ+p0IDLl1oJOxXR1Pq21htJECIQC3/B9r7yS1mhIRXZtv
+6Zoi4BL/MnFaJT7u3i4SDADPfg==
+-----END NEBULA CERTIFICATE-----
 
 # nixos.lv aux, 10.6.7.0/24, 0.0.0.0, <aux>
-# Aux infra nodes.
-
+# Aux infra nodes, onsite.
+-----BEGIN NEBULA CERTIFICATE-----
+CoUBChJhdXguYXJlbmEubml4b3MubHYSCYeOmFCAgPz/DxoLgI6YUID+//8PAAAi
+A2F1eCjn35vEBjDnlKrxBjpBBKbF6YgTE6QAX+UEn77rgR2fTtfwerg85V+JnT7g
+Fmi6dFqe0cNjxb627jYeEDdNtZ/sFBGuzMnnSCYrYURKyKtAAaAGARJHMEUCIQDV
+4Vmu+1jBQ5rxoWFRfPbMUcbGzTWBgFHuAdKfyjK7jwIgEqn3m4Dj1UCMk05daBYC
+Cg3+iXiocso+1DtqSHP63lo=
+-----END NEBULA CERTIFICATE-----
