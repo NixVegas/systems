@@ -37,12 +37,6 @@
           entryAddressMesh = "10.5.0.1";
         in
         {
-          dns = {
-            addresses = {
-              "10.4.0.1" = [ "ghostgate.noc.dc.nixos.lv" ];
-              ${entryAddressBuild} = [ "ghostgate.build.dc.nixos.lv" ];
-            };
-          };
           wifi.address = "10.5.0.1/24";
           nebula = {
             address = "10.6.7.1";

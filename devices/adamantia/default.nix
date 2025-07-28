@@ -43,6 +43,10 @@ in
     devNodes = "/dev/disk/by-partlabel";
   };
 
+  environment.systemPackages = with pkgs; [
+    git htop nebula
+  ];
+
   networking =
     let
       egress = "ens3";
