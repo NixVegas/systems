@@ -45,7 +45,7 @@
           };
           wifi.address = "10.5.0.1/24";
           nebula = {
-            address = "10.6.0.1";
+            address = "10.6.7.1";
             entryAddresses = [
               entryAddressBuild
               entryAddressMesh
