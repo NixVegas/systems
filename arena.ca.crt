@@ -1,0 +1,6 @@
+# nixos.lv core 10.6.6.0/24, 0.0.0.0, <core>
+# Core infra nodes.
+
+# nixos.lv aux, 10.6.7.0/24, 0.0.0.0, <aux>
+# Aux infra nodes.
+

@@ -1,4 +1,4 @@
-{ nixos-cosmic, ... }:
+{ ... }:
 
 let
   commonModules = [
@@ -7,7 +7,7 @@ let
     ./modules/misc.nix
     ./modules/net.nix
     ./modules/users.nix
-    nixos-cosmic.nixosModules.default
+    ./mesh.nix
   ];
 in
 {
@@ -38,11 +38,22 @@ in
       ./devices/saitama
     ] ++ commonModules;
   };
-  
+
   ghostgate = {
     version = "25.05";
     modules = [
       ./devices/ghostgate
     ] ++ commonModules;
+  };
+
+  adamantia = {
+    version = "25.05";
+    modules = [
+      ./devices/adamantia
+    ] ++ commonModules;
+    address = "adamantia.arena.nixos.lv";
+    profile = {
+      sshUser = "numinit";
+    };
   };
 }
