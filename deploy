@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+deployuser="deploy"
+
+args=()
+provided_hosts=()
+for arg in "$@"; do
+  if [[ "$arg" == --* ]]; then
+    args+=("$arg")
+  else
+    provided_hosts+=("$arg")
+  fi
+done
+
+if [ "${#provided_hosts[@]}" -gt 0 ]; then
+  full_hosts=("${provided_hosts[@]}")
+fi
+
+hosts=()
+for host in "${full_hosts[@]}"; do
+  host="$(basename -- "$host")"
+
+  if [ -n "$host" ]; then
+    hosts+=(".#$host")
+  fi
+done
+
+set -x
+exec deploy ${args[@]:+"${args[@]}"} \
+  --auto-rollback false --magic-rollback false --rollback-succeeded false \
+  --skip-checks --interactive-sudo true \
+  ${hosts[@]:+"${hosts[@]}"} -- -L

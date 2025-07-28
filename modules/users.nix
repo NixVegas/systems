@@ -7,6 +7,12 @@
   security.sudo = {
     enable = true;
     execWheelOnly = true;
+    extraRules = [
+      {
+        users = [ "deploy" ];
+        commands = [ { command = "ALL"; options = [ "NOPASSWD" ]; } ];
+      }
+    ];
   };
 
   users = {
@@ -27,6 +33,7 @@
   };
 
   nix.settings.trusted-users = [
+    "deploy"
     "ross"
     "numinit"
   ];

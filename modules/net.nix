@@ -12,9 +12,13 @@
   services = {
     openssh = {
       enable = true;
+      settings = {
+        PasswordAuthentication = false;
+        KbdInteractiveAuthentication = false;
+      };
     };
     avahi = {
-      enable = true;
+      enable = lib.mkDefault true;
       publish = {
         enable = true;
         userServices = true;
