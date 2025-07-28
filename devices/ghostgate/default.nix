@@ -91,20 +91,21 @@ in
 
   hardware.enableRedistributableFirmware = true;
 
-  /*networking.mesh = {
-    plan = import ../plan.nix;
-      nebula = {
-        enable = true;
-        networkName = "arena";
-        tpm2Key = true;
-      };
+  networking.mesh = {
+    nebula = {
+      enable = true;
+      networkName = "arena";
+      tpm2Key = true;
+    };
     wifi = {
       enable = true;
       countryCode = "US";
       dedicatedWifiDevices = [ "wlp0s13f0u2" ];
       useForFallbackInternetAccess = false;
     };
-  };*/
+  };
+
+  services.nebula.networks.arena.tun.device = lib.mkForce "nebula.arena";
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget

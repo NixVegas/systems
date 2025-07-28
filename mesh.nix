@@ -53,14 +53,18 @@
             isLighthouse = true;
             isRelay = true;
           };
+          ssh = {
+            hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
+          };
         };
     };
 
     constants = {
       wifi = {
-        essid = "/nix/store/dc33-nv-backhaul-1.0";
+        essid = "/nix/var/nix/gcroots/dc33-mesh-a";
         primaryChannel = 5240;
         secondaryChannel = 5745;
+        passwordFile = "/etc/meshos/dc33/a.key";
       };
 
       nebula = {
