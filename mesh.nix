@@ -44,7 +44,7 @@
               entryAddressBuild
               entryAddressMesh
             ];
-            isLighthouse = true;
+            isLighthouse = false;
             isRelay = true;
           };
           ssh = {
