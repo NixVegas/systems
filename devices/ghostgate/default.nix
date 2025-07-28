@@ -346,6 +346,69 @@ in
     };
   };
 
+  nixpkcs = {
+    enable = true;
+    pcsc = {
+      enable = true;
+      users = [ "numinit" ];
+    };
+    tpm2.enable = true;
+    keypairs = {
+      nixos-lv-core = {
+        enable = true;
+        inherit (pkgs.yubico-piv-tool) pkcs11Module;
+        token = "YubiKey PIV #6460026";
+        id = 13; # Retired Key Management #8a
+        debug = true;
+        keyOptions = {
+          algorithm = "EC";
+          type = "secp256r1";
+          usage = ["sign"];
+          soPinFile = "/etc/nixpkcs/yubikeys/6460026/so.pin";
+          loginAsUser = false;
+        };
+        certOptions = {
+          digest = "SHA256";
+          subject = "C=US/ST=California/L=Carlsbad/O=nixos.lv/OU=Arena/CN=Core";
+          validityDays = 365 * 3;
+          extensions = [
+            "v3_ca"
+            "keyUsage=critical,nonRepudiation,keyCertSign,digitalSignature,cRLSign"
+            "crlDistributionPoints=URI:http://keymaster.nixos.lv/ca.crl"
+          ];
+          pinFile = "/etc/nixpkcs/yubikeys/6460026/user.pin";
+          writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-core-ca.crt";
+        };
+      };
+      nixos-lv-aux = {
+        enable = true;
+        inherit (pkgs.yubico-piv-tool) pkcs11Module;
+        token = "YubiKey PIV #6460026";
+        id = 14; # Retired Key Management #8b
+        debug = true;
+        keyOptions = {
+          algorithm = "EC";
+          type = "secp256r1";
+          usage = ["sign"];
+          soPinFile = "/etc/nixpkcs/yubikeys/6460026/so.pin";
+          loginAsUser = false;
+        };
+        certOptions = {
+          digest = "SHA256";
+          subject = "C=US/ST=California/L=Carlsbad/O=nixos.lv/OU=Arena/CN=Aux";
+          validityDays = 365 * 3;
+          extensions = [
+            "v3_ca"
+            "keyUsage=critical,nonRepudiation,keyCertSign,digitalSignature,cRLSign"
+            "crlDistributionPoints=URI:http://keymaster.nixos.lv/ca.crl"
+          ];
+          pinFile = "/etc/nixpkcs/yubikeys/6460026/user.pin";
+          writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-aux-ca.crt";
+        };
+      };
+    };
+  };
+
   services = {
     openssh = {
       enable = true;
