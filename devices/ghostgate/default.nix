@@ -51,9 +51,9 @@ let
   };
 
   # Attendee network.
-  # B.A.T.M.A.N. from other protectli boxes
+  # B.A.T.M.A.N. from other boxes
   arena = rec {
-    id = 38;
+    id = 4;
     prefix = 16;
     subnet = "10.33.0.0/${builtins.toString prefix}";
     address = "10.33.0.1";
@@ -163,8 +163,9 @@ in
     nameservers = [ "127.0.0.1" ];
 
     localCommands = ''
-      ${pkgs.iproute2}/bin/ip rule replace from all fwmark 0x1 lookup arena
-      ${pkgs.iproute2}/bin/ip route replace 10.6.0.0/16 dev nebula.arena scope link src 10.6.7.1
+      ${pkgs.iproute2}/bin/ip rule add from ${arena.subnet} lookup arena
+      ${pkgs.iproute2}/bin/ip rule add from ${build.subnet} lookup arena
+      ${pkgs.iproute2}/bin/ip route replace 10.6.0.0/16 dev nebula.arena scope link table arena
       ${pkgs.iproute2}/bin/ip route replace default via 10.6.6.6 table arena
     '';
 
@@ -317,13 +318,13 @@ in
               # Allow trusted network WAN access
               iifname {
                 "lo",
-                "noc",
-                "build",
-                "arena"
+                "noc"
               } oifname {
                 "wan1",
                 "wan2",
               } counter accept comment "Allow trusted LAN to WAN"
+
+              iifname { "lo", "arena", "build" } oifname { "nebula.arena" } counter accept comment "Allow Arena network to get out"
 
               # Let NOC get to build.
               iifname { "noc" } oifname { "build" } counter accept
@@ -335,9 +336,15 @@ in
                 "wan2"
               } oifname {
                 "lo",
-                "noc",
-                "build",
-                "arena"
+                "noc"
+              } ct state established,related counter accept comment "Allow established back to LANs"
+
+              iifname {
+                "nebula.arena"
+              } oifname {
+                "lo",
+                "arena",
+                "build"
               } ct state established,related counter accept comment "Allow established back to LANs"
             }
           '';
@@ -359,6 +366,7 @@ in
               type nat hook postrouting priority filter; policy accept;
               oifname "build" masquerade
               oifname "noc" masquerade
+              oifname "arena" masquerade
               oifname "wan1" masquerade
               oifname "wan2" masquerade
               oifname "nebula.arena" masquerade
@@ -366,22 +374,25 @@ in
           '';
         };
 
-        classify = {
-          family = "inet";
+        /*broute = {
+          family = "bridge";
           content = ''
-            chain output {
-              type route hook output priority filter; policy accept;
-              #iifname { "noc", "build", "arena" } counter ct mark set 0x00000001
-              #iifname { "noc", "build", "arena" } counter meta mark set ct mark
-            }
-
             chain prerouting {
-              type filter hook prerouting priority mangle; policy accept;
-              #iifname { "noc", "build", "arena" } counter ct mark set 0x00000001
-              #iifname { "noc", "build", "arena" } counter meta mark set ct mark
+              type filter hook prerouting priority -2147483648; policy accept;
+              ether type != ip6 iifname "arena" meta broute set 1
             }
           '';
-        };
+        };*/
+
+        /*mangle = {
+          family = "ip";
+          content = ''
+            chain output {
+              type route hook output priority -150
+              iifname "arena" mark set ct mark mark set 1 counter accept
+            }
+          '';
+        };*/
       };
     };
   };
