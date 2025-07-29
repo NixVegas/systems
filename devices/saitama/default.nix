@@ -24,11 +24,14 @@ in
     fsType = "zfs";
   };
 
-  networking = {
-    hostName = "saitama";
+  hardware = {
+    nvidia.open = true;
+    graphics.enable = true;
   };
 
   services = {
+    desktopManager.cosmic.enable = true;
+    displayManager.cosmic-greeter.enable = true;
     ncps = {
       enable = true;
       server.addr = "localhost:8501";
@@ -105,6 +108,7 @@ in
   ];
 
   networking = {
+    hostName = "saitama";
     useDHCP = false;
     vlans = {
       "trunk1.build" = {
