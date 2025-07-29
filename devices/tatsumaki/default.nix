@@ -11,7 +11,16 @@
     "usbhid"
   ];
 
-  services.openssh.openFirewall = false;
+  hardware = {
+    nvidia.open = true;
+    graphics.enable = true;
+  };
+
+  services = {
+    desktopManager.cosmic.enable = true;
+    displayManager.cosmic-greeter.enable = true;
+    openssh.openFirewall = false;
+  };
 
   networking = {
     useDHCP = false;
