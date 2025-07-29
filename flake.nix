@@ -6,7 +6,7 @@
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixos-cosmic.url = "github:lilyinstarlight/nixos-cosmic";
+    nixos-cosmic.url = "github:lilyinstarlight/nixos-cosmic?ref=pull/863/head";
     nixpkcs.url = "github:numinit/nixpkcs/v1.2";
     meshos.url = "github:numinit/MeshOS";
 
