@@ -165,8 +165,11 @@ in
     localCommands = ''
       ${pkgs.iproute2}/bin/ip rule add from ${arena.subnet} lookup arena
       ${pkgs.iproute2}/bin/ip rule add from ${build.subnet} lookup arena
-      ${pkgs.iproute2}/bin/ip route replace 10.6.0.0/16 dev nebula.arena scope link table arena
-      ${pkgs.iproute2}/bin/ip route replace default via 10.6.6.6 table arena
+      ${pkgs.iproute2}/bin/ip route replace ${config.networking.mesh.plan.constants.nebula.subnet} dev nebula.arena scope link table arena
+      ${pkgs.iproute2}/bin/ip route replace ${arena.subnet} dev arena table arena
+      ${pkgs.iproute2}/bin/ip route replace ${build.subnet} dev build table arena
+      ${pkgs.iproute2}/bin/ip route replace ${noc.subnet} dev noc table arena
+      ${pkgs.iproute2}/bin/ip route replace default via ${config.networking.mesh.plan.hosts.adamantia.nebula.address} table arena
     '';
 
     iproute2 = {
