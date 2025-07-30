@@ -37,6 +37,7 @@
       metric 2000
     '';
     bridges = {
+      # let us plug into the right 10g for a direct link into the buildnet
       build.interfaces = [ "enP3p3s0f0" "trunk2.build" ];
       noc.interfaces = [ "enP3p5s0" ];
     };
