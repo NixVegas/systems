@@ -1,9 +1,19 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }:
 {
+  environment.systemPackages = with pkgs; [
+    git
+    vim
+    htop
+    btop
+    iftop
+    config.boot.kernelPackages.perf
+  ];
+
   systemd.services.nix-daemon.serviceConfig.LimitNOFILE = lib.mkForce 1073741816;
 
   nix.settings = {
