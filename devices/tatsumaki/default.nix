@@ -17,10 +17,6 @@
     useDHCP = false;
     hostName = "tatsumaki";
     vlans = {
-      "trunk1.build" = {
-        id = 2;
-        interface = "enP3p3s0f0";
-      };
       "trunk2.build" = {
         id = 2;
         interface = "enP3p3s0f1";
@@ -32,7 +28,7 @@
       usb0.useDHCP = true;
     };
     bridges = {
-      build.interfaces = [ "trunk1.build" "trunk2.build" ];
+      build.interfaces = [ "enP3p3s0f0" "trunk2.build" ];
       noc.interfaces = [ "enP3p5s0" ];
     };
     firewall.interfaces = {
