@@ -31,6 +31,15 @@
       noc.useDHCP = true;
       usb0.useDHCP = true;
     };
+    dhcpcd.extraConfig = ''
+      # deprioritize noc under build
+      interface build
+      metric 1000
+      interface noc
+      metric 1001
+      interface usb0
+      metric 2000
+    '';
     bridges = {
       build.interfaces = [ "trunk1.build" "trunk2.build" ];
       noc.interfaces = [ "enP3p5s0" ];
