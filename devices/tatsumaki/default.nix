@@ -28,7 +28,7 @@
       usb0.useDHCP = true;
     };
     dhcpcd.extraConfig = ''
-      # deprioritize noc over build
+      # deprioritize noc under build
       interface build
       metric 1000
       interface noc
