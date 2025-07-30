@@ -15,4 +15,5 @@
   };
 
   console.font = lib.mkDefault "sun12x22";
+  hardware.enableRedistributableFirmware = true;
 }
