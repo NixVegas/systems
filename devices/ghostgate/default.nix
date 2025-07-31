@@ -16,9 +16,15 @@ let
 
   tsigSecret = "4YbnpPXSLEj7AWXMXWtC8a102HsNbSSWXjpUhCtikiY=";
 
+  onboardWifi = "wlp7s0";
+  wwan1 = onboardWifi;
+  externalUSBAWifi = "wlp0s13f0u2";
+  externalUSBCWifi = "wlp0s20f0u1";
+
   modemInterfaces = [ "enp0s20f0u3" ];
   wanInterface = "enp3s0";
-  wanInterfaces = lib.singleton wanInterface;
+  wanInterfaces = [ wanInterface ];
+  wwanInterfaces = [ onboardWifi ];
   nocInterfaces = [
     "enp4s0"
     "enp5s0"
@@ -100,7 +106,7 @@ in
     wifi = {
       enable = true;
       countryCode = "US";
-      dedicatedWifiDevices = [ "wlp0s13f0u2" ];
+      dedicatedWifiDevices = [ externalUSBAWifi ];
       useForFallbackInternetAccess = false;
     };
   };
@@ -118,22 +124,38 @@ in
     };
   };
 
+  systemd.services."nebula@arena".postStart = ''
+    _ip() {
+      ${lib.getExe' pkgs.iproute2 "ip"} "$@"
+    }
+
+    _rule_replace() {
+      if [ -z "$(_ip rule show "$@" || true)" ]; then
+        _ip rule add "$@"
+      fi
+    }
+    _rule_replace from ${arena.subnet} lookup arena
+    _rule_replace from ${build.subnet} lookup arena
+    _ip route replace ${config.networking.mesh.plan.constants.nebula.subnet} dev nebula.arena scope link table arena
+    _ip route replace ${arena.subnet} dev arena table arena
+    _ip route replace ${build.subnet} dev build table arena
+    _ip route replace ${noc.subnet} dev noc table arena
+    _ip route replace default via ${config.networking.mesh.plan.hosts.adamantia.nebula.address} table arena
+  '';
+
+
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
     wget
-    vim
     curl
-    git
     tmux
     psmisc
     man-pages
-    htop
-    linuxPackages.perf
-    iftop
     speedtest-cli
     zip
     unzip
+    iw
 
     hdparm
     sdparm
@@ -162,16 +184,6 @@ in
 
     nameservers = [ "127.0.0.1" ];
 
-    localCommands = ''
-      ${pkgs.iproute2}/bin/ip rule add from ${arena.subnet} lookup arena
-      ${pkgs.iproute2}/bin/ip rule add from ${build.subnet} lookup arena
-      ${pkgs.iproute2}/bin/ip route replace ${config.networking.mesh.plan.constants.nebula.subnet} dev nebula.arena scope link table arena
-      ${pkgs.iproute2}/bin/ip route replace ${arena.subnet} dev arena table arena
-      ${pkgs.iproute2}/bin/ip route replace ${build.subnet} dev build table arena
-      ${pkgs.iproute2}/bin/ip route replace ${noc.subnet} dev noc table arena
-      ${pkgs.iproute2}/bin/ip route replace default via ${config.networking.mesh.plan.hosts.adamantia.nebula.address} table arena
-    '';
-
     iproute2 = {
       enable = true;
       rttablesExtraConfig = ''
@@ -183,8 +195,10 @@ in
       # deprioritize modem
       interface wan1
       metric 1000
-      interface wan2
+      interface ${wwan1}
       metric 1001
+      interface wwan2
+      metric 1002
       interface modem
       metric 2000
     '';
@@ -203,11 +217,11 @@ in
         inherit (build) id;
         interface = trunkInterface2;
       };
-      "trunk1.wan2" = {
+      "trunk1.wwan2" = {
         id = 3;
         interface = trunkInterface1;
       };
-      "trunk2.wan2" = {
+      "trunk2.wwan2" = {
         id = 3;
         interface = trunkInterface2;
       };
@@ -216,7 +230,8 @@ in
     interfaces = {
       # DHCP on the WAN interface.
       wan1.useDHCP = true;
-      wan2.useDHCP = true;
+      ${wwan1}.useDHCP = true;
+      wwan2.useDHCP = true;
 
       # And the WWAN interface.
       modem.useDHCP = true;
@@ -250,35 +265,24 @@ in
     };
 
     bridges = {
-      wan1 = {
-        interfaces = wanInterfaces;
-      };
+      wan1.interfaces = wanInterfaces;
 
-      wan2 = {
-        interfaces = [
-          "trunk1.wan2"
-          "trunk2.wan2"
-        ];
-      };
+      wwan2.interfaces = [
+        "trunk1.wwan2"
+        "trunk2.wwan2"
+      ];
 
-      modem = {
-        interfaces = modemInterfaces;
-      };
+      modem.interfaces = modemInterfaces;
 
-      noc = {
-        interfaces = nocInterfaces;
-      };
+      noc.interfaces = nocInterfaces;
 
-      build = {
-        interfaces = [
-          "trunk1.build"
-          "trunk2.build"
-        ];
-      };
+      build.interfaces = [
+        "trunk1.build"
+        "trunk2.build"
+      ];
 
-      arena = {
-        interfaces = arenaInterfaces;
-      };
+      arena.interfaces = arenaInterfaces;
+      "arena.wlan".interfaces = [];
     };
 
     nftables = {
@@ -304,7 +308,7 @@ in
               } counter accept
 
               # Allow returning traffic from WAN and arena
-              iifname {"wan1", "wan2", "nebula.arena"} ct state { established, related } counter accept
+              iifname {"wan1", "${wwan1}", "wwan2", "nebula.arena"} ct state { established, related } counter accept
 
               # Allow some ICMP by default
               ip protocol icmp icmp type { destination-unreachable, echo-request, time-exceeded, parameter-problem } accept
@@ -312,7 +316,8 @@ in
 
               # Drop everything else from WAN
               iifname "wan1" drop
-              iifname "wan2" drop
+              iifname "${wwan1}" drop
+              iifname "wwan2" drop
             }
 
             chain forward {
@@ -324,7 +329,8 @@ in
                 "noc"
               } oifname {
                 "wan1",
-                "wan2",
+                "${wwan1}",
+                "wwan2",
               } counter accept comment "Allow trusted LAN to WAN"
 
               iifname { "lo", "arena", "build" } oifname { "nebula.arena" } counter accept comment "Allow Arena network to get out"
@@ -336,7 +342,8 @@ in
               # Allow established WAN to return
               iifname {
                 "wan1",
-                "wan2"
+                "${wwan1}",
+                "wwan2"
               } oifname {
                 "lo",
                 "noc"
@@ -371,7 +378,8 @@ in
               oifname "noc" masquerade
               oifname "arena" masquerade
               oifname "wan1" masquerade
-              oifname "wan2" masquerade
+              oifname "${wwan1}" masquerade
+              oifname "wwan2" masquerade
               oifname "nebula.arena" masquerade
             }
           '';
@@ -458,6 +466,36 @@ in
           ];
           pinFile = "/etc/nixpkcs/yubikeys/6460026/user.pin";
           writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-aux-ca.crt";
+        };
+      };
+    };
+  };
+
+  networking.wireless = {
+    enable = true;
+    interfaces = [ onboardWifi ];
+    fallbackToWPA2 = false;
+    allowAuxiliaryImperativeNetworks = true;
+    userControlled.enable = true;
+  };
+
+  services.hostapd = {
+    enable = true;
+    radios.${externalUSBCWifi} = {
+      countryCode = "US";
+      band = "5g";
+      channel = 36;
+      networks = {
+        ${externalUSBCWifi} = {
+          ssid = "NixVegas";
+          authentication = {
+            mode = "wpa3-sae";
+            saePasswordsFile = "/etc/meshos/dc33/nixvegas.key";
+            enableRecommendedPairwiseCiphers = true;
+          };
+          settings = {
+            bridge = "arena";
+          };
         };
       };
     };
