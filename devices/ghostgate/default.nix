@@ -19,7 +19,7 @@ let
   onboardWifi = "wlp7s0";
   wwan1 = onboardWifi;
   externalUSBAWifi = "wlp0s13f0u2";
-  externalUSBCWifi = "wlp0s20f0u1";
+  externalUSBCWifi = "wlp0s20f0u8";
 
   modemInterfaces = [ "enp0s20f0u3" ];
   wanInterface = "enp3s0";
