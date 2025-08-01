@@ -46,6 +46,13 @@ in
     ] ++ commonModules;
   };
 
+  vivec = {
+    version = "25.05";
+    modules = [
+      ./devices/vivec
+    ] ++ commonModules;
+  };
+
   adamantia = {
     version = "25.05";
     modules = [

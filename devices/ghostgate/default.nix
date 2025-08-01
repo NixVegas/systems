@@ -19,7 +19,7 @@ let
   onboardWifi = "wlp7s0";
   wwan1 = onboardWifi;
   externalUSBAWifi = "wlp0s13f0u2";
-  externalUSBCWifi = "wlp0s20f0u8";
+  externalUSBCWifi = "wlp0s13f0u3";
 
   modemInterfaces = [ "enp0s20f0u3" ];
   wanInterface = "enp3s0";
@@ -57,14 +57,13 @@ let
   };
 
   # Attendee network.
-  # B.A.T.M.A.N. from other boxes
   arena = rec {
     id = 4;
-    prefix = 16;
+    prefix = 24;
     subnet = "10.33.0.0/${builtins.toString prefix}";
     address = "10.33.0.1";
-    dhcpStart = "10.33.128.1";
-    dhcpEnd = "10.33.254.254";
+    dhcpStart = "10.33.0.128";
+    dhcpEnd = "10.33.0.254";
     dhcpDomain = "arena.${domain}";
   };
 in
@@ -483,14 +482,16 @@ in
     enable = true;
     radios.${externalUSBCWifi} = {
       countryCode = "US";
-      band = "5g";
-      channel = 36;
+      band = "2g";
+      channel = 4;
+      wifi6.enable = true;
       networks = {
         ${externalUSBCWifi} = {
           ssid = "NixVegas";
           authentication = {
-            mode = "wpa3-sae";
-            saePasswordsFile = "/etc/meshos/dc33/nixvegas.key";
+            mode = "wpa3-sae-transition";
+            saePasswordsFile = "/etc/meshos/dc33/nixvegas.wpa3.keys";
+            wpaPskFile = "/etc/meshos/dc33/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
           };
           settings = {
@@ -686,7 +687,6 @@ in
           @ NS nameserver
           nameserver A 127.0.0.1
           hydra.saitama.build.${domain}. CNAME saitama.build.${domain}.
-          cache.saitama.build.${domain}. CNAME saitama.build.${domain}.
           hydra.nixos.lv. CNAME hydra.saitama.build.${domain}.
         '';
         zonesDir = pkgs.buildEnv {
