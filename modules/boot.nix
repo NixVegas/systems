@@ -9,6 +9,12 @@
     "fs.inotify.max_user_watches" = 16384;
   };
 
+  boot.tmp = {
+    useTmpfs = true;
+    tmpfsHugeMemoryPages = "within_size";
+    cleanOnBoot = true;
+  };
+
   boot.loader = {
     systemd-boot.enable = lib.mkDefault true;
     efi.canTouchEfiVariables = lib.mkDefault true;
