@@ -26,9 +26,7 @@
             isRelay = true;
             defaultRouteMetric = 2010;
           };
-          ssh = {
-            hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGdx91MTYIyUYNxALvGeMkke3fPRxvOEzVdy2cDa8tbh root@adamantia";
-          };
+          ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGdx91MTYIyUYNxALvGeMkke3fPRxvOEzVdy2cDa8tbh root@adamantia";
         };
 
       ghostgate =
@@ -47,9 +45,13 @@
             isLighthouse = false;
             isRelay = true;
           };
-          ssh = {
-            hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
-          };
+          ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
+        };
+
+        vivec = {
+          wifi.address = "10.5.1.3/16";
+          nebula.address = "10.6.8.1";
+          ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vivec";
         };
     };
 

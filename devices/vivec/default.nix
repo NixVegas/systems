@@ -54,7 +54,7 @@ in
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 
   boot.kernelParams = [ "console=tty0" "console=ttyS0,115200n8" ];
-  boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod;
+  boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod_stable;
 
   services.gpsd = let
     nmeaDevice = "/dev/serial/by-id/usb-Qualcomm_MDG200-if02-port0";
@@ -66,11 +66,11 @@ in
     extraArgs = [ "-s" "9600" "-f" "8N1" ];
   };
 
-  /*boot.kernelPatches = [{
+  boot.kernelPatches = [{
     name = "tremont-march";
     patch = ./0001-arch-x86-Kconfig.cpu-Add-Tremont-support.patch;
     extraStructuredConfig.MTREMONT = lib.kernel.yes;
-  }];*/
+  }];
 
   boot.kernel.sysctl = {
     "net.ipv4.conf.all.forwarding" = true;
@@ -85,28 +85,65 @@ in
   networking.mesh = {
     wifi = {
       enable = true;
+      countryCode = "US";
       dedicatedWifiDevices = lib.mkDefault [ "wlp0s20f0u4" ];
-      useForFallbackInternetAccess = false;
+      useForFallbackInternetAccess = true;
       # 20/30 under ideal conditions over 4G, hotel wifi limited to
       # 50, let's just call it 50 for BATMAN throughput estimation purposes
       advertisedUploadMbps = 50;
       advertisedDownloadMbps = 50;
     };
+    nebula = {
+      enable = true;
+      networkName = "arena";
+      tpm2Key = true;
+    };
+    ieee80211s.networks.mesh2.metric = 1001;
   };
+
+  services.nebula.networks.arena = {
+    tun.device = lib.mkForce "nebula.arena";
+  };
+
+  # These commands will let users on DHCP get out over the LAN ports.
+  systemd.services."nebula@arena".postStart = ''
+    _ip() {
+      ${lib.getExe' pkgs.iproute2 "ip"} "$@"
+    }
+
+    _rule_replace() {
+      if [ -z "$(_ip rule show "$@" || true)" ]; then
+        _ip rule add "$@"
+      fi
+    }
+    _rule_replace from ${arena.subnet} lookup arena
+
+    # Let them get to the local network
+    _ip route replace ${arena.subnet} dev arena table arena
+
+    # Let them get to the mesh peers
+    _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 table arena
+
+    # If there's a wan port, route through that
+    _ip route replace default dev wan metric 1000 table arena
+
+    # Otherwise route them through our wifi.
+    # TODO: Maybe actually go nebula with the router as a gateway; Nebula will be more resilient
+    # but BATMAN will work here too.
+    _ip route replace default via ${lib.head (lib.split "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address)} metric 1001 table arena
+  '';
 
   services.kismet = {
     enable = true;
     httpd.enable = true;
+    serverName = config.networking.hostName;
     settings = {
-      serverName = config.networking.hostName;
-      sources = {
+      source = {
         ${mon} = {
           name = "panda2";
         };
       };
-      settings = {
-        gps.gpsd = { host = "localhost"; port = 2947; };
-      };
+      gps.gpsd = { host = "localhost"; port = 2947; };
     };
   };
 
@@ -135,20 +172,31 @@ in
     nat.enable = lib.mkForce false;
     firewall.enable = false;
 
+    iproute2 = {
+      enable = true;
+      rttablesExtraConfig = ''
+        200 arena
+      '';
+    };
+
     dhcpcd = {
       allowInterfaces = [ "wan" wwan "modem" ];
       extraConfig = ''
         interface wan
         metric 1000
 
+        # This is handled by BATMAN
+        #interface mesh2
+        #metric 1001
+
         interface arena
-        metric 1001
+        metric 1002
 
         interface ${wwan}
-        metric 1002
+        metric 1003
 
         interface modem
-        metric 1002
+        metric 1004
       '';
     };
 
@@ -165,12 +213,8 @@ in
     };
 
     bridges = {
-      lan = {
-        interfaces = [ "eth0" "enp2s0" ];
-      };
-
-      guest = {
-        interfaces = [ "enp3s0" ];
+      arena = {
+        interfaces = [ "eth0" "enp2s0" "enp3s0" ];
       };
 
       wan = {
@@ -221,7 +265,7 @@ in
               ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, echo-request, time-exceeded, parameter-problem, packet-too-big } accept
 
               # Drop everything else from untrusted external interfaces
-              iifname {"wan", "${wwan}", "modem"} drop
+              iifname {"${wwan}", "modem"} drop
             }
 
             chain forward {
@@ -232,7 +276,8 @@ in
                 "lo",
                 "arena"
               } oifname {
-                "mesh2"
+                "mesh2",
+                "wan"
               } counter accept comment "Allow trusted LAN to Arena or the mesh"
 
               # Allow less trusted networks to get internet access without being able to hit LAN
@@ -253,6 +298,7 @@ in
               # Allow established WAN to return
               iifname {
                 "mesh2",
+                "wan",
                 "${wwan}",
                 "modem"
               } oifname {
@@ -277,7 +323,7 @@ in
             # Setup NAT masquerading on the Arena interface
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
-              oifname {"arena", "mesh2"} masquerade
+              oifname {"wan", "arena", "mesh2"} masquerade
             }
           '';
         };
@@ -422,10 +468,7 @@ in
 
     ntp = {
       enable = true;
-      servers = lib.flatten (
-        lib.mapAttrsToList (_: host: builtins.attrValues host.dns.addresses)
-          (lib.filterAttrs (name: value: value ? dns) pkgs.lib.distractions.hosts.ntpServers)
-      );
+      servers = [ "10.6.0.1" ];
       extraConfig = ''
         # GPS Serial data reference
         server 127.127.28.0 minpoll 4 maxpoll 4
@@ -645,9 +688,13 @@ in
     };
   };
 
+  systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];
+
   # This value determines the NixOS release with which your system is to be
   # compatible, in order to avoid breaking some software such as database
   # servers. You should change this only after NixOS release notes say you
   # should.
   system.stateVersion = "25.05"; # Did you read the comment?
+
+  nixpkgs.system = "x86_64-linux";
 }
