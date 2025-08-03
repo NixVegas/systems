@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, pkgs, config, ... }:
 
 let
   hydraDomain = "hydra.saitama.build.dc.nixos.lv";
@@ -27,6 +27,8 @@ in
     graphics.enable = true;
   };
 
+  environment.systemPackages = with pkgs; [ nebula ];
+
   services = {
     desktopManager.cosmic.enable = true;
     displayManager.cosmic-greeter.enable = true;
@@ -46,13 +48,6 @@ in
       recommendedGzipSettings = true;
       recommendedProxySettings = true;
       virtualHosts = {
-        "${cacheDomain}" = {
-          default = true;
-          locations."/" = {
-            proxyPass = "http://${config.services.ncps.server.addr}";
-            proxyWebsockets = true;
-          };
-        };
         "${hydraDomain}" = {
           locations."/" = {
             proxyPass = "http://localhost:${builtins.toString config.services.hydra.port}";
@@ -158,6 +153,10 @@ in
       };
     };
     mesh = {
+      nebula = {
+        enable = true;
+        networkName = "arena";
+      };
       cache = {
         client = {
           enable = true;

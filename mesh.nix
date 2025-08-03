@@ -42,7 +42,7 @@
               entryAddressBuild
               entryAddressMesh
             ];
-            isLighthouse = false;
+            isLighthouse = true;
             isRelay = true;
           };
           cache = {
