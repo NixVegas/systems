@@ -107,6 +107,7 @@ in
       countryCode = "US";
       dedicatedWifiDevices = [ externalUSBAWifi ];
       useForFallbackInternetAccess = false;
+      sharedInternetDevice = "nebula.arena";
     };
   };
 
@@ -135,10 +136,12 @@ in
     }
     _rule_replace from ${arena.subnet} lookup arena
     _rule_replace from ${build.subnet} lookup arena
-    _ip route replace ${config.networking.mesh.plan.constants.nebula.subnet} dev nebula.arena scope link table arena
+    _rule_replace from ${config.networking.mesh.plan.constants.wifi.subnet} lookup arena
+    _rule_replace from ${config.networking.mesh.plan.constants.nebula.subnet} lookup arena
     _ip route replace ${arena.subnet} dev arena table arena
     _ip route replace ${build.subnet} dev build table arena
     _ip route replace ${noc.subnet} dev noc table arena
+    _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 table arena
     _ip route replace default via ${config.networking.mesh.plan.hosts.adamantia.nebula.address} table arena
   '';
 
@@ -303,11 +306,12 @@ in
                 "noc",
                 "build",
                 "arena",
-                "nebula.arena"
+                "nebula.arena",
+                "mesh2"
               } counter accept
 
-              # Allow returning traffic from WAN and arena
-              iifname {"wan1", "${wwan1}", "wwan2", "nebula.arena"} ct state { established, related } counter accept
+              # Allow returning traffic from WAN, arena, and the mesh
+              iifname {"wan1", "${wwan1}", "wwan2", "nebula.arena", "mesh2"} ct state { established, related } counter accept
 
               # Allow some ICMP by default
               ip protocol icmp icmp type { destination-unreachable, echo-request, time-exceeded, parameter-problem } accept
@@ -332,7 +336,7 @@ in
                 "wwan2",
               } counter accept comment "Allow trusted LAN to WAN"
 
-              iifname { "lo", "arena", "build" } oifname { "nebula.arena" } counter accept comment "Allow Arena network to get out"
+              iifname { "lo", "arena", "build", "mesh2" } oifname { "nebula.arena" } counter accept comment "Allow Arena network to get out"
 
               # Let NOC get to build.
               iifname { "noc" } oifname { "build" } counter accept
@@ -353,7 +357,8 @@ in
               } oifname {
                 "lo",
                 "arena",
-                "build"
+                "build",
+                "mesh2"
               } ct state established,related counter accept comment "Allow established back to LANs"
             }
           '';
@@ -366,20 +371,23 @@ in
               type nat hook prerouting priority filter; policy accept;
 
               # Redirect DNS and NTP queries to us
-              iifname {"noc", "build", "arena"} udp dport {53, 123} counter redirect
-              iifname {"noc", "build", "arena"} tcp dport {53} counter redirect
+              iifname {"noc", "build", "arena", "mesh2"} udp dport {53, 123} counter redirect
+              iifname {"noc", "build", "arena", "mesh2"} tcp dport {53} counter redirect
             }
 
             # Setup NAT masquerading on the wan interface
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
-              oifname "build" masquerade
-              oifname "noc" masquerade
-              oifname "arena" masquerade
-              oifname "wan1" masquerade
-              oifname "${wwan1}" masquerade
-              oifname "wwan2" masquerade
-              oifname "nebula.arena" masquerade
+              oifname {
+                "build",
+                "noc",
+                "arena",
+                "wan1",
+                "${wwan1}",
+                "wwan2",
+                "nebula.arena",
+                "mesh2"
+              } masquerade
             }
           '';
         };
@@ -748,6 +756,7 @@ in
         "${noc.address}:53"
         "${build.address}:53"
         "${arena.address}:53"
+        "${lib.head (lib.split "/" config.networking.mesh.plan.hosts.${config.networking.hostName}.wifi.address)}:53"
         "127.0.0.1:53"
         "[::1]:53"
       ];
@@ -766,7 +775,7 @@ in
         }
 
         -- Accept all requests from these subnets
-        subnets = { '${noc.subnet}', '${build.subnet}', '${arena.subnet}', '127.0.0.0/8' }
+        subnets = { '${noc.subnet}', '${build.subnet}', '${arena.subnet}', '${config.networking.mesh.plan.constants.wifi.subnet}', '127.0.0.0/8' }
         for i, v in ipairs(subnets) do
           view:addr(v, function(req, qry) return policy.PASS end)
         end

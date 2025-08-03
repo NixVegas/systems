@@ -37,7 +37,7 @@
           entryAddressMesh = "10.5.0.1";
         in
         {
-          wifi.address = "10.5.0.1/24";
+          wifi.address = "10.5.0.1/16";
           nebula = {
             address = "10.6.7.1";
             entryAddresses = [
@@ -59,6 +59,7 @@
         primaryChannel = 5240;
         secondaryChannel = 5745;
         passwordFile = "/etc/meshos/dc33/a.key";
+        subnet = "10.5.0.0/16";
       };
 
       nebula = {
