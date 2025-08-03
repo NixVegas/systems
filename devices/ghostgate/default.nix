@@ -502,6 +502,9 @@ in
     };
   };
 
+  # Restart it if it fails
+  systemd.services.hostapd.unitConfig.StartLimitIntervalSec = 0;
+
   services = {
     openssh = {
       enable = true;
@@ -793,6 +796,8 @@ in
       '';
     };
   };
+
+  systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];
 
   # Set your time zone.
   time.timeZone = lib.mkOverride 10 "America/Los_Angeles";
