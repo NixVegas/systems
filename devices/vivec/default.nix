@@ -14,7 +14,7 @@ let
   wwan = "wlp0s20f0u3";
 
   # WLAN
-  wlan = "wlp0s20f0u1";
+  wlan = "wlp0s20f0u8";
 
   # Monitor
   mon = "wlp0s20f0u2";
@@ -484,13 +484,15 @@ in
       enable = true;
       radios.${wlan} = {
         countryCode = "US";
-        band = "5g";
-        channel = 48;
+        band = "2g";
+        channel = 8;
+        wifi6.enable = true;
         networks.${wlan} = {
           ssid = "NixVegas";
           authentication = {
-            mode = "wpa3-sae";
-            saePasswordsFile = "/etc/meshos/dc33/nixvegas.key";
+            mode = "wpa3-sae-transition";
+            saePasswordsFile = "/etc/meshos/dc33/nixvegas.wpa3.keys";
+            wpaPskFile = "/etc/meshos/dc33/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
           };
           settings = {
@@ -679,7 +681,8 @@ in
           policy:add(policy.suffix(policy.FORWARD({'127.0.0.1@5353'}), {todname(v)}))
         end
 
-        -- Route upstream
+        -- Route upstream, over the meshes
+        policy:add(policy.suffix(policy.STUB('10.5.0.1@53'), {todname('.')}))
         policy:add(policy.suffix(policy.STUB('10.6.6.6@53'), {todname('.')}))
 
         -- Prefetch learning (20-minute blocks over 24 hours)
