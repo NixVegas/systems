@@ -121,6 +121,7 @@ in
       client = {
         enable = true;
         useHydra = false;
+        trustHydra = true;
         useRecommendedCacheSettings = true;
       };
     };

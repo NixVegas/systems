@@ -83,6 +83,7 @@
           nebula.address = "10.6.8.3";
           cache = {
             server = {
+              port = 5000;
               # provides great-value-hydra
               sets = [ "gvh" ];
             };
