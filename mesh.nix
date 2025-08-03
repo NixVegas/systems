@@ -45,13 +45,51 @@
             isLighthouse = false;
             isRelay = true;
           };
+          cache = {
+            server = {
+              # provides cache.nixos.lv
+              sets = [ "cnl" ];
+            };
+            client = {
+              # we want great-value-hydra
+              sets = [ "gvh" ];
+            };
+          };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
         };
 
         vivec = {
           wifi.address = "10.5.1.3/16";
           nebula.address = "10.6.8.1";
+          cache = {
+            client = {
+              # wants cache.nixos.lv
+              sets = [ "cnl" ];
+            };
+          };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vivec";
+        };
+
+        bigzam = {
+          nebula.address = "10.6.8.2";
+        };
+
+        saitama = {
+          nebula.address = "10.6.8.3";
+          cache = {
+            server = {
+              # provides great-value-hydra
+              sets = [ "gvh" ];
+            };
+          };
+        };
+
+        genos = {
+          nebula.address = "10.6.8.4";
+        };
+
+        tatsumaki = {
+          nebula.address = "10.6.8.5";
         };
     };
 

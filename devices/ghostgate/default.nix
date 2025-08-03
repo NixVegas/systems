@@ -94,6 +94,11 @@ in
     "net.ipv6.conf.${wanInterface}.autoconf" = 1;
   };
 
+  fileSystems."/var/lib/ncps" = {
+    device = "ghostgate/local/cache";
+    fsType = "zfs";
+  };
+
   hardware.enableRedistributableFirmware = true;
 
   networking.mesh = {
@@ -108,6 +113,16 @@ in
       dedicatedWifiDevices = [ externalUSBAWifi ];
       useForFallbackInternetAccess = false;
       sharedInternetDevice = "nebula.arena";
+    };
+    cache = {
+      server = {
+        enable = true;
+      };
+      client = {
+        enable = true;
+        useHydra = false;
+        useRecommendedCacheSettings = true;
+      };
     };
   };
 

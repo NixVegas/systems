@@ -1,8 +1,6 @@
 { lib, config, ... }:
 
 let
-  inherit (config.networking) hostName;
-
   hydraDomain = "hydra.saitama.build.dc.nixos.lv";
   cacheDomain = "saitama.noc.dc.nixos.lv";
 in
@@ -32,17 +30,6 @@ in
   services = {
     desktopManager.cosmic.enable = true;
     displayManager.cosmic-greeter.enable = true;
-    ncps = {
-      enable = true;
-      server.addr = "localhost:8501";
-      cache = {
-        inherit hostName;
-      };
-      upstream = {
-        caches = [ "https://cache.nixos.org" ];
-        publicKeys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
-      };
-    };
     hydra = {
       enable = true;
       hydraURL = "http://${hydraDomain}";
@@ -151,6 +138,8 @@ in
         allowedTCPPorts = [
           22
           80
+          # harmonia
+          5000
         ];
         allowedUDPPorts = [
           22
@@ -168,6 +157,18 @@ in
         ];
       };
     };
+    mesh = {
+      cache = {
+        client = {
+          enable = true;
+          useHydra = true;
+        };
+      };
+    };
+  };
+
+  services.harmonia = {
+    enable = true;
   };
 
   nixpkgs.system = "aarch64-linux";
