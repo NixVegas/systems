@@ -61,21 +61,12 @@
       build = {
         allowedTCPPorts = [
           22
-        ];
-        allowedUDPPorts = [
-          22
+          # harmonia
+          5000
         ];
       };
       arena = build;
-
-      noc = {
-        allowedTCPPorts = [
-          22
-        ];
-        allowedUDPPorts = [
-          22
-        ];
-      };
+      noc = build;
     };
     mesh = {
       nebula = {

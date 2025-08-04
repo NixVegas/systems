@@ -48,19 +48,9 @@
         allowedTCPPorts = [
           22
         ];
-        allowedUDPPorts = [
-          22
-        ];
       };
       arena = build;
-      noc = {
-        allowedTCPPorts = [
-          22
-        ];
-        allowedUDPPorts = [
-          22
-        ];
-      };
+      noc = build;
     };
     mesh = {
       nebula = {

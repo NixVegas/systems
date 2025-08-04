@@ -142,17 +142,7 @@ in
         ];
       };
       arena = build;
-
-      noc = {
-        allowedTCPPorts = [
-          22
-          80
-        ];
-        allowedUDPPorts = [
-          22
-          80
-        ];
-      };
+      noc = build;
     };
     mesh = {
       nebula = {
@@ -163,6 +153,8 @@ in
         client = {
           enable = true;
           useHydra = true;
+          trustHydra = true;
+          useRecommendedCacheSettings = true;
         };
       };
     };
