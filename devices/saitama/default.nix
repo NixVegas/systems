@@ -160,6 +160,9 @@ in
     };
   };
 
+  # Prefer build (10Gbit)
+  services.nebula.networks.arena.settings.preferred_ranges = [ "10.4.1.0/24" ];
+
   services.harmonia = {
     enable = true;
   };

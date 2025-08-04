@@ -85,6 +85,8 @@
   };
 
   services = {
+    # Prefer build (10Gbit)
+    nebula.networks.arena.settings.preferred_ranges = [ "10.4.1.0/24" ];
     desktopManager.cosmic.enable = true;
     displayManager.cosmic-greeter.enable = true;
     harmonia.enable = true;

@@ -129,14 +129,20 @@ in
 
   services.nebula.networks.arena = {
     tun.device = lib.mkForce "nebula.arena";
-    settings.tun = {
-      unsafe_routes = [
-        {
-          route = "0.0.0.0/0";
-          via = "10.6.6.6";
-          install = false;
-        }
-      ];
+    settings = {
+      tun = {
+        # 10.6.6.6 is an internet gateway
+        unsafe_routes = [
+          {
+            route = "0.0.0.0/0";
+            via = "10.6.6.6";
+            install = false;
+          }
+        ];
+      };
+
+      # Prefer build (10Gbit)
+      preferred_ranges = [ build.subnet ];
     };
   };
 
