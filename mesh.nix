@@ -77,12 +77,22 @@
 
         bigzam = {
           nebula.address = "10.6.8.2";
+          cache = {
+            server = {
+              priority = 20;
+              port = 5000;
+              # provides great-value-hydra
+              # left commented for now because down
+              #sets = [ "gvh" ];
+            };
+          };
         };
 
         saitama = {
           nebula.address = "10.6.8.3";
           cache = {
             server = {
+              priority = 10;
               port = 5000;
               # provides great-value-hydra
               sets = [ "gvh" ];

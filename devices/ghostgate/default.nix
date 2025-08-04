@@ -7,14 +7,14 @@
   pkgs,
   lib,
   modulesPath,
+  meshos,
   ...
 }:
 
 let
   hostName = "ghostgate";
-  domain = "dc.nixos.lv";
-
-  tsigSecret = "4YbnpPXSLEj7AWXMXWtC8a102HsNbSSWXjpUhCtikiY=";
+  baseDomain = "nixos.lv";
+  domain = "dc.${baseDomain}";
 
   onboardWifi = "wlp7s0";
   wwan1 = onboardWifi;
@@ -565,7 +565,16 @@ in
           ];
         };
 
-        subnet4 = [
+        subnet4 = let
+          inherit ((pkgs.callPackage "${meshos}/lib/net.nix" { }).lib) net;
+          mkReservation = network: mac: ip: hostname:
+            {
+              hw-address = mac;
+              ip-address = net.ip.add ip (lib.head (lib.split "/" network.subnet));
+              inherit hostname;
+              #hostname = "${hostname}.${network.dhcpDomain}.";
+            };
+        in [
           {
             inherit (noc) subnet id;
             pools = [
@@ -573,7 +582,13 @@ in
                 pool = "${noc.dhcpStart} - ${noc.dhcpEnd}";
               }
             ];
-            ddns-qualifying-suffix = "noc.${domain}";
+            reservations = [
+              (mkReservation noc "10:ff:e0:37:91:ba" 2 "bigzam")
+              (mkReservation noc "9c:6b:00:4b:13:38" 3 "saitama")
+              (mkReservation noc "9c:6b:00:4b:13:32" 4 "genos")
+              (mkReservation noc "9c:6b:00:47:31:fe" 5 "tatsumaki")
+            ];
+            ddns-qualifying-suffix = "${noc.dhcpDomain}.";
             option-data = [
               {
                 name = "routers";
@@ -605,7 +620,13 @@ in
                 pool = "${build.dhcpStart} - ${build.dhcpEnd}";
               }
             ];
-            ddns-qualifying-suffix = "build.${domain}";
+            reservations = [
+              (mkReservation build "10:ff:e0:37:91:bb" 2 "bigzam")
+              (mkReservation build "9c:6b:00:4b:13:36" 3 "saitama")
+              (mkReservation build "9c:6b:00:4b:13:30" 4 "genos")
+              (mkReservation build "9c:6b:00:47:31:fc" 5 "tatsumaki")
+            ];
+            ddns-qualifying-suffix = "${build.dhcpDomain}.";
             option-data = [
               {
                 name = "routers";
@@ -637,7 +658,7 @@ in
                 pool = "${arena.dhcpStart} - ${arena.dhcpEnd}";
               }
             ];
-            ddns-qualifying-suffix = "arena.${domain}";
+            ddns-qualifying-suffix = "${arena.dhcpDomain}.";
             option-data = [
               {
                 name = "routers";
@@ -672,7 +693,7 @@ in
         };
 
         ddns-send-updates = true;
-        ddns-qualifying-suffix = domain;
+        ddns-qualifying-suffix = "${domain}.";
         ddns-update-on-renew = true;
         ddns-replace-client-name = "when-not-present";
         hostname-char-set = "[^A-Za-z0-9.-]";
@@ -686,12 +707,12 @@ in
         forward-ddns = {
           ddns-domains = [
             {
-              name = "${domain}.";
-              key-name = domain;
+              name = "${baseDomain}.";
+              key-name = "nixos-lv-key";
               dns-servers = [
                 {
                   ip-address = "127.0.0.1";
-                  port = 5353;
+                  port = 53535;
                 }
               ];
             }
@@ -699,9 +720,9 @@ in
         };
         tsig-keys = [
           {
-            name = domain;
+            name = "nixos-lv-key";
             algorithm = "HMAC-SHA256";
-            secret = tsigSecret;
+            secret-file = "/etc/kea/tsig.key";
           }
         ];
       };
@@ -709,12 +730,18 @@ in
 
     knot =
       let
-        zone = pkgs.writeTextDir "${domain}.zone" ''
-          @ SOA ns.${domain} nox.${domain} 0 86400 7200 3600000 172800
+        # nameserver A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
+        zone = pkgs.writeTextDir "${baseDomain}.zone" ''
+          @ SOA ns noc.${baseDomain} 10 86400 7200 3600000 172800
           @ NS nameserver
           nameserver A 127.0.0.1
+          ${baseDomain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
+          www.${baseDomain} CNAME ghostgate.${domain}.
+          cache.${baseDomain}. CNAME ghostgate.${domain}.
+          ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
+
           hydra.saitama.build.${domain}. CNAME saitama.build.${domain}.
-          hydra.nixos.lv. CNAME hydra.saitama.build.${domain}.
+          hydra.${baseDomain}. CNAME hydra.saitama.build.${domain}.
         '';
         zonesDir = pkgs.buildEnv {
           name = "knot-zones";
@@ -726,25 +753,21 @@ in
         extraArgs = [
           "-v"
         ];
+        keyFiles = [ "/etc/knot/tsig.conf" ];
         settings = {
           server = {
-            listen = "127.0.0.1@5353";
+            listen = "127.0.0.1@53535";
           };
           log = {
             syslog = {
               any = "debug";
             };
           };
-          key = {
-            ${domain} = {
-              algorithm = "hmac-sha256";
-              secret = tsigSecret;
-            };
-          };
           acl = {
-            "key.${domain}" = {
-              key = domain;
+            nixos-lv-acl = {
+              key = "nixos-lv-key";
               action = "update";
+              #update-type = [ "A" ];
             };
           };
           template = {
@@ -756,9 +779,9 @@ in
             };
           };
           zone = {
-            ${domain} = {
-              file = "${domain}.zone";
-              acl = [ "key.${domain}" ];
+            ${baseDomain} = {
+              file = "${baseDomain}.zone";
+              acl = [ "nixos-lv-acl" ];
             };
           };
         };
@@ -791,7 +814,14 @@ in
         }
 
         -- Accept all requests from these subnets
-        subnets = { '${noc.subnet}', '${build.subnet}', '${arena.subnet}', '${config.networking.mesh.plan.constants.wifi.subnet}', '127.0.0.0/8' }
+        subnets = {
+          '${noc.subnet}',
+          '${build.subnet}',
+          '${arena.subnet}',
+          '${config.networking.mesh.plan.constants.wifi.subnet}',
+          '${config.networking.mesh.plan.constants.nebula.subnet}',
+          '127.0.0.0/8'
+        }
         for i, v in ipairs(subnets) do
           view:addr(v, function(req, qry) return policy.PASS end)
         end
@@ -799,13 +829,22 @@ in
         -- Drop everything that hasn't matched
         view:addr('0.0.0.0/0', function (req, qry) return policy.DROP end)
 
+        -- We are responsible for these.
+        our_domains = {
+          'nixos.lv.',
+          'www.nixos.lv.',
+          'cache.nixos.lv.',
+          'hydra.nixos.lv.'
+        }
+        policy:add(policy.domains(policy.STUB('127.0.0.1@53535'), policy.todnames(our_domains)))
+
         -- Forward requests for the local DHCP domains.
         local_domains = { 'noc.${domain}.', 'build.${domain}.', 'arena.${domain}.' }
         for i, v in ipairs(local_domains) do
-          policy:add(policy.suffix(policy.STUB('127.0.0.1@5353'), {todname(v)}))
+          policy:add(policy.suffix(policy.STUB('127.0.0.1@53535'), {todname(v)}))
         end
 
-        -- Stub over Nebula
+        -- Stub everything else over Nebula
         policy:add(policy.suffix(policy.STUB('10.6.6.6@53'), {todname('.')}))
 
         -- Uncomment one of the following stanzas in case you want to forward all requests to 1.1.1.1 or 9.9.9.9 via DNS-over-TLS.
@@ -820,6 +859,61 @@ in
         predict.config({ window = 20, period = 72 })
       '';
     };
+
+    nginx = {
+      enable = true;
+      recommendedTlsSettings = true;
+      recommendedGzipSettings = true;
+      recommendedZstdSettings = true;
+      recommendedBrotliSettings = true;
+      recommendedProxySettings = true;
+      recommendedUwsgiSettings = true;
+      recommendedOptimisation = true;
+
+      upstreams = {
+        "cache.dc.nixos.lv" = {
+          servers = {
+            # NCPS upstreams to saitama and bigzam, comment this and uncomment the below if you want to skip ncps
+            "localhost:8501" = { };
+          /*
+            "${config.networking.mesh.plan.hosts.saitama.nebula.address}:5000" = {
+              weight = 100;
+              fail_timeout = "30s";
+              max_fails = 3;
+            };
+            "${config.networking.mesh.plan.hosts.bigzam.nebula.address}:5000" = {
+              weight = 50;
+              fail_timeout = "30s";
+              max_fails = 3;
+            };
+          */
+          };
+        };
+      };
+
+      virtualHosts = {
+        "nixos.lv" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+        };
+
+        "cache.nixos.lv" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          locations."/".proxyPass = "http://cache.dc.nixos.lv";
+        };
+      };
+    };
+
+    # We have ~1 TB of storage, use 3/4 of it for local cache
+    ncps.cache.maxSize = "750G";
+  };
+
+  security.acme = {
+    acceptTerms = true;
+    defaults.email = "noc@nix.vegas";
   };
 
   systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];

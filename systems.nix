@@ -48,11 +48,9 @@ in
 
   vivec = {
     version = "25.05";
-    address = "10.4.1.131";
     modules = [
       ./devices/vivec
     ] ++ commonModules;
-    profile.sshUser = "numinit";
   };
 
   adamantia = {
