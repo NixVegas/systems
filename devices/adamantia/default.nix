@@ -222,7 +222,7 @@ in
           deny-any = yes;
 
           local-data = makeLocalData [
-            "nixos.lv. IN A ${coreNebulaIp}"
+            "nixos.lv. IN A ${onsiteNebulaIp}"
             "arena.nixos.lv. IN A ${coreNebulaIp}"
             "adamantia.arena.nixos.lv. IN A ${coreNebulaIp}"
             "ntp.arena.nixos.lv. IN A ${coreNebulaIp}"
