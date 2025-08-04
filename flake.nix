@@ -10,7 +10,14 @@
     nixpkcs.url = "github:numinit/nixpkcs/v1.2";
     meshos.url = "github:numinit/MeshOS";
 
+    #nix-vegas-site.url = "github:NixVegas/nix.vegas";
+    nix-vegas-site = {
+      url = "git+file:///home/numinit/nix.vegas";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     deploy-rs.url = "github:serokell/deploy-rs";
+    flake-parts.url = "github:hercules-ci/flake-parts";
   };
 
   outputs =
@@ -160,6 +167,14 @@
               deploy-rs.overlays.default
             ];
           };
+
+          overlayAttrs = {
+            nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
+              inherit nixpkgs;
+            };
+          };
+
+          packages.onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
 
           devShells.default = pkgs.mkShell {
             buildInputs = [
