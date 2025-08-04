@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 {
   imports = [
     ../../modules/swap.nix
@@ -20,6 +20,8 @@
     nvidia.open = true;
     graphics.enable = true;
   };
+
+  environment.systemPackages = with pkgs; [ nebula ];
 
   services.openssh.openFirewall = false;
 
@@ -55,7 +57,7 @@
       build.interfaces = [ "trunk1.build" "trunk2.build" "trunk3.build" ];
       noc.interfaces = [ "eno1" ];
     };
-    firewall.interfaces = {
+    firewall.interfaces = rec {
       build = {
         allowedTCPPorts = [
           22
@@ -64,6 +66,8 @@
           22
         ];
       };
+      arena = build;
+
       noc = {
         allowedTCPPorts = [
           22
@@ -73,11 +77,26 @@
         ];
       };
     };
+    mesh = {
+      nebula = {
+        enable = true;
+        networkName = "arena";
+      };
+      cache = {
+        client = {
+          enable = true;
+          useHydra = true;
+          trustHydra = true;
+          useRecommendedCacheSettings = true;
+        };
+      };
+    };
   };
 
   services = {
     desktopManager.cosmic.enable = true;
     displayManager.cosmic-greeter.enable = true;
+    harmonia.enable = true;
   };
 
   nixpkgs.system = "x86_64-linux";

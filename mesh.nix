@@ -56,8 +56,8 @@
               sets = [ "cnl" ];
             };
             client = {
-              # we want great-value-hydra
-              sets = [ "gvh" ];
+              # we want great-value-hydra and the mirror
+              sets = [ "gvh-a" "gvh-b" ];
             };
           };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
@@ -78,12 +78,14 @@
         bigzam = {
           nebula.address = "10.6.8.2";
           cache = {
+            client = {
+              sets = [ "gvh-a" ];
+            };
             server = {
               priority = 20;
               port = 5000;
-              # provides great-value-hydra
-              # left commented for now because down
-              #sets = [ "gvh" ];
+              # provides great-value-hydra mirror
+              sets = [ "gvh-b" ];
             };
           };
         };
@@ -95,7 +97,7 @@
               priority = 10;
               port = 5000;
               # provides great-value-hydra
-              sets = [ "gvh" ];
+              sets = [ "gvh-a" ];
             };
           };
         };
