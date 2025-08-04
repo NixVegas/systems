@@ -732,7 +732,7 @@ in
       let
         # nameserver A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
         zone = pkgs.writeTextDir "${baseDomain}.zone" ''
-          @ SOA ns noc.${baseDomain} 10 86400 7200 3600000 172800
+          @ SOA ns noc 10 86400 7200 3600000 172800
           @ NS nameserver
           nameserver A 127.0.0.1
           ${baseDomain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
@@ -767,7 +767,6 @@ in
             nixos-lv-acl = {
               key = "nixos-lv-key";
               action = "update";
-              #update-type = [ "A" ];
             };
           };
           template = {

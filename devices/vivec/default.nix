@@ -8,8 +8,6 @@ let
 
   thisHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
 
-  tsigSecret = "4YbnpPXSLEj7AWXMXWtC8a102HsNbSSWXjpUhCtikiY=";
-
   # WWAN
   wwan = "wlp0s20f0u3";
 
@@ -532,7 +530,7 @@ in
             pools = [ {
               pool = "${arena.dhcpStart} - ${arena.dhcpEnd}";
             } ];
-            ddns-qualifying-suffix = "arena.${domain}";
+            ddns-qualifying-suffix = "${arena.dhcpDomain}.";
             option-data = [ {
               name = "routers";
               data = arena.address;
@@ -557,7 +555,7 @@ in
         };
 
         ddns-send-updates = true;
-        ddns-qualifying-suffix = domain;
+        ddns-qualifying-suffix = "${domain}.";
         ddns-update-on-renew = true;
         ddns-replace-client-name = "when-not-present";
         hostname-char-set = "[^A-Za-z0-9.-]";
@@ -571,31 +569,26 @@ in
         forward-ddns = {
           ddns-domains = [ {
             name = "${domain}.";
-            key-name = domain;
+            key-name = "dc-nixos-lv-key";
             dns-servers = [ {
               ip-address = "127.0.0.1";
-              port = 5353;
+              port = 53535;
             } ];
           } ];
         };
         tsig-keys = [
           {
-            name = domain;
+            name = "dc-nixos-lv-key";
             algorithm = "HMAC-SHA256";
-            secret = tsigSecret;
+            secret-file = "/etc/kea/tsig.key";
           }
         ];
       };
     };
 
-    # Set up an authoritative nameserver, serving the `lan.nixos.test`
-    # zone and configure an ACL that allows dynamic updates from
-    # the router's ip address.
-    # This ACL is likely insufficient for production usage. Please
-    # use TSIG keys.
     knot = let
       zone = pkgs.writeTextDir "${domain}.zone" ''
-        @ SOA ns.${domain} nox.${domain} 0 86400 7200 3600000 172800
+        @ SOA ns noc 1 86400 7200 3600000 172800
         @ NS nameserver
         nameserver A 127.0.0.1
       '';
@@ -608,24 +601,19 @@ in
       extraArgs = [
         "-v"
       ];
+      keyFiles = [ "/etc/knot/tsig.conf" ];
       settings = {
         server = {
-          listen = "127.0.0.1@5353";
+          listen = "127.0.0.1@53535";
         };
         log = {
           syslog = {
             any = "debug";
           };
         };
-        key = {
-          ${domain} = {
-            algorithm = "hmac-sha256";
-            secret = tsigSecret;
-          };
-        };
         acl = {
-          "key.${domain}" = {
-            key = domain;
+          dc-nixos-lv-acl = {
+            key = "dc-nixos-lv-key";
             action = "update";
           };
         };
@@ -640,7 +628,7 @@ in
         zone = {
           ${domain} = {
             file = "${domain}.zone";
-            acl = ["key.${domain}"];
+            acl = ["dc-nixos-lv-acl"];
           };
         };
       };
@@ -678,7 +666,7 @@ in
         -- Forward requests for the local DHCP domains.
         local_domains = { 'arena.${domain}' }
         for i, v in ipairs(local_domains) do
-          policy:add(policy.suffix(policy.FORWARD({'127.0.0.1@5353'}), {todname(v)}))
+          policy:add(policy.suffix(policy.FORWARD({'127.0.0.1@53535'}), {todname(v)}))
         end
 
         -- Route upstream, over the meshes
