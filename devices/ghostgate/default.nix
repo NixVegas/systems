@@ -912,8 +912,12 @@ in
       };
     };
 
-    # We have ~1 TB of storage, use 3/4 of it for local cache
-    ncps.cache.maxSize = "750G";
+    ncps = {
+      # This is actually what is reverse proxied to, as opposed to what MeshOS sets up
+      server.addr = lib.mkForce "127.0.0.1:8501";
+      # We have ~1 TB of storage, use 3/4 of it for local cache
+      cache.maxSize = "750G";
+    };
   };
 
   security.acme = {
