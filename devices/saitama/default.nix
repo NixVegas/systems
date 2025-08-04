@@ -128,7 +128,7 @@ in
       wan.interfaces = [ "trunk1.wan" ];
       noc.interfaces = [ "enP3p6s0" ];
     };
-    firewall.interfaces = {
+    firewall.interfaces = rec {
       build = {
         allowedTCPPorts = [
           22
@@ -141,6 +141,8 @@ in
           80
         ];
       };
+      arena = build;
+
       noc = {
         allowedTCPPorts = [
           22
