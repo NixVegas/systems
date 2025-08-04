@@ -844,7 +844,7 @@ in
         policy:add(policy.domains(policy.STUB('127.0.0.1@53535'), policy.todnames(our_domains)))
 
         -- Forward requests for the local DHCP domains.
-        local_domains = { 'noc.${domain}.', 'build.${domain}.', 'arena.${domain}.' }
+        local_domains = { '${domain}.' }
         for i, v in ipairs(local_domains) do
           policy:add(policy.suffix(policy.STUB('127.0.0.1@53535'), {todname(v)}))
         end
