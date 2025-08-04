@@ -104,10 +104,12 @@
 
         genos = {
           nebula.address = "10.6.8.4";
+          cache.client.sets = [ "gvh-a" ];
         };
 
         tatsumaki = {
           nebula.address = "10.6.8.5";
+          cache.client.sets = [ "gvh-a" ];
         };
     };
 

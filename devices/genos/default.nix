@@ -44,7 +44,7 @@
       build.interfaces = [ "trunk1.build" "trunk2.build" ];
       noc.interfaces = [ "enP3p5s0" ];
     };
-    firewall.interfaces = {
+    firewall.interfaces = rec {
       build = {
         allowedTCPPorts = [
           22
@@ -53,6 +53,7 @@
           22
         ];
       };
+      arena = build;
       noc = {
         allowedTCPPorts = [
           22
@@ -60,6 +61,19 @@
         allowedUDPPorts = [
           22
         ];
+      };
+    };
+    mesh = {
+      nebula = {
+        enable = true;
+        networkName = "arena";
+      };
+      cache = {
+        client = {
+          enable = true;
+          useHydra = false;
+          useRecommendedCacheSettings = true;
+        };
       };
     };
   };
