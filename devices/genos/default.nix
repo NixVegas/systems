@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 {
   imports = [
     ../../modules/builder
@@ -12,6 +12,8 @@
   ];
 
   services.openssh.openFirewall = false;
+
+  environment.systemPackages = with pkgs; [ nebula ];
 
   networking = {
     useDHCP = false;
