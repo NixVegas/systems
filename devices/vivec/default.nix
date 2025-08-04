@@ -4,8 +4,8 @@
 { config, pkgs, lib, modulesPath, ... }:
 
 let
-  domainBase = "nixos.lv";
-  domain = "dc.${domainBase}";
+  baseDomain = "nixos.lv";
+  domain = "dc.${baseDomain}";
 
   thisHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
 
@@ -612,12 +612,12 @@ in
     };
 
     knot = let
-      zone = pkgs.writeTextDir "${domainBase}.zone" ''
-        @ SOA ns noc 1 86400 7200 3600000 172800
+      zone = pkgs.writeTextDir "${baseDomain}.zone" ''
+        @ SOA ns noc.${baseDomain} 1 86400 7200 3600000 172800
         @ NS nameserver
         nameserver A 127.0.0.1
         ${config.networking.hostName}.${arena.dhcpDomain}. A ${arena.address}
-        ${config.networking.hostName}.cache.${domainBase}. CNAME ${config.networking.hostName}.${arena.dhcpDomain}.
+        ${config.networking.hostName}.cache.${baseDomain}. CNAME ${config.networking.hostName}.${arena.dhcpDomain}.
       '';
       zonesDir = pkgs.buildEnv {
         name = "knot-zones";
@@ -653,8 +653,8 @@ in
           };
         };
         zone = {
-          ${domainBase} = {
-            file = "${domainBase}.zone";
+          ${baseDomain} = {
+            file = "${baseDomain}.zone";
             acl = ["dc-nixos-lv-acl"];
           };
         };
@@ -722,7 +722,7 @@ in
       recommendedOptimisation = true;
 
       upstreams = {
-        "${config.networking.hostName}.cache.${domainBase}" = {
+        "${config.networking.hostName}.cache.${baseDomain}" = {
           servers = {
             "localhost:8501" = { };
           };
@@ -730,9 +730,9 @@ in
       };
 
       virtualHosts = {
-        "${config.networking.hostName}.cache.${domainBase}" = {
+        "${config.networking.hostName}.cache.${baseDomain}" = {
           http2 = true;
-          locations."/".proxyPass = "http://${config.networking.hostName}.cache.${domainBase}";
+          locations."/".proxyPass = "http://${config.networking.hostName}.cache.${baseDomain}";
         };
       };
     };
