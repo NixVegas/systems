@@ -80,6 +80,11 @@ in
 
   hardware.enableRedistributableFirmware = true;
 
+  networking.hosts = {
+    # We get to lv over 802.11s
+    "10.5.0.1" = [ "cache.nixos.lv" ];
+  };
+
   networking.mesh = {
     wifi = {
       enable = true;
@@ -95,6 +100,16 @@ in
       enable = true;
       networkName = "arena";
       tpm2Key = true;
+    };
+    cache = {
+      server = {
+        enable = true;
+      };
+      client = {
+        enable = true;
+        useHydra = false;
+        useRecommendedCacheSettings = true;
+      };
     };
     ieee80211s.networks.mesh2.metric = 1001;
   };

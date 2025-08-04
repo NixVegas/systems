@@ -52,7 +52,9 @@
           };
           cache = {
             server = {
-              # provides cache.nixos.lv
+              port = 443;
+              hostOverride = "cache.nixos.lv";
+              secure = true;
               sets = [ "cnl" ];
             };
             client = {

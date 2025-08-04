@@ -127,11 +127,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1754206722,
-        "narHash": "sha256-uePIlDonk1VYaKBD+nYuipxukymn3aQz8uT2zffiTCQ=",
+        "lastModified": 1754292336,
+        "narHash": "sha256-VsDpvSuHORg0L4qD1TgLMFY/RkVJuViwHXJmzb+3VGY=",
         "owner": "numinit",
         "repo": "MeshOS",
-        "rev": "4dee784f66d26663567c664a8abd257e3a4b7073",
+        "rev": "315d320890b762ef6a6d0b11c2091cab763a1a3e",
         "type": "github"
       },
       "original": {
