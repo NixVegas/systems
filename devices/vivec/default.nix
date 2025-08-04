@@ -4,7 +4,8 @@
 { config, pkgs, lib, modulesPath, ... }:
 
 let
-  domain = "dc.nixos.lv";
+  domainBase = "nixos.lv";
+  domain = "dc.${domainBase}";
 
   thisHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
 
@@ -47,6 +48,11 @@ in
     { device = "vehk/user/home";
       fsType = "zfs";
     };
+
+  fileSystems."/var/lib/ncps" = {
+    device = "vehk/local/cache";
+    fsType = "zfs";
+  };
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
@@ -131,19 +137,23 @@ in
     }
     _rule_replace from ${arena.subnet} lookup arena
 
+    _ip route flush table arena
+
     # Let them get to the local network
     _ip route replace ${arena.subnet} dev arena table arena
 
     # Let them get to the mesh peers
-    _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 table arena
+    _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 via ${lib.head (lib.split "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address)} table arena
 
     # If there's a wan port, route through that
-    _ip route replace default dev wan metric 1000 table arena
+    # Left commented for now since linkdown behaves weirdly.
+    #_ip route replace default dev wan metric 1000 table arena
 
     # Otherwise route them through our wifi.
     # TODO: Maybe actually go nebula with the router as a gateway; Nebula will be more resilient
     # but BATMAN will work here too.
     _ip route replace default via ${lib.head (lib.split "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address)} metric 1001 table arena
+    _ip route replace default via ${lib.head (lib.split "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address)} metric 1001
   '';
 
   services.kismet = {
@@ -602,10 +612,12 @@ in
     };
 
     knot = let
-      zone = pkgs.writeTextDir "${domain}.zone" ''
+      zone = pkgs.writeTextDir "${domainBase}.zone" ''
         @ SOA ns noc 1 86400 7200 3600000 172800
         @ NS nameserver
         nameserver A 127.0.0.1
+        ${config.networking.hostName}.${arena.dhcpDomain}. A ${arena.address}
+        ${config.networking.hostName}.cache.${domainBase}. CNAME ${config.networking.hostName}.${arena.dhcpDomain}.
       '';
       zonesDir = pkgs.buildEnv {
         name = "knot-zones";
@@ -641,8 +653,8 @@ in
           };
         };
         zone = {
-          ${domain} = {
-            file = "${domain}.zone";
+          ${domainBase} = {
+            file = "${domainBase}.zone";
             acl = ["dc-nixos-lv-acl"];
           };
         };
@@ -678,6 +690,12 @@ in
         -- Drop everything that hasn't matched
         view:addr('0.0.0.0/0', function (req, qry) return policy.DROP end)
 
+        -- We are responsible for these.
+        our_domains = {
+          'vivec.cache.nixos.lv.'
+        }
+        policy:add(policy.domains(policy.STUB('127.0.0.1@53535'), policy.todnames(our_domains)))
+
         -- Forward requests for the local DHCP domains.
         local_domains = { 'arena.${domain}' }
         for i, v in ipairs(local_domains) do
@@ -692,6 +710,35 @@ in
         predict.config({ window = 20, period = 72 })
       '';
     };
+
+    nginx = {
+      enable = true;
+      recommendedTlsSettings = true;
+      recommendedGzipSettings = true;
+      recommendedZstdSettings = true;
+      recommendedBrotliSettings = true;
+      recommendedProxySettings = true;
+      recommendedUwsgiSettings = true;
+      recommendedOptimisation = true;
+
+      upstreams = {
+        "${config.networking.hostName}.cache.${domainBase}" = {
+          servers = {
+            "localhost:8501" = { };
+          };
+        };
+      };
+
+      virtualHosts = {
+        "${config.networking.hostName}.cache.${domainBase}" = {
+          http2 = true;
+          locations."/".proxyPass = "http://${config.networking.hostName}.cache.${domainBase}";
+        };
+      };
+    };
+
+    # We have ~2 TB of storage, use 3/4 of it for local cache
+    ncps.cache.maxSize = "1500G";
   };
 
   systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];
