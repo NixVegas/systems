@@ -12,7 +12,7 @@ let
   nebulaIngress = lib.findFirst (lib.strings.hasInfix ".") null myHost.nebula.entryAddresses;
   nebula6Ingress = lib.findFirst (lib.strings.hasInfix ":") null myHost.nebula.entryAddresses;
   nebulaEgress = "185.193.48.236";
-  nebulaSubnet = "10.6.0.0/16";
+  nebulaSubnet = config.networking.mesh.plan.constants.nebula.subnet;
 in
 {
   imports = [
@@ -28,6 +28,11 @@ in
       "sr_mod"
       "virtio_blk"
     ];
+  };
+
+  boot.kernel.sysctl = {
+    "net.ipv4.conf.all.forwarding" = true;
+    "net.ipv6.conf.all.forwarding" = true;
   };
 
   boot.loader = {
@@ -119,22 +124,25 @@ in
         allowedUDPPorts = [ 53 ];
       };
 
-      nat.extraCommands = ''
-        # Flush the chains for redeploys
-        iptables -t nat -F
+      nat = {
+        enable = true;
+        extraCommands = ''
+          # Flush tables for redeploy.
+          iptables -t nat -F
 
-        # NAT gateway for Nebula hosts
-        iptables -I FORWARD -s ${nebulaSubnet} -d 0.0.0.0/0 -j ACCEPT
-        iptables -t nat -I POSTROUTING -s ${nebulaSubnet} -j MASQUERADE
+          # NAT gateway for Nebula hosts
+          iptables -I FORWARD -s ${nebulaSubnet} -d 0.0.0.0/0 -j ACCEPT
+          iptables -t nat -I POSTROUTING -s ${nebulaSubnet} -j MASQUERADE
 
-        # Redirect anything from Nebula and destined for external IPs internal
-        iptables -t nat -I PREROUTING -s ${nebulaSubnet} -d ${nebulaIngress} -j REDIRECT
-        iptables -t nat -I PREROUTING -s ${nebulaSubnet} -d ${nebulaEgress} -j REDIRECT
+          # Redirect anything from Nebula and destined for external IPs internal
+          iptables -t nat -I PREROUTING -s ${nebulaSubnet} -d ${nebulaIngress} -j REDIRECT
+          iptables -t nat -I PREROUTING -s ${nebulaSubnet} -d ${nebulaEgress} -j REDIRECT
 
-        # Redirect Nebula DNS and NTP queries
-        iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 53 -j REDIRECT
-        iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 123 -j REDIRECT
-      '';
+          # Redirect Nebula DNS and NTP queries
+          iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 53 -j REDIRECT
+          iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 123 -j REDIRECT
+        '';
+      };
     };
 
   services = {
@@ -237,6 +245,39 @@ in
             forward-addr = config.networking.nameservers;
           }
         ];
+      };
+
+      nginx = {
+        enable = true;
+        recommendedTlsSettings = true;
+        recommendedGzipSettings = true;
+        recommendedZstdSettings = true;
+        recommendedBrotliSettings = true;
+        recommendedProxySettings = true;
+        recommendedUwsgiSettings = true;
+        recommendedOptimisation = true;
+
+        upstreams = {
+          "ghostgate.dc.nixos.lv" = {
+            servers = {
+              ${config.networking.mesh.plan.hosts.ghostgate.nebula.address} = { };
+            };
+          };
+        };
+
+        virtualHosts = let
+          proxyLetsEncrypt = upstream: options: lib.recursiveUpdate {
+            locations."/" = {
+              extraConfig = "empty_gif;";
+            };
+            locations."/.well-known/acme-challenge" = {
+              proxyPass = "http://${upstream}";
+            };
+          } options;
+        in {
+          "nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
+          "cache.nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
+        };
       };
   };
 
