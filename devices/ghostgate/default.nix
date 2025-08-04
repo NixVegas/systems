@@ -158,6 +158,7 @@ in
     }
     _rule_replace from ${arena.subnet} lookup arena
     _rule_replace from ${build.subnet} lookup arena
+    _rule_replace from ${noc.subnet} lookup arena
     _rule_replace from ${config.networking.mesh.plan.constants.wifi.subnet} lookup arena
     _rule_replace from ${config.networking.mesh.plan.constants.nebula.subnet} lookup arena
     _ip route replace ${arena.subnet} dev arena table arena
@@ -348,17 +349,16 @@ in
             chain forward {
               type filter hook forward priority filter; policy drop;
 
-              # Allow trusted network WAN access
+              # Allow only localhost WAN access
               iifname {
-                "lo",
-                "noc"
+                "lo"
               } oifname {
                 "wan1",
                 "${wwan1}",
                 "wwan2",
               } counter accept comment "Allow trusted LAN to WAN"
 
-              iifname { "lo", "arena", "build", "mesh2" } oifname { "nebula.arena" } counter accept comment "Allow Arena network to get out"
+              iifname { "lo", "arena", "build", "mesh2", "noc" } oifname { "nebula.arena" } counter accept comment "Allow Arena networks to get out"
 
               # Let NOC get to build.
               iifname { "noc" } oifname { "build" } counter accept
@@ -370,8 +370,7 @@ in
                 "${wwan1}",
                 "wwan2"
               } oifname {
-                "lo",
-                "noc"
+                "lo"
               } ct state established,related counter accept comment "Allow established back to LANs"
 
               iifname {
@@ -380,7 +379,8 @@ in
                 "lo",
                 "arena",
                 "build",
-                "mesh2"
+                "mesh2",
+                "noc"
               } ct state established,related counter accept comment "Allow established back to LANs"
             }
           '';
