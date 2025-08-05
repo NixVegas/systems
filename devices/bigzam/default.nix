@@ -12,7 +12,7 @@
     package = pkgs.obs-studio.override {
       cudaSupport = true;
     };
-    plugins = with pkgs.obs-studio; [
+    plugins = with pkgs.obs-studio-plugins; [
       wlrobs
       obs-webkitgtk
     ];
