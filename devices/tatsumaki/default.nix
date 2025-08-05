@@ -2,6 +2,7 @@
 {
   imports = [
     ../../modules/builder
+    ../../modules/arm-perf.nix
   ];
 
   boot.initrd.availableKernelModules = [

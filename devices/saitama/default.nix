@@ -5,6 +5,10 @@ let
   cacheDomain = "saitama.noc.dc.nixos.lv";
 in
 {
+  imports = [
+    ../../modules/arm-perf.nix
+  ];
+
   boot.initrd.availableKernelModules = [
     "xhci_pci"
     "nvme"
