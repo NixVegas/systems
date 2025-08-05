@@ -122,6 +122,10 @@ in
           443
         ];
         allowedUDPPorts = [ 53 ];
+        interfaces.area = {
+          allowedTCPPorts = [ 1935 ];
+          allowedUDPPorts = [ 1935 ];
+        };
       };
 
       nat = {
@@ -224,6 +228,8 @@ in
           local-data = makeLocalData [
             "nixos.lv. IN A ${onsiteNebulaIp}"
             "arena.nixos.lv. IN A ${coreNebulaIp}"
+            "live.nix.vegas. IN A ${coreNebulaIp}"
+            "live.nixos.lv. IN A ${coreNebulaIp}"
             "adamantia.arena.nixos.lv. IN A ${coreNebulaIp}"
             "ntp.arena.nixos.lv. IN A ${coreNebulaIp}"
             "cache.nixos.lv. IN CNAME cache.dc.nixos.lv."
