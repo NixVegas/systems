@@ -10,6 +10,11 @@
     nixpkcs.url = "github:numinit/nixpkcs/v1.2";
     meshos.url = "github:numinit/MeshOS";
 
+    nixos-pagefind = {
+      url = "github:Jaculabilis/nixos-pagefind";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     #nix-vegas-site.url = "github:NixVegas/nix.vegas";
     nix-vegas-site = {
       url = "git+file:///home/numinit/nix.vegas";
@@ -30,6 +35,8 @@
       nixpkcs,
       nixos-cosmic,
       deploy-rs,
+      nixos-pagefind,
+      nix-vegas-site,
       meshos,
       ...
     }:
@@ -172,9 +179,20 @@
             nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
               inherit nixpkgs;
             };
+            nix-vegas-site-offsite = nix-vegas-site.packages.${system}.default;
+            nix-vegas-site-onsite = pkgs.nix-vegas-site-offsite.override {
+              onboardingArtifacts = pkgs.nixos-lv-onboarding-artifacts;
+            };
+            nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
+            nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
+              inherit nixpkgs nixos-pagefind;
+            };
           };
 
-          packages.onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
+          packages = {
+            onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
+            inherit (pkgs) nixos-lv-onboarding-artifacts nixos-pagefind-build;
+          };
 
           devShells.default = pkgs.mkShell {
             buildInputs = [
