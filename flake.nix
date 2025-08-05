@@ -17,6 +17,7 @@
 
     nix-vegas-site = {
       url = "github:NixVegas/nix.vegas";
+      #url = "git+file:///home/numinit/nix.vegas";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

@@ -202,6 +202,10 @@ in
     mbuffer
     lzop
     nebula
+
+    ipxe
+    tftp-hpa
+    wol
   ];
 
   networking = {
@@ -392,9 +396,9 @@ in
             chain prerouting {
               type nat hook prerouting priority filter; policy accept;
 
-              # Redirect DNS and NTP queries to us
-              iifname {"noc", "build", "arena", "mesh2"} udp dport {53, 123} counter redirect
-              iifname {"noc", "build", "arena", "mesh2"} tcp dport {53} counter redirect
+              # Redirect DNS, TFTP, and NTP queries to us
+              iifname {"noc", "build", "arena", "mesh2"} udp dport {53, 69, 123} counter redirect
+              iifname {"noc", "build", "arena", "mesh2"} tcp dport {53, 69} counter redirect
             }
 
             # Setup NAT masquerading on the wan interface
@@ -414,25 +418,19 @@ in
           '';
         };
 
-        /*broute = {
-          family = "bridge";
-          content = ''
-            chain prerouting {
-              type filter hook prerouting priority -2147483648; policy accept;
-              ether type != ip6 iifname "arena" meta broute set 1
-            }
-          '';
-        };*/
-
-        /*mangle = {
+        tftp = {
           family = "ip";
           content = ''
-            chain output {
-              type route hook output priority -150
-              iifname "arena" mark set ct mark mark set 1 counter accept
+            ct helper helper-tftp {
+                type "tftp" protocol udp
+            }
+
+            chain sethelper {
+                type filter hook forward priority 0; policy accept;
+                udp dport 69 ct helper set "helper-tftp"
             }
           '';
-        };*/
+        };
       };
     };
   };
@@ -578,8 +576,44 @@ in
               hw-address = mac;
               ip-address = net.ip.add ip (lib.head (lib.split "/" network.subnet));
               inherit hostname;
-              #hostname = "${hostname}.${network.dhcpDomain}.";
             };
+
+          mkPXE = network:
+           [
+              {
+                name = "XClient_iPXE";
+                test = "substring(option[77].hex,0,4) == 'iPXE'";
+                boot-file-name = "http://${baseDomain}/netboot.ipxe";
+              }
+
+              {
+                name = "UEFI-64-1";
+                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00007'";
+                next-server = network.address;
+                boot-file-name = "/etc/tftp/ipxe.efi";
+              }
+
+              {
+                name = "UEFI-64-2";
+                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00008'";
+                next-server = network.address;
+                boot-file-name = "/etc/tftp/ipxe.efi";
+              }
+
+              {
+                name = "UEFI-64-3";
+                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00009'";
+                next-server = network.address;
+                boot-file-name = "/etc/tftp/ipxe.efi";
+              }
+
+              {
+                name = "Legacy";
+                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00000'";
+                next-server = network.address;
+                boot-file-name = "/etc/tftp/undionly.kpxe";
+              }
+            ];
         in [
           {
             inherit (noc) subnet id;
@@ -611,13 +645,13 @@ in
                 data = noc.dhcpDomain;
                 always-send = true;
               }
-              /*
-                {
-                  name = "rfc3442-classless-static-routes";
-                  data = "24,10,3,7,10.3.7.1";
-                }
-              */
+              {
+                name = "ntp-servers";
+                data = noc.address;
+                always-send = true;
+              }
             ];
+            client-classes = mkPXE noc;
           }
           {
             inherit (build) subnet id;
@@ -649,13 +683,13 @@ in
                 data = build.dhcpDomain;
                 always-send = true;
               }
-              /*
-                {
-                  name = "rfc3442-classless-static-routes";
-                  data = "24,10,3,7,10.3.7.1";
-                }
-              */
+              {
+                name = "ntp-servers";
+                data = build.address;
+                always-send = true;
+              }
             ];
+            client-classes = mkPXE build;
           }
           {
             inherit (arena) subnet id;
@@ -681,13 +715,13 @@ in
                 data = arena.dhcpDomain;
                 always-send = true;
               }
-              /*
-                {
-                  name = "rfc3442-classless-static-routes";
-                  data = "24,10,3,7,10.3.7.1";
-                }
-              */
+              {
+                name = "ntp-servers";
+                data = arena.address;
+                always-send = true;
+              }
             ];
+            client-classes = mkPXE arena;
           }
         ];
 
@@ -898,8 +932,25 @@ in
         "nixos.lv" = {
           http2 = true;
           enableACME = true;
-          forceSSL = true;
-          locations."/".root = "${pkgs.nix-vegas-site-onsite}/public";
+          addSSL = true;
+          locations = let
+            public = "${pkgs.nix-vegas-site-onsite}/public";
+            netboot = "${public}/nixos/systems/${config.nixpkgs.system}/netboot";
+          in {
+            "= /boot/bzImage" = {
+              alias = "${netboot}/bzImage";
+            };
+
+            "= /boot/initrd" = {
+              alias = "${netboot}/initrd";
+            };
+
+            "= /boot/netboot.ipxe" = {
+              alias = "${netboot}/netboot.ipxe";
+            };
+
+            "/".root = public;
+          };
         };
 
         "cache.nixos.lv" = {
@@ -916,6 +967,31 @@ in
       server.addr = lib.mkForce "127.0.0.1:8501";
       # We have ~1 TB of storage, use 3/4 of it for local cache
       cache.maxSize = "750G";
+    };
+  };
+
+  environment = {
+    etc = {
+      "tftp/ipxe.efi".source = "${pkgs.ipxe}/ipxe.efi";
+      "tftp/undionly.kpxe".source = "${pkgs.ipxe}/undionly.kpxe";
+    };
+  };
+
+  systemd.services = {
+    tftpd = {
+      after = [ "nftables.service" ];
+      description = "TFTP server";
+      serviceConfig = {
+        User = "root";
+        Group = "root";
+        Restart = "always";
+        RestartSec = 5;
+        Type = "exec";
+        ExecStart = "${pkgs.tftp-hpa}/bin/in.tftpd -l -a 0.0.0.0:69 -P /run/tftpd.pid /etc/tftp";
+        TimeoutStopSec = 20;
+        PIDFile = "/run/tftpd.pid";
+      };
+      wantedBy = [ "multi-user.target" ];
     };
   };
 

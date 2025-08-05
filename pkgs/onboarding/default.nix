@@ -16,7 +16,8 @@ let
       outPath = nixpkgs;
       inherit (nixpkgs) shortRev;
       stableRelease = true;
-      revCount = "-dc33";
+      # We don't have a rev count, but do have a lastModifiedDate
+      revCount = nixpkgs.revCount or nixpkgs.lastModifiedDate;
     };
     supportedSystems = systems;
     configuration = import ../../modules/onboarding/onboardee.nix;
@@ -28,12 +29,7 @@ let
 
   pagefind-build = lib.genAttrs systems (system: nixos-pagefind-build);
 
-  nixpkgs-tarball = runCommand "nixpkgs-${channel.version}-tarball" { } ''
-    mkdir -p $out
-    GZIP=-9 tar -C ${nixpkgs} -czf $out/nixpkgs-${channel.version}.tar.gz .
-  '';
-
-  nixpkgs-tarballs = lib.genAttrs systems (systems: nixpkgs-tarball);
+  nixpkgs-channels = lib.genAttrs systems (systems: channel);
 
   maybeLink = artifact: system: outPath: systemSpecific:
     if lib.hasAttr system artifact then
@@ -53,6 +49,7 @@ in
 stdenv.mkDerivation {
   pname = "nixos-lv-onboarding-artifacts";
   inherit (channel) version;
+  inherit (nixpkgs) rev;
 
   phases = [ "installPhase" ];
 
@@ -65,8 +62,9 @@ stdenv.mkDerivation {
       ${maybeLink proxmoxImage system "proxmox" true}
       ${maybeLink manualHTML system "manual" false}
       ${maybeLink pagefind-build system "search" false}
-      ${maybeLink nixpkgs-tarballs system "nixpkgs" false}
+      ${maybeLink nixpkgs-channels system "channel" false}
     '') systems}
     echo "$version" > $out/version
+    echo "$rev" > $out/rev
   '';
 }
