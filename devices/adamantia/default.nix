@@ -122,7 +122,7 @@ in
           443
         ];
         allowedUDPPorts = [ 53 ];
-        interfaces.area = {
+        interfaces.arena = {
           allowedTCPPorts = [ 1935 ];
           allowedUDPPorts = [ 1935 ];
         };
