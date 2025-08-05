@@ -5,6 +5,19 @@
     ../../modules/builder
   ];
 
+  nixpkgs.config.allowUnfree = true;
+
+  programs.obs-studio = {
+    enable = true;
+    package = pkgs.obs-studio.override {
+      cudaSupport = true;
+    };
+    plugins = with pkgs.obs-studio; [
+      wlrobs
+      obs-webkitgtk
+    ];
+  };
+
   boot = {
     initrd.availableKernelModules = [
       "xhci_pci"
@@ -54,7 +67,11 @@
       metric 1001
     '';
     bridges = {
-      build.interfaces = [ "trunk1.build" "trunk2.build" "trunk3.build" ];
+      build.interfaces = [
+        "trunk1.build"
+        "trunk2.build"
+        "trunk3.build"
+      ];
       noc.interfaces = [ "eno1" ];
     };
     firewall.interfaces = rec {
