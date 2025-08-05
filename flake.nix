@@ -16,8 +16,7 @@
     };
 
     nix-vegas-site = {
-      url = "github:NixVegas/nix.vegas/update-onboarding";
-      #url = "git+file:///home/numinit/nix.vegas";
+      url = "github:NixVegas/nix.vegas";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -175,13 +174,13 @@
             ];
           };
 
-          overlayAttrs = {
+          overlayAttrs = rec {
             nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
               inherit nixpkgs;
             };
-            nix-vegas-site-offsite = nix-vegas-site.packages.${system}.default;
-            nix-vegas-site-onsite = pkgs.nix-vegas-site-offsite.override {
-              onboardingArtifacts = pkgs.nixos-lv-onboarding-artifacts;
+            nix-vegas-site-offsite = nix-vegas-site.packages.${system}.nixVegasOffsite;
+            nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
+              onboardingArtifacts = nixos-lv-onboarding-artifacts;
             };
             nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
             nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
@@ -192,6 +191,7 @@
           packages = {
             onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
             inherit (pkgs) nixos-lv-onboarding-artifacts nixos-pagefind-build;
+            inherit (pkgs) nix-vegas-site-offsite nix-vegas-site-onsite;
           };
 
           devShells.default = pkgs.mkShell {

@@ -879,8 +879,7 @@ in
         "cache.dc.nixos.lv" = {
           servers = {
             # NCPS upstreams to saitama and bigzam, comment this and uncomment the below if you want to skip ncps
-            "localhost:8501" = { };
-          /*
+            #"localhost:8501" = { };
             "${config.networking.mesh.plan.hosts.saitama.nebula.address}:5000" = {
               weight = 100;
               fail_timeout = "30s";
@@ -891,7 +890,6 @@ in
               fail_timeout = "30s";
               max_fails = 3;
             };
-          */
           };
         };
       };
@@ -901,6 +899,7 @@ in
           http2 = true;
           enableACME = true;
           forceSSL = true;
+          locations."/".root = "${pkgs.nix-vegas-site-onsite}/public";
         };
 
         "cache.nixos.lv" = {
