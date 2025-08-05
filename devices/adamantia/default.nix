@@ -121,10 +121,10 @@ in
           80
           443
         ];
-        allowedUDPPorts = [ 53 ];
+        allowedUDPPorts = [ 53 5000 ];
         interfaces.arena = {
           allowedTCPPorts = [ 1935 ];
-          allowedUDPPorts = [ 1935 ];
+          allowedUDPPorts = [ 1935 5000 ];
         };
       };
 
@@ -306,6 +306,7 @@ in
             enableACME = true;
             locations."/" = {
               proxyPass = "http://owncast";
+              proxyWebsockets = true;
             };
           };
         };
