@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 {
   imports = [
     ../../modules/swap.nix
@@ -108,6 +108,11 @@
     displayManager.cosmic-greeter.enable = true;
     harmonia.enable = true;
   };
+
+  systemd.services."nebula@arena".postStart = ''
+    # This route should just go through the router instead of Nebula, since it can route it
+    ${lib.getExe' pkgs.iproute2 "ip"} route replace 10.6.6.6 via 10.4.1.1 dev build
+  '';
 
   nixpkgs.system = "x86_64-linux";
 }
