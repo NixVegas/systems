@@ -215,16 +215,18 @@
         ]
       },
       "locked": {
-        "dirtyRev": "766496616fb93c63a85030cd733223476e1b725b-dirty",
-        "dirtyShortRev": "7664966-dirty",
-        "lastModified": 1754347661,
-        "narHash": "sha256-IB9MxTQPDVFA6MITKfHAQfQtEVdUjJF5K89qjq/pavM=",
-        "type": "git",
-        "url": "file:///home/numinit/nix.vegas"
+        "lastModified": 1754369892,
+        "narHash": "sha256-KknCuHR4IAaDO/QYaBO/RrA6IlisETiA4CBPuYC3hjg=",
+        "owner": "NixVegas",
+        "repo": "nix.vegas",
+        "rev": "86c374962997479b9a096470eb257ebdd787a4e1",
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "file:///home/numinit/nix.vegas"
+        "owner": "NixVegas",
+        "ref": "update-onboarding",
+        "repo": "nix.vegas",
+        "type": "github"
       }
     },
     "nixos-cosmic": {

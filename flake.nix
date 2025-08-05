@@ -15,9 +15,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    #nix-vegas-site.url = "github:NixVegas/nix.vegas";
     nix-vegas-site = {
-      url = "git+file:///home/numinit/nix.vegas";
+      url = "github:NixVegas/nix.vegas/update-onboarding";
+      #url = "git+file:///home/numinit/nix.vegas";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
