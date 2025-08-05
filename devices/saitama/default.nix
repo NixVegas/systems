@@ -1,8 +1,21 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 
 let
   hydraDomain = "hydra.saitama.build.dc.nixos.lv";
   cacheDomain = "saitama.noc.dc.nixos.lv";
+
+  supportedFeatures = [
+    "kvm"
+    "nixos-test"
+    "big-parallel"
+    "benchmark"
+  ];
+  sshUser = "builder";
 in
 {
   imports = [
@@ -62,36 +75,47 @@ in
     };
   };
 
-  nix.buildMachines = [
-    {
-      hostName = "tatsumaki.build.dc.nixos.lv";
-      system = "aarch64-linux";
-      supportedFeatures = [
-        "kvm"
-        "nixos-test"
-        "big-parallel"
-        "benchmark"
-      ];
-      maxJobs = 12;
-      publicHostKey = "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUJNeXFScWRzUlZneUJIUkZLWmV4ZlFZbnpOM2l1VWM1ZEtmVkt0RkVFdGoK";
-      sshKey = "/etc/ssh/id_tatsumaki_builder";
-      sshUser = "builder";
-    }
-    {
-      hostName = "genos.build.dc.nixos.lv";
-      system = "aarch64-linux";
-      supportedFeatures = [
-        "kvm"
-        "nixos-test"
-        "big-parallel"
-        "benchmark"
-      ];
-      maxJobs = 12;
-      publicHostKey = "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSVB0bnVpSUZGVFdNYlFPVFgxa3BaS01HWU5aNjdQQ1VSNkxxZG96WWVUTGUK";
-      sshKey = "/etc/ssh/id_genos_builder";
-      sshUser = "builder";
-    }
-  ];
+  nix.buildMachines =
+    let
+      mkMachine =
+        {
+          host,
+          system,
+          publicHostKey,
+          maxJobs,
+        }:
+        {
+          hostName = "${host}.build.dc.nixos.lv";
+          inherit
+            supportedFeatures
+            sshUser
+            system
+            publicHostKey
+            maxJobs
+            ;
+          sshKey = "/etc/ssh/id_${host}_${sshUser}";
+        };
+    in
+    [
+      (mkMachine {
+        host = "tatsumaki";
+        system = "aarch64-linux";
+        publicHostKey = "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUJNeXFScWRzUlZneUJIUkZLWmV4ZlFZbnpOM2l1VWM1ZEtmVkt0RkVFdGoK";
+        maxJobs = 12;
+      })
+      (mkMachine {
+        host = "genos";
+        system = "aarch64-linux";
+        publicHostKey = "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSVB0bnVpSUZGVFdNYlFPVFgxa3BaS01HWU5aNjdQQ1VSNkxxZG96WWVUTGUK";
+        maxJobs = 12;
+      })
+      (mkMachine {
+        host = "bigzam";
+        system = "x86_64-linux";
+        publicHostKey = "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUlNcG1ZemNGaW5ISUdUUi9uR1M4MHZoVHgxWFFOcS8ycWVQeXNydGlrUkggcm9zc0BzYWl0YW1hCg==";
+        maxJobs = 16;
+      })
+    ];
 
   networking = {
     hostName = "saitama";
@@ -128,7 +152,10 @@ in
       metric 2000
     '';
     bridges = {
-      build.interfaces = [ "trunk1.build" "trunk2.build" ];
+      build.interfaces = [
+        "trunk1.build"
+        "trunk2.build"
+      ];
       wan.interfaces = [ "trunk1.wan" ];
       noc.interfaces = [ "enP3p6s0" ];
     };
