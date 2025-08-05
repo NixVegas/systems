@@ -30,7 +30,7 @@
   };
 
   hardware = {
-    nvidia.open = true;
+    nvidia.open = false;
     graphics.enable = true;
   };
 
