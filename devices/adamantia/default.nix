@@ -253,6 +253,10 @@ in
         ];
       };
 
+      owncast = {
+        enable = true;
+      };
+
       nginx = {
         enable = true;
         recommendedTlsSettings = true;
@@ -269,6 +273,11 @@ in
               ${config.networking.mesh.plan.hosts.ghostgate.nebula.address} = { };
             };
           };
+          "owncast" = {
+            servers = {
+              "localhost:${toString config.services.owncast.port}" = { };
+            };
+          };
         };
 
         virtualHosts = let
@@ -283,8 +292,29 @@ in
         in {
           "nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
           "cache.nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
+
+          # In case they go here...
+          "live.nixos.lv" = {
+            forceSSL = true;
+            enableACME = true;
+            globalRedirect = "live.nix.vegas";
+          };
+
+          # We redirect them here.
+          "live.nix.vegas" = {
+            forceSSL = true;
+            enableACME = true;
+            locations."/" = {
+              proxyPass = "http://owncast";
+            };
+          };
         };
       };
+  };
+
+  security.acme = {
+    acceptTerms = true;
+    defaults.email = "noc@nix.vegas";
   };
 
   nixpkgs.system = "x86_64-linux";
