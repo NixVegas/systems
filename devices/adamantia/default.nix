@@ -228,12 +228,13 @@ in
           local-data = makeLocalData [
             "nixos.lv. IN A ${onsiteNebulaIp}"
             "arena.nixos.lv. IN A ${coreNebulaIp}"
-            "live.nix.vegas. IN A ${coreNebulaIp}"
             "live.nixos.lv. IN A ${coreNebulaIp}"
             "adamantia.arena.nixos.lv. IN A ${coreNebulaIp}"
             "ntp.arena.nixos.lv. IN A ${coreNebulaIp}"
             "cache.nixos.lv. IN CNAME cache.dc.nixos.lv."
             "cache.dc.nixos.lv. IN A ${onsiteNebulaIp}"
+            "nix.vegas. IN A ${coreNebulaIp}"
+            "live.nix.vegas. IN A ${coreNebulaIp}"
           ];
 
           # Includes
@@ -290,8 +291,43 @@ in
             };
           } options;
         in {
-          "nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
-          "cache.nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
+          # Useful for setting up split-horizon DNS with Let's Encrypt, little else.
+          #"nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
+          #"cache.nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
+
+          # Just issue redirects to nix.vegas.
+          "nixos.lv" = {
+            forceSSL = true;
+            enableACME = true;
+            globalRedirect = "nix.vegas";
+          };
+
+          # strip www
+          "www.nixos.lv" = {
+            addSSL = true;
+            enableACME = true;
+            globalRedirect = "nixos.lv";
+          };
+
+          # Just issue redirects to c.n.o.
+          "cache.nixos.lv" = {
+            addSSL = true;
+            enableACME = true;
+            globalRedirect = "cache.nixos.org";
+          };
+
+          # strip www
+          "www.nix.vegas" = {
+            addSSL = true;
+            enableACME = true;
+            globalRedirect = "nix.vegas";
+          };
+
+          "nix.vegas" = {
+            forceSSL = true;
+            enableACME = true;
+            locations."/".root = "${pkgs.nix-vegas-site-offsite}/public";
+          };
 
           # In case they go here...
           "live.nixos.lv" = {
