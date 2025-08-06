@@ -233,7 +233,11 @@ in
     '';
 
     nat.enable = lib.mkForce false;
-    firewall.enable = false;
+    firewall = {
+      enable = true;
+      allowedTCPPorts = [ 22 53 69 80 443 5355 ];
+      allowedUDPPorts = [ 53 67 68 69 123 5355 ];
+    };
 
     useDHCP = false;
 
@@ -397,8 +401,8 @@ in
               type nat hook prerouting priority filter; policy accept;
 
               # Redirect DNS, TFTP, and NTP queries to us
-              iifname {"noc", "build", "arena", "mesh2"} udp dport {53, 69, 123} counter redirect
-              iifname {"noc", "build", "arena", "mesh2"} tcp dport {53, 69} counter redirect
+              iifname {"noc", "build", "arena", "mesh2"} udp dport {53, 123} counter redirect
+              iifname {"noc", "build", "arena", "mesh2"} tcp dport {53} counter redirect
             }
 
             # Setup NAT masquerading on the wan interface
@@ -569,6 +573,39 @@ in
           ];
         };
 
+       client-classes = [
+          {
+            name = "XClient_iPXE";
+            test = "substring(option[77].hex,0,4) == 'iPXE'";
+            boot-file-name = "http://${baseDomain}/boot/netboot.ipxe";
+          }
+
+          {
+            name = "UEFI-64-1";
+            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00007'";
+            boot-file-name = "${pkgs.ipxe}/ipxe.efi";
+          }
+
+          {
+            name = "UEFI-64-2";
+            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00008'";
+            boot-file-name = "${pkgs.ipxe}/ipxe.efi";
+          }
+
+          {
+            name = "UEFI-64-3";
+            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00009'";
+            boot-file-name = "${pkgs.ipxe}/ipxe.efi";
+          }
+
+          {
+            name = "Legacy";
+            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00000'";
+            #next-server = arena.address;
+            boot-file-name = "${pkgs.ipxe}/undionly.kpxe";
+          }
+        ];
+
         subnet4 = let
           inherit ((pkgs.callPackage "${meshos}/lib/net.nix" { }).lib) net;
           mkReservation = network: mac: ip: hostname:
@@ -578,42 +615,6 @@ in
               inherit hostname;
             };
 
-          mkPXE = network:
-           [
-              {
-                name = "XClient_iPXE";
-                test = "substring(option[77].hex,0,4) == 'iPXE'";
-                boot-file-name = "http://${baseDomain}/netboot.ipxe";
-              }
-
-              {
-                name = "UEFI-64-1";
-                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00007'";
-                next-server = network.address;
-                boot-file-name = "/etc/tftp/ipxe.efi";
-              }
-
-              {
-                name = "UEFI-64-2";
-                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00008'";
-                next-server = network.address;
-                boot-file-name = "/etc/tftp/ipxe.efi";
-              }
-
-              {
-                name = "UEFI-64-3";
-                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00009'";
-                next-server = network.address;
-                boot-file-name = "/etc/tftp/ipxe.efi";
-              }
-
-              {
-                name = "Legacy";
-                test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00000'";
-                next-server = network.address;
-                boot-file-name = "/etc/tftp/undionly.kpxe";
-              }
-            ];
         in [
           {
             inherit (noc) subnet id;
@@ -651,7 +652,6 @@ in
                 always-send = true;
               }
             ];
-            client-classes = mkPXE noc;
           }
           {
             inherit (build) subnet id;
@@ -689,7 +689,6 @@ in
                 always-send = true;
               }
             ];
-            client-classes = mkPXE build;
           }
           {
             inherit (arena) subnet id;
@@ -721,7 +720,6 @@ in
                 always-send = true;
               }
             ];
-            client-classes = mkPXE arena;
           }
         ];
 
@@ -935,7 +933,7 @@ in
           addSSL = true;
           locations = let
             public = "${pkgs.nix-vegas-site-onsite}/public";
-            netboot = "${public}/nixos/systems/${config.nixpkgs.system}/netboot";
+            netboot = "${public}/nixos/systems/x86_64-linux/netboot";
           in {
             "= /boot/bzImage" = {
               alias = "${netboot}/bzImage";
@@ -970,26 +968,30 @@ in
     };
   };
 
-  environment = {
-    etc = {
-      "tftp/ipxe.efi".source = "${pkgs.ipxe}/ipxe.efi";
-      "tftp/undionly.kpxe".source = "${pkgs.ipxe}/undionly.kpxe";
+  users = {
+    users.tftpd = {
+      isSystemUser = true;
+      group = "tftpd";
     };
+    groups.tftpd = { };
   };
 
   systemd.services = {
     tftpd = {
       after = [ "nftables.service" ];
       description = "TFTP server";
-      serviceConfig = {
-        User = "root";
-        Group = "root";
+      serviceConfig = rec {
+        User = "tftpd";
+        Group = "tftpd";
         Restart = "always";
         RestartSec = 5;
+        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+        CapabilityBoundingSet = AmbientCapabilities;
         Type = "exec";
-        ExecStart = "${pkgs.tftp-hpa}/bin/in.tftpd -l -a 0.0.0.0:69 -P /run/tftpd.pid /etc/tftp";
+        RuntimeDirectory = "tftpd";
+        PIDFile = "${RuntimeDirectory}/tftpd.pid";
+        ExecStart = "${pkgs.tftp-hpa}/bin/in.tftpd -v -l -a 0.0.0.0:69 -P /run/${PIDFile} ${pkgs.ipxe}";
         TimeoutStopSec = 20;
-        PIDFile = "/run/tftpd.pid";
       };
       wantedBy = [ "multi-user.target" ];
     };
