@@ -235,6 +235,7 @@ in
             "cache.dc.nixos.lv. IN A ${onsiteNebulaIp}"
             "nix.vegas. IN A ${coreNebulaIp}"
             "live.nix.vegas. IN A ${coreNebulaIp}"
+            "cache.nix.vegas. IN CNAME cache.dc.nixos.lv."
           ];
 
           # Includes
@@ -314,6 +315,13 @@ in
             addSSL = true;
             enableACME = true;
             globalRedirect = "cache.nixos.org";
+          };
+
+          # Redirect them to cache.nixos.lv.
+          "cache.nix.vegas" = {
+            addSSL = true;
+            enableACME = true;
+            globalRedirect = "cache.nixos.lv";
           };
 
           # strip www
