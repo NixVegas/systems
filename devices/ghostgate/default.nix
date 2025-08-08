@@ -168,7 +168,6 @@ in
     _ip route replace default via ${config.networking.mesh.plan.hosts.adamantia.nebula.address} table arena
   '';
 
-
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
@@ -235,8 +234,22 @@ in
     nat.enable = lib.mkForce false;
     firewall = {
       enable = true;
-      allowedTCPPorts = [ 22 53 69 80 443 5355 ];
-      allowedUDPPorts = [ 53 67 68 69 123 5355 ];
+      allowedTCPPorts = [
+        22
+        53
+        69
+        80
+        443
+        5355
+      ];
+      allowedUDPPorts = [
+        53
+        67
+        68
+        69
+        123
+        5355
+      ];
     };
 
     useDHCP = false;
@@ -315,7 +328,7 @@ in
       ];
 
       arena.interfaces = arenaInterfaces;
-      "arena.wlan".interfaces = [];
+      "arena.wlan".interfaces = [ ];
     };
 
     nftables = {
@@ -591,7 +604,7 @@ in
           ];
         };
 
-       client-classes = [
+        client-classes = [
           {
             name = "XClient_iPXE";
             test = "substring(option[77].hex,0,4) == 'iPXE'";
@@ -624,122 +637,123 @@ in
           }
         ];
 
-        subnet4 = let
-          inherit ((pkgs.callPackage "${meshos}/lib/net.nix" { }).lib) net;
-          mkReservation = network: mac: ip: hostname:
-            {
+        subnet4 =
+          let
+            inherit ((pkgs.callPackage "${meshos}/lib/net.nix" { }).lib) net;
+            mkReservation = network: mac: ip: hostname: {
               hw-address = mac;
               ip-address = net.ip.add ip (lib.head (lib.split "/" network.subnet));
               inherit hostname;
             };
 
-        in [
-          {
-            inherit (noc) subnet id;
-            pools = [
-              {
-                pool = "${noc.dhcpStart} - ${noc.dhcpEnd}";
-              }
-            ];
-            reservations = [
-              (mkReservation noc "10:ff:e0:37:91:ba" 2 "bigzam")
-              (mkReservation noc "9c:6b:00:4b:13:38" 3 "saitama")
-              (mkReservation noc "9c:6b:00:4b:13:32" 4 "genos")
-              (mkReservation noc "9c:6b:00:47:31:fe" 5 "tatsumaki")
-            ];
-            ddns-qualifying-suffix = "${noc.dhcpDomain}.";
-            option-data = [
-              {
-                name = "routers";
-                data = noc.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name-servers";
-                data = noc.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name";
-                data = noc.dhcpDomain;
-                always-send = true;
-              }
-              {
-                name = "ntp-servers";
-                data = noc.address;
-                always-send = true;
-              }
-            ];
-          }
-          {
-            inherit (build) subnet id;
-            pools = [
-              {
-                pool = "${build.dhcpStart} - ${build.dhcpEnd}";
-              }
-            ];
-            reservations = [
-              (mkReservation build "10:ff:e0:37:91:bb" 2 "bigzam")
-              (mkReservation build "9c:6b:00:4b:13:36" 3 "saitama")
-              (mkReservation build "9c:6b:00:4b:13:30" 4 "genos")
-              (mkReservation build "9c:6b:00:47:31:fc" 5 "tatsumaki")
-            ];
-            ddns-qualifying-suffix = "${build.dhcpDomain}.";
-            option-data = [
-              {
-                name = "routers";
-                data = build.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name-servers";
-                data = build.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name";
-                data = build.dhcpDomain;
-                always-send = true;
-              }
-              {
-                name = "ntp-servers";
-                data = build.address;
-                always-send = true;
-              }
-            ];
-          }
-          {
-            inherit (arena) subnet id;
-            pools = [
-              {
-                pool = "${arena.dhcpStart} - ${arena.dhcpEnd}";
-              }
-            ];
-            ddns-qualifying-suffix = "${arena.dhcpDomain}.";
-            option-data = [
-              {
-                name = "routers";
-                data = arena.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name-servers";
-                data = arena.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name";
-                data = arena.dhcpDomain;
-                always-send = true;
-              }
-              {
-                name = "ntp-servers";
-                data = arena.address;
-                always-send = true;
-              }
-            ];
-          }
-        ];
+          in
+          [
+            {
+              inherit (noc) subnet id;
+              pools = [
+                {
+                  pool = "${noc.dhcpStart} - ${noc.dhcpEnd}";
+                }
+              ];
+              reservations = [
+                (mkReservation noc "10:ff:e0:37:91:ba" 2 "bigzam")
+                (mkReservation noc "9c:6b:00:4b:13:38" 3 "saitama")
+                (mkReservation noc "9c:6b:00:4b:13:32" 4 "genos")
+                (mkReservation noc "9c:6b:00:47:31:fe" 5 "tatsumaki")
+              ];
+              ddns-qualifying-suffix = "${noc.dhcpDomain}.";
+              option-data = [
+                {
+                  name = "routers";
+                  data = noc.address;
+                  always-send = true;
+                }
+                {
+                  name = "domain-name-servers";
+                  data = noc.address;
+                  always-send = true;
+                }
+                {
+                  name = "domain-name";
+                  data = noc.dhcpDomain;
+                  always-send = true;
+                }
+                {
+                  name = "ntp-servers";
+                  data = noc.address;
+                  always-send = true;
+                }
+              ];
+            }
+            {
+              inherit (build) subnet id;
+              pools = [
+                {
+                  pool = "${build.dhcpStart} - ${build.dhcpEnd}";
+                }
+              ];
+              reservations = [
+                (mkReservation build "10:ff:e0:37:91:bb" 2 "bigzam")
+                (mkReservation build "9c:6b:00:4b:13:36" 3 "saitama")
+                (mkReservation build "9c:6b:00:4b:13:30" 4 "genos")
+                (mkReservation build "9c:6b:00:47:31:fc" 5 "tatsumaki")
+              ];
+              ddns-qualifying-suffix = "${build.dhcpDomain}.";
+              option-data = [
+                {
+                  name = "routers";
+                  data = build.address;
+                  always-send = true;
+                }
+                {
+                  name = "domain-name-servers";
+                  data = build.address;
+                  always-send = true;
+                }
+                {
+                  name = "domain-name";
+                  data = build.dhcpDomain;
+                  always-send = true;
+                }
+                {
+                  name = "ntp-servers";
+                  data = build.address;
+                  always-send = true;
+                }
+              ];
+            }
+            {
+              inherit (arena) subnet id;
+              pools = [
+                {
+                  pool = "${arena.dhcpStart} - ${arena.dhcpEnd}";
+                }
+              ];
+              ddns-qualifying-suffix = "${arena.dhcpDomain}.";
+              option-data = [
+                {
+                  name = "routers";
+                  data = arena.address;
+                  always-send = true;
+                }
+                {
+                  name = "domain-name-servers";
+                  data = arena.address;
+                  always-send = true;
+                }
+                {
+                  name = "domain-name";
+                  data = arena.dhcpDomain;
+                  always-send = true;
+                }
+                {
+                  name = "ntp-servers";
+                  data = arena.address;
+                  always-send = true;
+                }
+              ];
+            }
+          ];
 
         # Enable communication between dhcp4 and a local dhcp-ddns
         # instance.
@@ -850,7 +864,11 @@ in
         "${noc.address}:53"
         "${build.address}:53"
         "${arena.address}:53"
-        "${lib.head (lib.split "/" config.networking.mesh.plan.hosts.${config.networking.hostName}.wifi.address)}:53"
+        "${
+          lib.head (
+            lib.split "/" config.networking.mesh.plan.hosts.${config.networking.hostName}.wifi.address
+          )
+        }:53"
         "127.0.0.1:53"
         "[::1]:53"
       ];
@@ -949,24 +967,26 @@ in
           http2 = true;
           enableACME = true;
           addSSL = true;
-          locations = let
-            public = "${pkgs.nix-vegas-site-onsite}/public";
-            netboot = "${public}/nixos/systems/x86_64-linux/netboot";
-          in {
-            "= /boot/bzImage" = {
-              alias = "${netboot}/bzImage";
-            };
+          locations =
+            let
+              public = "${pkgs.nix-vegas-site-onsite}/public";
+              netboot = "${public}/nixos/systems/x86_64-linux/netboot";
+            in
+            {
+              "= /boot/bzImage" = {
+                alias = "${netboot}/bzImage";
+              };
 
-            "= /boot/initrd" = {
-              alias = "${netboot}/initrd";
-            };
+              "= /boot/initrd" = {
+                alias = "${netboot}/initrd";
+              };
 
-            "= /boot/netboot.ipxe" = {
-              alias = "${netboot}/netboot.ipxe";
-            };
+              "= /boot/netboot.ipxe" = {
+                alias = "${netboot}/netboot.ipxe";
+              };
 
-            "/".root = public;
-          };
+              "/".root = public;
+            };
         };
 
         "cache.nixos.lv" = {

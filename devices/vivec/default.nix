@@ -1,7 +1,13 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
-{ config, pkgs, lib, modulesPath, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  modulesPath,
+  ...
+}:
 
 let
   baseDomain = "nixos.lv";
@@ -30,24 +36,34 @@ let
   };
 in
 {
-  imports =
-    [ (modulesPath + "/installer/scan/not-detected.nix")
-    ];
+  imports = [
+    (modulesPath + "/installer/scan/not-detected.nix")
+  ];
 
-  boot.initrd.availableKernelModules = [ "xhci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" "sdhci_pci" ];
+  boot.initrd.availableKernelModules = [
+    "xhci_pci"
+    "ahci"
+    "usbhid"
+    "usb_storage"
+    "sd_mod"
+    "sdhci_pci"
+  ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-intel" "option" ];
+  boot.kernelModules = [
+    "kvm-intel"
+    "option"
+  ];
   boot.extraModulePackages = [ ];
 
-  fileSystems."/nix" = lib.mkForce
-    { device = "vehk/local/nix";
-      fsType = "zfs";
-    };
+  fileSystems."/nix" = lib.mkForce {
+    device = "vehk/local/nix";
+    fsType = "zfs";
+  };
 
-  fileSystems."/home" = lib.mkForce
-    { device = "vehk/user/home";
-      fsType = "zfs";
-    };
+  fileSystems."/home" = lib.mkForce {
+    device = "vehk/user/home";
+    fsType = "zfs";
+  };
 
   fileSystems."/var/lib/ncps" = {
     device = "vehk/local/cache";
@@ -57,24 +73,36 @@ in
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 
-  boot.kernelParams = [ "console=tty0" "console=ttyS0,115200n8" ];
+  boot.kernelParams = [
+    "console=tty0"
+    "console=ttyS0,115200n8"
+  ];
   boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod_stable;
 
-  services.gpsd = let
-    nmeaDevice = "/dev/serial/by-id/usb-Qualcomm_MDG200-if02-port0";
-  in {
-    enable = true;
-    nowait = true;
-    devices = lib.singleton nmeaDevice;
-    # 9600-8-N-1
-    extraArgs = [ "-s" "9600" "-f" "8N1" ];
-  };
+  services.gpsd =
+    let
+      nmeaDevice = "/dev/serial/by-id/usb-Qualcomm_MDG200-if02-port0";
+    in
+    {
+      enable = true;
+      nowait = true;
+      devices = lib.singleton nmeaDevice;
+      # 9600-8-N-1
+      extraArgs = [
+        "-s"
+        "9600"
+        "-f"
+        "8N1"
+      ];
+    };
 
-  boot.kernelPatches = [{
-    name = "tremont-march";
-    patch = ./0001-arch-x86-Kconfig.cpu-Add-Tremont-support.patch;
-    extraStructuredConfig.MTREMONT = lib.kernel.yes;
-  }];
+  boot.kernelPatches = [
+    {
+      name = "tremont-march";
+      patch = ./0001-arch-x86-Kconfig.cpu-Add-Tremont-support.patch;
+      extraStructuredConfig.MTREMONT = lib.kernel.yes;
+    }
+  ];
 
   boot.kernel.sysctl = {
     "net.ipv4.conf.all.forwarding" = true;
@@ -166,25 +194,44 @@ in
           name = "panda2";
         };
       };
-      gps.gpsd = { host = "localhost"; port = 2947; };
+      gps.gpsd = {
+        host = "localhost";
+        port = 2947;
+      };
     };
   };
 
   # List packages installed in system profile. To search, run:/
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    wget vim curl git tmux psmisc man-pages
-    htop linuxPackages.perf iftop
+    wget
+    vim
+    curl
+    git
+    tmux
+    psmisc
+    man-pages
+    htop
+    linuxPackages.perf
+    iftop
     speedtest-cli
-    zip unzip
+    zip
+    unzip
     usbutils
-    gpsd iw
+    gpsd
+    iw
 
     openssl
     firefox
 
-    iproute2 traceroute unbound bind
-    bridge-utils ethtool tcpdump conntrack-tools
+    iproute2
+    traceroute
+    unbound
+    bind
+    bridge-utils
+    ethtool
+    tcpdump
+    conntrack-tools
     nebula
   ];
 
@@ -203,7 +250,11 @@ in
     };
 
     dhcpcd = {
-      allowInterfaces = [ "wan" wwan "modem" ];
+      allowInterfaces = [
+        "wan"
+        wwan
+        "modem"
+      ];
       extraConfig = ''
         interface wan
         metric 1000
@@ -228,16 +279,22 @@ in
       ${wwan}.useDHCP = true;
       modem.useDHCP = true;
       arena = {
-        ipv4.addresses = [{
-          inherit (arena) address;
-          prefixLength = arena.prefix;
-        }];
+        ipv4.addresses = [
+          {
+            inherit (arena) address;
+            prefixLength = arena.prefix;
+          }
+        ];
       };
     };
 
     bridges = {
       arena = {
-        interfaces = [ "eth0" "enp2s0" "enp3s0" ];
+        interfaces = [
+          "eth0"
+          "enp2s0"
+          "enp3s0"
+        ];
       };
 
       wan = {
@@ -372,107 +429,109 @@ in
       };
 
       # Allow this to exist independently of device status
-      "network-addresses-${wwan}".bindsTo = lib.mkForce [];
+      "network-addresses-${wwan}".bindsTo = lib.mkForce [ ];
 
       # Protectli devices have a serial console, enable it despite being otherwise headless.
       "serial-getty@ttyS0".enable = true;
 
       # Initialize the GPS using AT commands on the modem.
-      "gpsd".serviceConfig.ExecStartPre = let
-        atCommandDevice = "/dev/serial/by-id/usb-Qualcomm_MDG200-if03-port0";
+      "gpsd".serviceConfig.ExecStartPre =
+        let
+          atCommandDevice = "/dev/serial/by-id/usb-Qualcomm_MDG200-if03-port0";
 
-        # https://web.ics.purdue.edu/~aai/tcl8.4a4/html/TclCmd/fconfigure.htm#M20
-        atCommandMode = "9600,n,8,1";
+          # https://web.ics.purdue.edu/~aai/tcl8.4a4/html/TclCmd/fconfigure.htm#M20
+          atCommandMode = "9600,n,8,1";
 
-        modemInitExpectScript = pkgs.writeText "modem.exp" ''
-          #!/usr/bin/env expect
-          log_user 0
-          set timeout 3
-          set dev [lindex $argv 0]
-          set mode [lindex $argv 1]
-          set portId [open $dev r+]
+          modemInitExpectScript = pkgs.writeText "modem.exp" ''
+            #!/usr/bin/env expect
+            log_user 0
+            set timeout 3
+            set dev [lindex $argv 0]
+            set mode [lindex $argv 1]
+            set portId [open $dev r+]
 
-          # Configure the port with the baud rate.
-          # Don't block on read, don't buffer output.
-          fconfigure $portId -mode $mode -blocking 0
-          spawn -noecho -open $portId
+            # Configure the port with the baud rate.
+            # Don't block on read, don't buffer output.
+            fconfigure $portId -mode $mode -blocking 0
+            spawn -noecho -open $portId
 
-          # Escapes regex chars.
-          proc reEscape {str} {
-            regsub -all {\W} $str {\\&}
-          }
+            # Escapes regex chars.
+            proc reEscape {str} {
+              regsub -all {\W} $str {\\&}
+            }
 
-          # Runs an AT command.
-          proc AT args {
-            set cmd "AT"
+            # Runs an AT command.
+            proc AT args {
+              set cmd "AT"
 
-            foreach arg $args {
-              if {$arg != ""} {
-                set cmd "$cmd$arg"
+              foreach arg $args {
+                if {$arg != ""} {
+                  set cmd "$cmd$arg"
+                }
               }
-            }
 
-            set escaped [reEscape $cmd]
-            set result "<TIMEOUT>"
+              set escaped [reEscape $cmd]
+              set result "<TIMEOUT>"
 
-            send_user -- "-> $cmd\n"
-            send -- "$cmd\r"
-            expect {
-              -re "$escaped\r\r\n(.+)\r\n" {
-                set result [string trim $expect_out(1,string)]
+              send_user -- "-> $cmd\n"
+              send -- "$cmd\r"
+              expect {
+                -re "$escaped\r\r\n(.+)\r\n" {
+                  set result [string trim $expect_out(1,string)]
+                }
+                timeout {}
               }
-              timeout {}
+
+              # Format the output.
+              set formatted $result
+              if {[regexp {\r|\n} $formatted]} {
+                set formatted [regsub -all {(?n)^} $formatted {  }]
+                set formatted "\[\n$formatted\n\]"
+              }
+              set formatted [regsub -all {(?n)^} $formatted {<- }]
+              send_user -- "$formatted\n"
+              return $result
             }
 
-            # Format the output.
-            set formatted $result
-            if {[regexp {\r|\n} $formatted]} {
-              set formatted [regsub -all {(?n)^} $formatted {  }]
-              set formatted "\[\n$formatted\n\]"
-            }
-            set formatted [regsub -all {(?n)^} $formatted {<- }]
-            send_user -- "$formatted\n"
-            return $result
-          }
+            # Startup procedure in `https://sixfab.com/wp-content/uploads/2020/11/Quectel_LTE_Standard_GNSS_Application_Note_V1.2.pdf`:
+              AT
+            # End any GPS sessions
+              AT {+QGPSEND}
+            # Query config
+              AT {+QGPSCFG=?}
+            # Output over USB
+              AT {+QGPSCFG="outport","usbnmea"}
+            # Should be default, all NMEA sentences for GPS
+              AT {+QGPSCFG="gpsnmeatype",31}
+            # 1 Hz fix frequency
+              AT {+QGPSCFG="fixfreq",1}
+            # Start GPS
+              AT {+QGPS=1}
+          '';
 
-          # Startup procedure in `https://sixfab.com/wp-content/uploads/2020/11/Quectel_LTE_Standard_GNSS_Application_Note_V1.2.pdf`:
-            AT
-          # End any GPS sessions
-            AT {+QGPSEND}
-          # Query config
-            AT {+QGPSCFG=?}
-          # Output over USB
-            AT {+QGPSCFG="outport","usbnmea"}
-          # Should be default, all NMEA sentences for GPS
-            AT {+QGPSCFG="gpsnmeatype",31}
-          # 1 Hz fix frequency
-            AT {+QGPSCFG="fixfreq",1}
-          # Start GPS
-            AT {+QGPS=1}
-        '';
+          modemInitWrapper = pkgs.writeShellScript "modem-init" ''
+            set -euo pipefail
+            if [ $# -ne 2 ]; then
+              echo "$0: usage: $0 [AT serial device] [mode]" >&2
+              exit 1
+            fi
 
-        modemInitWrapper = pkgs.writeShellScript "modem-init" ''
-          set -euo pipefail
-          if [ $# -ne 2 ]; then
-            echo "$0: usage: $0 [AT serial device] [mode]" >&2
-            exit 1
-          fi
+            device="$1"
+            mode="$2"
 
-          device="$1"
-          mode="$2"
-
-          # We need to activate the USB serial drivers on the modem first:
-          tries=0
-          max_tries=3
-          while [ ! -c "$device" ] && [ $tries -lt $max_tries ]; do
-            ${pkgs.kmod}/bin/modprobe option
-            echo 0x5c6 0x90b3 > /sys/bus/usb-serial/drivers/option1/new_id
-            tries=$((tries+1))
-            sleep 1
-          done
-          exec ${pkgs.expect}/bin/expect ${modemInitExpectScript} "$device" "$mode"
-        '';
-      in "+${modemInitWrapper} ${atCommandDevice} ${atCommandMode}";
+            # We need to activate the USB serial drivers on the modem first:
+            tries=0
+            max_tries=3
+            while [ ! -c "$device" ] && [ $tries -lt $max_tries ]; do
+              ${pkgs.kmod}/bin/modprobe option
+              echo 0x5c6 0x90b3 > /sys/bus/usb-serial/drivers/option1/new_id
+              tries=$((tries+1))
+              sleep 1
+            done
+            exec ${pkgs.expect}/bin/expect ${modemInitExpectScript} "$device" "$mode"
+          '';
+        in
+        "+${modemInitWrapper} ${atCommandDevice} ${atCommandMode}";
     };
   };
 
@@ -552,23 +611,29 @@ in
         subnet4 = [
           {
             inherit (arena) subnet id;
-            pools = [ {
-              pool = "${arena.dhcpStart} - ${arena.dhcpEnd}";
-            } ];
+            pools = [
+              {
+                pool = "${arena.dhcpStart} - ${arena.dhcpEnd}";
+              }
+            ];
             ddns-qualifying-suffix = "${arena.dhcpDomain}.";
-            option-data = [ {
-              name = "routers";
-              data = arena.address;
-              always-send = true;
-            } {
-              name = "domain-name-servers";
-              data = arena.address;
-              always-send = true;
-            } {
-              name = "domain-name";
-              data = arena.dhcpDomain;
-              always-send = true;
-            } ];
+            option-data = [
+              {
+                name = "routers";
+                data = arena.address;
+                always-send = true;
+              }
+              {
+                name = "domain-name-servers";
+                data = arena.address;
+                always-send = true;
+              }
+              {
+                name = "domain-name";
+                data = arena.dhcpDomain;
+                always-send = true;
+              }
+            ];
           }
         ];
 
@@ -592,14 +657,18 @@ in
       enable = true;
       settings = {
         forward-ddns = {
-          ddns-domains = [ {
-            name = "${domain}.";
-            key-name = "dc-nixos-lv-key";
-            dns-servers = [ {
-              ip-address = "127.0.0.1";
-              port = 53535;
-            } ];
-          } ];
+          ddns-domains = [
+            {
+              name = "${domain}.";
+              key-name = "dc-nixos-lv-key";
+              dns-servers = [
+                {
+                  ip-address = "127.0.0.1";
+                  port = 53535;
+                }
+              ];
+            }
+          ];
         };
         tsig-keys = [
           {
@@ -611,60 +680,67 @@ in
       };
     };
 
-    knot = let
-      zone = pkgs.writeTextDir "${baseDomain}.zone" ''
-        @ SOA ns noc.${baseDomain} 1 86400 7200 3600000 172800
-        @ NS nameserver
-        nameserver A 127.0.0.1
-        ${config.networking.hostName}.${arena.dhcpDomain}. A ${arena.address}
-        ${config.networking.hostName}.cache.${baseDomain}. CNAME ${config.networking.hostName}.${arena.dhcpDomain}.
-      '';
-      zonesDir = pkgs.buildEnv {
-        name = "knot-zones";
-        paths = [ zone ];
+    knot =
+      let
+        zone = pkgs.writeTextDir "${baseDomain}.zone" ''
+          @ SOA ns noc.${baseDomain} 1 86400 7200 3600000 172800
+          @ NS nameserver
+          nameserver A 127.0.0.1
+          ${config.networking.hostName}.${arena.dhcpDomain}. A ${arena.address}
+          ${config.networking.hostName}.cache.${baseDomain}. CNAME ${config.networking.hostName}.${arena.dhcpDomain}.
+        '';
+        zonesDir = pkgs.buildEnv {
+          name = "knot-zones";
+          paths = [ zone ];
+        };
+      in
+      {
+        enable = true;
+        extraArgs = [
+          "-v"
+        ];
+        keyFiles = [ "/etc/knot/tsig.conf" ];
+        settings = {
+          server = {
+            listen = "127.0.0.1@53535";
+          };
+          log = {
+            syslog = {
+              any = "debug";
+            };
+          };
+          acl = {
+            dc-nixos-lv-acl = {
+              key = "dc-nixos-lv-key";
+              action = "update";
+            };
+          };
+          template = {
+            default = {
+              storage = zonesDir;
+              zonefile-sync = -1;
+              zonefile-load = "difference-no-serial";
+              journal-content = "all";
+            };
+          };
+          zone = {
+            ${baseDomain} = {
+              file = "${baseDomain}.zone";
+              acl = [ "dc-nixos-lv-acl" ];
+            };
+          };
+        };
       };
-    in {
-      enable = true;
-      extraArgs = [
-        "-v"
-      ];
-      keyFiles = [ "/etc/knot/tsig.conf" ];
-      settings = {
-        server = {
-          listen = "127.0.0.1@53535";
-        };
-        log = {
-          syslog = {
-            any = "debug";
-          };
-        };
-        acl = {
-          dc-nixos-lv-acl = {
-            key = "dc-nixos-lv-key";
-            action = "update";
-          };
-        };
-        template = {
-          default = {
-            storage = zonesDir;
-            zonefile-sync = -1;
-            zonefile-load = "difference-no-serial";
-            journal-content = "all";
-          };
-        };
-        zone = {
-          ${baseDomain} = {
-            file = "${baseDomain}.zone";
-            acl = ["dc-nixos-lv-acl"];
-          };
-        };
-      };
-    };
 
-    kresd = { /* knot resolver daemon */
+    kresd = {
+      # knot resolver daemon
       enable = true;
       package = pkgs.knot-resolver.override { extraFeatures = true; };
-      listenPlain = [ "${arena.address}:53" "127.0.0.1:53" "[::1]:53" ];
+      listenPlain = [
+        "${arena.address}:53"
+        "127.0.0.1:53"
+        "[::1]:53"
+      ];
       extraConfig = ''
         cache.size = 32 * MB
 

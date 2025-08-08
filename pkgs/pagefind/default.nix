@@ -22,20 +22,27 @@ let
     );
   '';
 
-  fake-nixos-channel-index = runCommandNoCC "nixos-channel-index" {} ''
+  fake-nixos-channel-index = runCommandNoCC "nixos-channel-index" { } ''
     mkdir -p $out
     ${lib.getExe sqlite} $out/programs.sqlite < ${initSql}
   '';
 
   nixpkgsWithIndexes = symlinkJoin {
     name = "nixpkgs-with-indexes";
-    paths = [ nixpkgs fake-nixos-channel-index ];
+    paths = [
+      nixpkgs
+      fake-nixos-channel-index
+    ];
   };
 
   pagefindJson = stdenvNoCC.mkDerivation {
     name = "nixos-pagefind-json";
 
-    phases = [ "configurePhase" "buildPhase" "installPhase" ];
+    phases = [
+      "configurePhase"
+      "buildPhase"
+      "installPhase"
+    ];
 
     nativeBuildInputs = [
       nix
@@ -68,7 +75,10 @@ in
 stdenvNoCC.mkDerivation {
   name = "nixos-pagefind";
 
-  phases = [ "buildPhase" "installPhase" ];
+  phases = [
+    "buildPhase"
+    "installPhase"
+  ];
 
   nativeBuildInputs = [
     nixos-pagefind-staticgen

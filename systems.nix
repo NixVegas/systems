@@ -15,49 +15,56 @@ in
     version = "25.05";
     modules = [
       ./devices/bigzam
-    ] ++ commonModules;
+    ]
+    ++ commonModules;
   };
 
   tatsumaki = {
     version = "25.05";
     modules = [
       ./devices/tatsumaki
-    ] ++ commonModules;
+    ]
+    ++ commonModules;
   };
 
   genos = {
     version = "25.05";
     modules = [
       ./devices/genos
-    ] ++ commonModules;
+    ]
+    ++ commonModules;
   };
 
   saitama = {
     version = "25.05";
     modules = [
       ./devices/saitama
-    ] ++ commonModules;
+    ]
+    ++ commonModules;
   };
 
   ghostgate = {
     version = "25.05";
     modules = [
       ./devices/ghostgate
-    ] ++ commonModules;
+    ]
+    ++ commonModules;
   };
 
   vivec = {
     version = "25.05";
     modules = [
       ./devices/vivec
-    ] ++ commonModules;
+    ]
+    ++ commonModules;
   };
 
   adamantia = {
     version = "25.05";
     modules = [
       ./devices/adamantia
-    ] ++ commonModules;
+    ]
+    ++ commonModules;
     address = "adamantia.arena.nixos.lv";
     profile = {
       sshUser = "numinit";

@@ -30,7 +30,8 @@ let
 
   nixpkgs-channels = lib.genAttrs systems (systems: channel);
 
-  maybeLink = artifact: system: outPath: systemSpecific:
+  maybeLink =
+    artifact: system: outPath: systemSpecific:
     if lib.hasAttr system artifact then
       ''
         mkdir -p $out/systems/${system}

@@ -53,10 +53,15 @@
 
           # Maps nixpkgs instances to their version.
           nixpkgsVersions = builtins.listToAttrs (
-            map (nixpkgs: {
-              name = lib.versions.majorMinor nixpkgs.lib.version;
-              value = nixpkgs;
-            }) [ nixpkgs nixpkgs-unstable ]
+            map
+              (nixpkgs: {
+                name = lib.versions.majorMinor nixpkgs.lib.version;
+                value = nixpkgs;
+              })
+              [
+                nixpkgs
+                nixpkgs-unstable
+              ]
           );
 
           # Creates a NixOS system.
@@ -75,9 +80,12 @@
             in
             nixpkgsVersions.${version}.lib.nixosSystem {
               modules = modules ++ extraModules;
-              specialArgs = inputs // {
-                inherit extraModules;
-              } // specialArgs;
+              specialArgs =
+                inputs
+                // {
+                  inherit extraModules;
+                }
+                // specialArgs;
             };
 
           # Creates a system and a deploy config.
@@ -123,7 +131,10 @@
                 acc: _: val:
                 lib.attrsets.recursiveUpdate acc val
               )
-              { nixosConfigurations = {}; deploy.nodes = {}; }
+              {
+                nixosConfigurations = { };
+                deploy.nodes = { };
+              }
               (
                 lib.mapAttrs (
                   name: value:

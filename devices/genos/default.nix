@@ -44,7 +44,10 @@
       metric 2000
     '';
     bridges = {
-      build.interfaces = [ "trunk1.build" "trunk2.build" ];
+      build.interfaces = [
+        "trunk1.build"
+        "trunk2.build"
+      ];
       noc.interfaces = [ "enP3p5s0" ];
     };
     firewall.interfaces = rec {

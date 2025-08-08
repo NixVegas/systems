@@ -5,7 +5,10 @@
 # make sure you add `imports = [ ./nix-vegas-defaults.nix ];` to your configuration.nix
 {
   # Work on serial consoles
-  boot.kernelParams = lib.mkAfter [ "console=tty0" "console=ttyS0,115200n8" ];
+  boot.kernelParams = lib.mkAfter [
+    "console=tty0"
+    "console=ttyS0,115200n8"
+  ];
 
   # Use our binary cache as the first substituter
   nix.settings.substituters = lib.mkBefore [ "https://cache.nixos.lv" ];
@@ -14,5 +17,6 @@
   system.nixos.vendorName = "Nix Vegas";
 
   # Include this file in /etc/nixos
-  environment.etc."nixos/configuration-nix-vegas.nix".text = builtins.readFile ./nix-vegas-defaults.nix;
+  environment.etc."nixos/configuration-nix-vegas.nix".text =
+    builtins.readFile ./nix-vegas-defaults.nix;
 }

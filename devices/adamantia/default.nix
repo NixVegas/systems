@@ -49,7 +49,9 @@ in
   };
 
   environment.systemPackages = with pkgs; [
-    git htop nebula
+    git
+    htop
+    nebula
   ];
 
   networking =
@@ -121,10 +123,16 @@ in
           80
           443
         ];
-        allowedUDPPorts = [ 53 5000 ];
+        allowedUDPPorts = [
+          53
+          5000
+        ];
         interfaces.arena = {
           allowedTCPPorts = [ 1935 ];
-          allowedUDPPorts = [ 1935 5000 ];
+          allowedUDPPorts = [
+            1935
+            5000
+          ];
         };
       };
 
@@ -255,43 +263,47 @@ in
         ];
       };
 
-      owncast = {
-        enable = true;
-      };
+    owncast = {
+      enable = true;
+    };
 
-      nginx = {
-        enable = true;
-        recommendedTlsSettings = true;
-        recommendedGzipSettings = true;
-        recommendedZstdSettings = true;
-        recommendedBrotliSettings = true;
-        recommendedProxySettings = true;
-        recommendedUwsgiSettings = true;
-        recommendedOptimisation = true;
+    nginx = {
+      enable = true;
+      recommendedTlsSettings = true;
+      recommendedGzipSettings = true;
+      recommendedZstdSettings = true;
+      recommendedBrotliSettings = true;
+      recommendedProxySettings = true;
+      recommendedUwsgiSettings = true;
+      recommendedOptimisation = true;
 
-        upstreams = {
-          "ghostgate.dc.nixos.lv" = {
-            servers = {
-              ${config.networking.mesh.plan.hosts.ghostgate.nebula.address} = { };
-            };
-          };
-          "owncast" = {
-            servers = {
-              "localhost:${toString config.services.owncast.port}" = { };
-            };
+      upstreams = {
+        "ghostgate.dc.nixos.lv" = {
+          servers = {
+            ${config.networking.mesh.plan.hosts.ghostgate.nebula.address} = { };
           };
         };
+        "owncast" = {
+          servers = {
+            "localhost:${toString config.services.owncast.port}" = { };
+          };
+        };
+      };
 
-        virtualHosts = let
-          proxyLetsEncrypt = upstream: options: lib.recursiveUpdate {
-            locations."/" = {
-              extraConfig = "empty_gif;";
-            };
-            locations."/.well-known/acme-challenge" = {
-              proxyPass = "http://${upstream}";
-            };
-          } options;
-        in {
+      virtualHosts =
+        let
+          proxyLetsEncrypt =
+            upstream: options:
+            lib.recursiveUpdate {
+              locations."/" = {
+                extraConfig = "empty_gif;";
+              };
+              locations."/.well-known/acme-challenge" = {
+                proxyPass = "http://${upstream}";
+              };
+            } options;
+        in
+        {
           # Useful for setting up split-horizon DNS with Let's Encrypt, little else.
           #"nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
           #"cache.nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
@@ -354,7 +366,7 @@ in
             };
           };
         };
-      };
+    };
   };
 
   security.acme = {

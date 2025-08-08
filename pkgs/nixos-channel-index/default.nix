@@ -11,9 +11,16 @@
 stdenvNoCC.mkDerivation {
   name = "nixos-channel-index";
 
-  phases = [ "configurePhase" "buildPhase" "installPhase" ];
+  phases = [
+    "configurePhase"
+    "buildPhase"
+    "installPhase"
+  ];
 
-  nativeBuildInputs = [ nix-index nix ];
+  nativeBuildInputs = [
+    nix-index
+    nix
+  ];
 
   configurePhase = ''
     runHook preConfigure
