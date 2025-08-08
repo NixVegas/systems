@@ -508,6 +508,24 @@ in
     fallbackToWPA2 = false;
     allowAuxiliaryImperativeNetworks = true;
     userControlled.enable = true;
+    secretsFile = "/etc/meshos/dc33/wireless.env";
+    networks."DefCon" = {
+      priority = 5;
+      authProtocols = lib.singleton "WPA-EAP";
+      auth = ''
+        proto=RSN
+        pairwise=CCMP
+        auth_alg=OPEN
+        eap=PEAP
+        identity="Nix"
+        password=ext:dc_wifi_pass
+        phase1="peaplabel=0"
+        phase2="auth=MSCHAPV2"
+        ca_cert="${../hellenic-academic-root-ca.crt}"
+        subject_match="CN=wifireg.defcon.org"
+        altsubject_match="DNS:wifi.defcon.org;DNS:wifireg.defcon.org"
+      '';
+    };
   };
 
   services.hostapd = {
