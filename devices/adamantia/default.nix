@@ -312,7 +312,7 @@ in
           "nixos.lv" = {
             forceSSL = true;
             enableACME = true;
-            globalRedirect = "nix.vegas";
+            locations."/".root = "${pkgs.nix-vegas-site-offsite}/public";
           };
 
           # strip www
