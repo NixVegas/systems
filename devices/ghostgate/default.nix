@@ -333,6 +333,7 @@ in
 
     nftables = {
       enable = true;
+      flushRuleset = true;
       tables = {
         filter = {
           family = "inet";
@@ -446,6 +447,23 @@ in
                 type filter hook forward priority 0; policy accept;
                 udp dport 69 ct helper set "helper-tftp"
             }
+          '';
+        };
+
+        gremlinmode = {
+          name = "gremlinmode";
+          family = "ip";
+          content = ''
+            chain raw {
+              type filter hook postrouting priority 0; policy accept;
+              ip dscp cs1  ip dscp set cs0  return
+              ip dscp af22 ip dscp set af21 return
+              ip dscp af23 ip dscp set af21 return
+              ip dscp af32 ip dscp set af31 return
+              ip dscp af33 ip dscp set af31 return
+              ip dscp af42 ip dscp set af41 return
+              ip dscp af43 ip dscp set af41 return
+            };
           '';
         };
       };
