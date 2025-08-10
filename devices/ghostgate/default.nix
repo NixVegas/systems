@@ -19,7 +19,8 @@ let
   onboardWifi = "wlp7s0";
   wwan1 = onboardWifi;
   externalUSBAWifi = "wlp0s13f0u2";
-  externalUSBCWifi = "wlp0s13f0u3";
+  externalUSBCWifi1 = "wlp0s13f0u3u2";
+  externalUSBCWifi2 = "wlp0s13f0u3u3";
 
   modemInterfaces = [ "enp0s20f0u3" ];
   wanInterface = "enp3s0";
@@ -110,7 +111,7 @@ in
     wifi = {
       enable = true;
       countryCode = "US";
-      dedicatedWifiDevices = [ externalUSBAWifi ];
+      dedicatedWifiDevices = [ externalUSBCWifi2 ];
       useForFallbackInternetAccess = false;
       sharedInternetDevice = "nebula.arena";
     };
@@ -561,14 +562,34 @@ in
 
   services.hostapd = {
     enable = true;
-    radios.${externalUSBCWifi} = {
+    radios.${externalUSBAWifi} = {
       countryCode = "US";
       band = "2g";
       channel = 4;
       wifi6.enable = true;
       networks = {
-        ${externalUSBCWifi} = {
+        ${externalUSBAWifi} = {
           ssid = "NixVegas";
+          authentication = {
+            mode = "wpa3-sae-transition";
+            saePasswordsFile = "/etc/meshos/dc33/nixvegas.wpa3.keys";
+            wpaPskFile = "/etc/meshos/dc33/nixvegas.wpa2.keys";
+            enableRecommendedPairwiseCiphers = true;
+          };
+          settings = {
+            bridge = "arena";
+          };
+        };
+      };
+    };
+    radios.${externalUSBCWifi1} = {
+      countryCode = "US";
+      band = "5g";
+      channel = 36;
+      wifi6.enable = true;
+      networks = {
+        ${externalUSBCWifi1} = {
+          ssid = "NixVegas_5";
           authentication = {
             mode = "wpa3-sae-transition";
             saePasswordsFile = "/etc/meshos/dc33/nixvegas.wpa3.keys";
