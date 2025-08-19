@@ -123,7 +123,6 @@ in
     interfaces = {
       build.useDHCP = true;
       noc.useDHCP = true;
-      wan.useDHCP = true;
       usb0.useDHCP = true;
     };
     dhcpcd.extraConfig = ''
@@ -132,8 +131,6 @@ in
       metric 1000
       interface noc
       metric 1001
-      interface wan
-      metric 1500
       interface usb0
       metric 2000
     '';
@@ -142,7 +139,6 @@ in
         "enP3p3s0f0"
         "enP3p3s0f1"
       ];
-      wan.interfaces = [ "enP3p3s0f0" ];
       noc.interfaces = [ "enP3p6s0" ];
     };
     firewall.interfaces = rec {
