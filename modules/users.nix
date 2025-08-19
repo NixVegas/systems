@@ -43,6 +43,14 @@
           "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBOLkms0KUv8J45FqK2WG6J6X4DZGhMB5sMM8gEl0bUCmH7XH36/D73+nDtVriXC2ITAduvKmCRvs+DW1js3jTwQAAAAEc3NoOg== numinit@cyrus#6460026"
         ];
       };
+      nixos = {
+        isNormalUser = true;
+        extraGroups = [ "wheel" ];
+        initialPassword = "nixos";
+        openssh.authorizedKeys.keys = [
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJvQ019hcX1btVucFxeRG/Hz/Xsn4CR5ZvjQTEVJETpX nixos@nixvegas"
+        ];
+      };
     };
   };
 
@@ -50,5 +58,6 @@
     "deploy"
     "ross"
     "numinit"
+    "nixos"
   ];
 }
