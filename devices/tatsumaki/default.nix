@@ -24,6 +24,15 @@
       noc.useDHCP = true;
       usb0.useDHCP = true;
     };
+    dhcpcd.extraConfig = ''
+      # deprioritize noc under build
+      interface build
+      metric 1000
+      interface noc
+      metric 1001
+      interface usb0
+      metric 2000
+    '';
     bridges = {
       # let us plug into the right 10g for a direct link into the buildnet
       build.interfaces = [

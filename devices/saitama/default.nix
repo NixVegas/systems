@@ -126,6 +126,17 @@ in
       wan.useDHCP = true;
       usb0.useDHCP = true;
     };
+    dhcpcd.extraConfig = ''
+      # deprioritize noc under build
+      interface build
+      metric 1000
+      interface noc
+      metric 1001
+      interface wan
+      metric 1500
+      interface usb0
+      metric 2000
+    '';
     bridges = {
       build.interfaces = [
         "enP3p3s0f0"
