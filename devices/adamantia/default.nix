@@ -267,6 +267,11 @@ in
       enable = true;
     };
 
+    immich = {
+      enable = true;
+      port = 2283;
+    };
+
     nginx = {
       enable = true;
       recommendedTlsSettings = true;
@@ -286,6 +291,11 @@ in
         "owncast" = {
           servers = {
             "localhost:${toString config.services.owncast.port}" = { };
+          };
+        };
+        "immich" = {
+          servers = {
+            "localhost:${toString config.services.immich.port}" = { };
           };
         };
       };
@@ -363,6 +373,27 @@ in
             locations."/" = {
               proxyPass = "http://owncast";
               proxyWebsockets = true;
+            };
+          };
+
+          "relive.nixos.lv" = {
+            forceSSL = true;
+            enableACME = true;
+            globalRedirect = "relive.nix.vegas";
+          };
+
+          "relive.nix.vegas" = {
+            forceSSL = true;
+            enableACME = true;
+            locations."/" = {
+              proxyPass = "http://immich";
+              proxyWebsockets = true;
+              extraConfig = ''
+                client_max_body_size 50000M;
+                proxy_read_timeout   600s;
+                proxy_send_timeout   600s;
+                send_timeout         600s;
+              '';
             };
           };
         };
