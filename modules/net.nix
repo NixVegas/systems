@@ -20,6 +20,18 @@
         KbdInteractiveAuthentication = false;
       };
     };
+    fail2ban = {
+      enable = lib.mkDefault true;
+      ignoreIP =
+        let
+          subnet = config.networking.mesh.plan.constants.nebula.subnet or null;
+        in
+        lib.mkIf (subnet != null) [ subnet ];
+      bantime-increment = {
+        enable = true;
+        rndtime = "4m";
+      };
+    };
     avahi = {
       enable = lib.mkDefault true;
       publish = {
