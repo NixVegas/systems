@@ -54,6 +54,16 @@ in
     nebula
   ];
 
+  environment.etc."fail2ban/filter.d/immich.conf".text = ''
+    [INCLUDES]
+    before = common.conf
+    [Definition]
+    _daemon = immich
+    failregex = Failed login attempt for user.+from ip address\s?<ADDR>
+    [Init]
+    journalmatch = _SYSTEMD_UNIT=immich-server.service
+  '';
+
   networking =
     let
       egress = "ens3";
@@ -272,6 +282,27 @@ in
       port = 2283;
     };
 
+    immich-public-proxy = {
+      enable = true;
+      immichUrl = "http://localhost:${toString config.services.immich.port}";
+      settings = {
+        downloadOriginalPhoto = false;
+        showGalleryTitle = true;
+        allowDownloadAll = 1; # follow Immich setting
+        showHomePage = false;
+      };
+    };
+
+    fail2ban.jails = lib.mkMerge [
+      (lib.mkIf config.services.immich.enable {
+        immich.settings = {
+          enabled = true;
+          filter = "immich";
+          port = "80,443";
+        };
+      })
+    ];
+
     nginx = {
       enable = true;
       recommendedTlsSettings = true;
@@ -296,6 +327,9 @@ in
         "immich" = {
           servers = {
             "localhost:${toString config.services.immich.port}" = { };
+
+            # when there are a few more photos uploaded:
+            # "localhost:${toString config.services.immich-public-proxy.port}" = { };
           };
         };
       };
