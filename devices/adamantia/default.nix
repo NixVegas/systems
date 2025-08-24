@@ -425,6 +425,7 @@ in
               extraConfig = ''
                 client_max_body_size 10000m;
                 proxy_max_temp_file_size 128m;
+                proxy_request_buffering off;
                 proxy_read_timeout   600s;
                 proxy_send_timeout   600s;
                 send_timeout         600s;
