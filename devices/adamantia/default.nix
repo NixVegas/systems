@@ -326,10 +326,7 @@ in
         };
         "immich" = {
           servers = {
-            "localhost:${toString config.services.immich.port}" = { };
-
-            # when there are a few more photos uploaded:
-            # "localhost:${toString config.services.immich-public-proxy.port}" = { };
+            "localhost:${toString config.services.immich-public-proxy.port}" = { };
           };
         };
       };
