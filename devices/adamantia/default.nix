@@ -305,6 +305,7 @@ in
 
     nginx = {
       enable = true;
+
       recommendedTlsSettings = true;
       recommendedGzipSettings = true;
       recommendedZstdSettings = true;
@@ -325,6 +326,11 @@ in
           };
         };
         "immich" = {
+          servers = {
+            "localhost:${toString config.services.immich.port}" = { };
+          };
+        };
+        "immich-public-proxy" = {
           servers = {
             "localhost:${toString config.services.immich-public-proxy.port}" = { };
           };
@@ -417,7 +423,7 @@ in
             forceSSL = true;
             enableACME = true;
             locations."/" = {
-              proxyPass = "http://immich";
+              proxyPass = "http://$upstream";
               proxyWebsockets = true;
               extraConfig = ''
                 client_max_body_size 10000m;
@@ -426,10 +432,22 @@ in
                 proxy_read_timeout   600s;
                 proxy_send_timeout   600s;
                 send_timeout         600s;
+
+                set $upstream immich-public-proxy;
+                if ($source = nebula) {
+                  set $upstream immich;
+                }
               '';
             };
           };
         };
+
+        appendHttpConfig = ''
+          geo $source {
+            default public;
+            ${nebulaSubnet} nebula;
+          }
+        '';
     };
   };
 
