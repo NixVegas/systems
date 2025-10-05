@@ -5,7 +5,7 @@
 }:
 {
   boot.kernel.sysctl = {
-    "vm.swappiness" = 0;
+    "vm.swappiness" = 50;
     "fs.inotify.max_user_watches" = 16384;
   };
 

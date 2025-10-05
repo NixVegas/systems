@@ -11,7 +11,7 @@ let
   nebulaIp = myHost.nebula.address;
   nebulaIngress = lib.findFirst (lib.strings.hasInfix ".") null myHost.nebula.entryAddresses;
   nebula6Ingress = lib.findFirst (lib.strings.hasInfix ":") null myHost.nebula.entryAddresses;
-  nebulaEgress = "185.193.48.236";
+  nebulaEgress = "151.236.16.185";
   nebulaSubnet = config.networking.mesh.plan.constants.nebula.subnet;
 in
 {
@@ -84,15 +84,7 @@ in
         ipv4 = {
           addresses = [
             {
-              address = "151.236.16.225";
-              prefixLength = 24;
-            }
-            {
-              address = "151.236.16.78";
-              prefixLength = 24;
-            }
-            {
-              address = "185.193.48.236";
+              address = "151.236.16.185";
               prefixLength = 24;
             }
           ];
@@ -106,7 +98,7 @@ in
         ipv6 = {
           addresses = [
             {
-              address = "2605:3b80:111:163e::1";
+              address = "2605:3b80:111:548e::1";
               prefixLength = 64;
             }
           ];
