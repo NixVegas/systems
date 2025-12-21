@@ -12,7 +12,7 @@ let
 in
 {
   bigzam = {
-    version = "25.05";
+    version = "25.11";
     modules = [
       ./devices/bigzam
     ]
@@ -20,7 +20,7 @@ in
   };
 
   tatsumaki = {
-    version = "25.05";
+    version = "25.11";
     modules = [
       ./devices/tatsumaki
     ]
@@ -28,7 +28,7 @@ in
   };
 
   genos = {
-    version = "25.05";
+    version = "25.11";
     modules = [
       ./devices/genos
     ]
@@ -36,7 +36,7 @@ in
   };
 
   saitama = {
-    version = "25.05";
+    version = "25.11";
     modules = [
       ./devices/saitama
     ]
@@ -44,7 +44,7 @@ in
   };
 
   ghostgate = {
-    version = "25.05";
+    version = "25.11";
     modules = [
       ./devices/ghostgate
     ]
@@ -52,7 +52,7 @@ in
   };
 
   vivec = {
-    version = "25.05";
+    version = "25.11";
     modules = [
       ./devices/vivec
     ]
@@ -60,7 +60,7 @@ in
   };
 
   adamantia = {
-    version = "25.05";
+    version = "25.11";
     modules = [
       ./devices/adamantia
     ]
