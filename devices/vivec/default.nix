@@ -791,7 +791,6 @@ in
       enable = true;
       recommendedTlsSettings = true;
       recommendedGzipSettings = true;
-      recommendedZstdSettings = true;
       recommendedBrotliSettings = true;
       recommendedProxySettings = true;
       recommendedUwsgiSettings = true;
