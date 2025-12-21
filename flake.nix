@@ -4,10 +4,10 @@
   inputs = {
     nixpkgs-lib.url = "github:nix-community/nixpkgs.lib";
 
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixos-cosmic.url = "github:lilyinstarlight/nixos-cosmic?ref=pull/863/head";
-    nixpkcs.url = "github:numinit/nixpkcs/v1.2";
+    nixpkcs.url = "github:numinit/nixpkcs/v1.3";
     meshos.url = "github:numinit/MeshOS";
 
     nixos-pagefind = {

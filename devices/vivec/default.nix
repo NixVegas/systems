@@ -165,7 +165,7 @@ in
     }
     _rule_replace from ${arena.subnet} lookup arena
 
-    _ip route flush table arena
+    _ip route flush table arena || true
 
     # Let them get to the local network
     _ip route replace ${arena.subnet} dev arena table arena
