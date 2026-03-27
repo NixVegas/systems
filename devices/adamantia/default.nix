@@ -18,6 +18,7 @@ in
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/swap.nix
+    ../../modules/pretalx
   ];
 
   boot = {
@@ -431,6 +432,17 @@ in
               '';
             };
           };
+
+          ${config.services.pretalx.nginx.domain} = {
+            forceSSL = true;
+            enableACME = true;
+          };
+
+          "cfp.nixos.lv" = {
+            forceSSL = true;
+            enableACME = true;
+            globalRedirect = config.services.pretalx.nginx.domain;
+          };
         };
 
         appendHttpConfig = ''
@@ -439,6 +451,11 @@ in
             ${nebulaSubnet} nebula;
           }
         '';
+    };
+
+    pretalx.nginx = {
+      enable = true;
+      domain = "cfp.nix.vegas";
     };
   };
 
