@@ -5,8 +5,7 @@
 }:
 {
   boot.kernel.sysctl = {
-    "vm.swappiness" = 50;
-    "fs.inotify.max_user_watches" = 16384;
+    "vm.swappiness" = lib.mkDefault 10;
   };
 
   boot.tmp = {
