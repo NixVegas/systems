@@ -5,7 +5,7 @@
 }:
 {
   boot.kernel.sysctl = {
-    "vm.swappiness" = lib.mkDefault 10;
+    "vm.swappiness" = lib.mkDefault 1;
   };
 
   boot.tmp = {
