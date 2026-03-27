@@ -11,7 +11,12 @@ let
   nebulaIp = myHost.nebula.address;
   nebulaIngress = lib.findFirst (lib.strings.hasInfix ".") null myHost.nebula.entryAddresses;
   nebula6Ingress = lib.findFirst (lib.strings.hasInfix ":") null myHost.nebula.entryAddresses;
-  nebulaEgress = "151.236.16.185";
+
+  publicIpv4 = "151.236.16.185";
+  nebulaEgress = publicIpv4;
+
+  publicIpv6 = "2605:3b80:111:548e::1";
+
   nebulaSubnet = config.networking.mesh.plan.constants.nebula.subnet;
 in
 {
@@ -19,6 +24,7 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/swap.nix
     ../../modules/pretalx
+    ../../modules/mail
   ];
 
   boot = {
@@ -53,6 +59,8 @@ in
     git
     htop
     nebula
+    openssl
+    net-tools
   ];
 
   environment.etc."fail2ban/filter.d/immich.conf".text = ''
@@ -85,7 +93,7 @@ in
         ipv4 = {
           addresses = [
             {
-              address = "151.236.16.185";
+              address = publicIpv4;
               prefixLength = 24;
             }
           ];
@@ -99,7 +107,7 @@ in
         ipv6 = {
           addresses = [
             {
-              address = "2605:3b80:111:548e::1";
+              address = publicIpv6;
               prefixLength = 64;
             }
           ];
@@ -247,6 +255,8 @@ in
             "nix.vegas. IN A ${coreNebulaIp}"
             "live.nix.vegas. IN A ${coreNebulaIp}"
             "cache.nix.vegas. IN CNAME cache.dc.nixos.lv."
+            "mail.nix.vegas. IN A ${publicIpv4}"
+            "mail.nix.vegas. IN AAAA ${publicIpv6}"
           ];
 
           # Includes
@@ -443,21 +453,101 @@ in
             enableACME = true;
             globalRedirect = config.services.pretalx.nginx.domain;
           };
+
+          ${config.services.roundcube.hostName} = {
+            enableACME = true;
+            forceSSL = true;
+          };
+
+          "mail.nixos.lv" = {
+            forceSSL = true;
+            enableACME = true;
+            globalRedirect = config.services.roundcube.hostName;
+          };
         };
 
-        appendHttpConfig = ''
-          geo $source {
-            default public;
-            ${nebulaSubnet} nebula;
-          }
-        '';
+      appendHttpConfig = ''
+        geo $source {
+          default public;
+          ${nebulaSubnet} nebula;
+        }
+      '';
     };
 
     pretalx.nginx = {
       enable = true;
       domain = "cfp.nix.vegas";
     };
+
+    roundcube = {
+      enable = true;
+      # this is the url of the vhost, not necessarily the same as the fqdn of
+      # the mailserver
+      hostName = config.mailserver.fqdn;
+      package = pkgs.roundcube.withPlugins (
+        plugins: with plugins; [
+          # external plugins to be included
+          # https://search.nixos.org/packages?query=roundcubePlugins
+          persistent_login
+        ]
+      );
+      # activate plugins
+      plugins = [
+        "persistent_login"
+        "managesieve" # built-in
+      ];
+      dicts = with pkgs.aspellDicts; [
+        # https://search.nixos.org/packages?query=aspellDicts
+        en
+      ];
+      maxAttachmentSize = config.mailserver.messageSizeLimit / 1024 / 1024;
+      extraConfig = ''
+        $config['imap_host'] = "ssl://${config.mailserver.fqdn}";
+        $config['smtp_host'] = "ssl://${config.mailserver.fqdn}";
+        $config['smtp_user'] = "%u";
+        $config['smtp_pass'] = "%p";
+
+        $config['managesieve_host'] = "tls://${config.mailserver.fqdn}";
+        $config['managesieve_port'] = 4190;
+        $config['managesieve_usetls'] = true;
+      '';
+    };
   };
+
+  mailserver =
+    let
+      tld = "nix.vegas";
+    in
+    {
+      stateVersion = 3;
+      fqdn = "mail.${tld}";
+      domains = [ tld ];
+
+      # We already have unbound
+      localDnsResolver = false;
+
+      # A list of all login accounts. To create the password hashes, use
+      # nix-shell -p mkpasswd --run 'mkpasswd -s'
+      loginAccounts = {
+        "noc@${tld}" = {
+          hashedPasswordFile = "/etc/mail/noc.pass";
+          aliases = [
+            "admin@${tld}"
+            "postmaster@${tld}"
+            "abuse@${tld}"
+          ];
+        };
+        "cfp@${tld}" = {
+          hashedPasswordFile = "/etc/mail/cfp.pass";
+        };
+        "sponsor@${tld}" = {
+          hashedPasswordFile = "/etc/mail/sponsor.pass";
+        };
+        "chat@${tld}" = {
+          hashedPasswordFile = "/etc/mail/chat.pass";
+        };
+      };
+    };
 
   security.acme = {
     acceptTerms = true;
@@ -465,6 +555,4 @@ in
   };
 
   nixpkgs.system = "x86_64-linux";
-
-  system.stateVersion = "25.05";
 }

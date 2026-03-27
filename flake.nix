@@ -10,6 +10,11 @@
     nixpkcs.url = "github:numinit/nixpkcs/v1.3";
     meshos.url = "github:numinit/MeshOS";
 
+    nixos-mailserver = {
+      url = "gitlab:simple-nixos-mailserver/nixos-mailserver/nixos-25.11";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nixos-pagefind = {
       url = "github:Jaculabilis/nixos-pagefind";
       inputs.nixpkgs.follows = "nixpkgs";
