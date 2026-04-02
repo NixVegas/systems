@@ -1,5 +1,4 @@
 {
-  config,
   nixos-mailserver,
   ...
 }:
@@ -18,7 +17,7 @@
 
   mailserver = {
     enable = true;
-
+    dmarcReporting.enable = true;
     certificateScheme = "acme-nginx";
 
     # For 26.05

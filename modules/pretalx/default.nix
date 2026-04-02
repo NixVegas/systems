@@ -11,5 +11,8 @@
       pages
       youtube
     ];
+    environmentFiles = [
+      "/var/lib/pretalx/pretalx.env"
+    ];
   };
 }

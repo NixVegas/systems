@@ -5,8 +5,8 @@
     hosts = {
       adamantia =
         let
-          entryAddress = "151.236.16.225";
-          entry6Address = "2605:3b80:111:163e::1";
+          entryAddress = "151.236.16.185";
+          entry6Address = "2605:3b80:111:584e::1";
         in
         {
           dns = {
@@ -28,6 +28,62 @@
           };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGdx91MTYIyUYNxALvGeMkke3fPRxvOEzVdy2cDa8tbh root@adamantia";
         };
+
+      crystal =
+        let
+          entryAddress = "151.236.16.132";
+          entry6Address = "2605:3b80:111:dee::1";
+        in
+        {
+          dns = {
+            addresses = {
+              ${entryAddress} = [ "crystal.arena.nixos.lv" ];
+              ${entry6Address} = [ "crystal.arena6.nixos.lv" ];
+            };
+          };
+          nebula = {
+            address = "10.6.6.8";
+            entryAddresses = [
+              entryAddress
+              entry6Address
+            ];
+            port = 5000;
+            isLighthouse = true;
+            isRelay = true;
+            defaultRouteMetric = 2010;
+          };
+          ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGdx91MTYIyUYNxALvGeMkke3fPRxvOEzVdy2cDa8tbh root@adamantia";
+        };
+
+      dagoth =
+        let
+          entryAddress = "151.236.16.241";
+          entry6Address = "2605:3b80:111:35e1::1";
+        in
+        {
+          dns = {
+            addresses = {
+              ${entryAddress} = [ "dagoth.arena.aurb.is" ];
+              ${entry6Address} = [ "dagoth.arena6.aurb.is" ];
+            };
+          };
+          nebula = {
+            address = "10.6.6.9";
+            entryAddresses = [
+              entryAddress
+              entry6Address
+            ];
+            port = 4200;
+            isLighthouse = true;
+            isRelay = true;
+            defaultRouteMetric = 2020;
+          };
+          ssh = {
+            hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjuHts+xrtY/osQ5ARHd0sOYjGv5y+LYhoiq6tsxkb7 root@dagoth";
+            port = 42070;
+          };
+        };
+
 
       ghostgate =
         let
