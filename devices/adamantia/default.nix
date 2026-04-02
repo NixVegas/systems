@@ -11,13 +11,21 @@ let
   nebulaIp = myHost.nebula.address;
   nebulaIngress = lib.findFirst (lib.strings.hasInfix ".") null myHost.nebula.entryAddresses;
   nebula6Ingress = lib.findFirst (lib.strings.hasInfix ":") null myHost.nebula.entryAddresses;
-  nebulaEgress = "151.236.16.185";
+
+  publicIpv4 = nebulaIngress;
+  publicIpv6 = nebula6Ingress;
+  nebulaEgress = publicIpv4;
+
   nebulaSubnet = config.networking.mesh.plan.constants.nebula.subnet;
+
+  kanidmCertsGroup = "certs-kanidm";
 in
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/swap.nix
+    ../../modules/kanidm.nix
+    ../../modules/mail
   ];
 
   boot = {
@@ -52,17 +60,10 @@ in
     git
     htop
     nebula
+    openssl
+    net-tools
+    config.services.kanidm.package
   ];
-
-  environment.etc."fail2ban/filter.d/immich.conf".text = ''
-    [INCLUDES]
-    before = common.conf
-    [Definition]
-    _daemon = immich
-    failregex = Failed login attempt for user.+from ip address\s?<ADDR>
-    [Init]
-    journalmatch = _SYSTEMD_UNIT=immich-server.service
-  '';
 
   networking =
     let
@@ -84,7 +85,7 @@ in
         ipv4 = {
           addresses = [
             {
-              address = "151.236.16.185";
+              address = publicIpv4;
               prefixLength = 24;
             }
           ];
@@ -98,7 +99,7 @@ in
         ipv6 = {
           addresses = [
             {
-              address = "2605:3b80:111:548e::1";
+              address = publicIpv6;
               prefixLength = 64;
             }
           ];
@@ -161,6 +162,29 @@ in
 
   services = {
     avahi.enable = false;
+    kanidm =
+      let
+        domain = "auth.nix.vegas";
+        certsDir = config.security.acme.certs.${domain}.directory;
+      in
+      {
+        serverSettings = {
+          inherit domain;
+          origin = "https://${domain}";
+          tls_chain = "${certsDir}/fullchain.pem";
+          tls_key = "${certsDir}/key.pem";
+        };
+
+        clientSettings = {
+          uri = "https://${domain}";
+        };
+
+        provision = {
+          enable = true;
+          adminPasswordFile = "/etc/kanidm/admin.pass";
+          idmAdminPasswordFile = "/etc/kanidm/admin.pass";
+        };
+      };
     openntpd = {
       enable = true;
       servers = [
@@ -246,6 +270,8 @@ in
             "nix.vegas. IN A ${coreNebulaIp}"
             "live.nix.vegas. IN A ${coreNebulaIp}"
             "cache.nix.vegas. IN CNAME cache.dc.nixos.lv."
+            "mail.nix.vegas. IN A ${publicIpv4}"
+            "mail.nix.vegas. IN AAAA ${publicIpv6}"
           ];
 
           # Includes
@@ -264,26 +290,6 @@ in
           }
         ];
       };
-
-    owncast = {
-      enable = true;
-    };
-
-    immich = {
-      enable = true;
-      port = 2283;
-    };
-
-    immich-public-proxy = {
-      enable = true;
-      immichUrl = "http://localhost:${toString config.services.immich.port}";
-      settings = {
-        downloadOriginalPhoto = false;
-        showGalleryTitle = true;
-        allowDownloadAll = 1; # follow Immich setting
-        showHomePage = false;
-      };
-    };
 
     fail2ban.jails = lib.mkMerge [
       (lib.mkIf config.services.immich.enable {
@@ -311,143 +317,116 @@ in
             ${config.networking.mesh.plan.hosts.ghostgate.nebula.address} = { };
           };
         };
-        "owncast" = {
-          servers = {
-            "localhost:${toString config.services.owncast.port}" = { };
-          };
+      };
+
+      virtualHosts = {
+        # Just issue redirects to c.n.o.
+        "cache.nixos.lv" = {
+          addSSL = true;
+          enableACME = true;
+          globalRedirect = "cache.nixos.org";
         };
-        "immich" = {
-          servers = {
-            "localhost:${toString config.services.immich.port}" = { };
-          };
+
+        # Redirect them to cache.nixos.lv.
+        "cache.nix.vegas" = {
+          addSSL = true;
+          enableACME = true;
+          globalRedirect = "cache.nixos.lv";
         };
-        "immich-public-proxy" = {
-          servers = {
-            "localhost:${toString config.services.immich-public-proxy.port}" = { };
+
+        "mail.nix.vegas" = {
+          enableACME = true;
+          forceSSL = true;
+          globalRedirect = "webmail.nix.vegas";
+        };
+
+        "mail.nixos.lv" = {
+          forceSSL = true;
+          enableACME = true;
+          globalRedirect = "webmail.nix.vegas";
+        };
+
+        "auth.nix.vegas" = {
+          forceSSL = true;
+          enableACME = true;
+
+          locations."/" = {
+            proxyPass = "https://${config.services.kanidm.serverSettings.bindaddress}";
           };
         };
       };
 
-      virtualHosts =
-        let
-          proxyLetsEncrypt =
-            upstream: options:
-            lib.recursiveUpdate {
-              locations."/" = {
-                extraConfig = "empty_gif;";
-              };
-              locations."/.well-known/acme-challenge" = {
-                proxyPass = "http://${upstream}";
-              };
-            } options;
-        in
-        {
-          # Useful for setting up split-horizon DNS with Let's Encrypt, little else.
-          #"nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
-          #"cache.nixos.lv" = proxyLetsEncrypt "ghostgate.dc.nixos.lv" { };
-
-          # Just issue redirects to nix.vegas.
-          "nixos.lv" = {
-            forceSSL = true;
-            enableACME = true;
-            locations."/".root = "${pkgs.nix-vegas-site-offsite}/public";
-          };
-
-          # strip www
-          "www.nixos.lv" = {
-            addSSL = true;
-            enableACME = true;
-            globalRedirect = "nixos.lv";
-          };
-
-          # Just issue redirects to c.n.o.
-          "cache.nixos.lv" = {
-            addSSL = true;
-            enableACME = true;
-            globalRedirect = "cache.nixos.org";
-          };
-
-          # Redirect them to cache.nixos.lv.
-          "cache.nix.vegas" = {
-            addSSL = true;
-            enableACME = true;
-            globalRedirect = "cache.nixos.lv";
-          };
-
-          # strip www
-          "www.nix.vegas" = {
-            addSSL = true;
-            enableACME = true;
-            globalRedirect = "nix.vegas";
-          };
-
-          "nix.vegas" = {
-            forceSSL = true;
-            enableACME = true;
-            locations."/".root = "${pkgs.nix-vegas-site-offsite}/public";
-          };
-
-          # In case they go here...
-          "live.nixos.lv" = {
-            forceSSL = true;
-            enableACME = true;
-            globalRedirect = "live.nix.vegas";
-          };
-
-          # We redirect them here.
-          "live.nix.vegas" = {
-            forceSSL = true;
-            enableACME = true;
-            locations."/" = {
-              proxyPass = "http://owncast";
-              proxyWebsockets = true;
-            };
-          };
-
-          "relive.nixos.lv" = {
-            forceSSL = true;
-            enableACME = true;
-            globalRedirect = "relive.nix.vegas";
-          };
-
-          "relive.nix.vegas" = {
-            forceSSL = true;
-            enableACME = true;
-            locations."/" = {
-              proxyPass = "http://$upstream";
-              proxyWebsockets = true;
-              extraConfig = ''
-                client_max_body_size 10000m;
-                proxy_max_temp_file_size 128m;
-                proxy_request_buffering off;
-                proxy_read_timeout   600s;
-                proxy_send_timeout   600s;
-                send_timeout         600s;
-
-                set $upstream immich-public-proxy;
-                if ($source = nebula) {
-                  set $upstream immich;
-                }
-              '';
-            };
-          };
-        };
-
-        appendHttpConfig = ''
-          geo $source {
-            default public;
-            ${nebulaSubnet} nebula;
-          }
-        '';
+      appendHttpConfig = ''
+        geo $source {
+          default public;
+          ${nebulaSubnet} nebula;
+        }
+      '';
     };
   };
+
+  mailserver =
+    let
+      tld = "nix.vegas";
+    in
+    {
+      stateVersion = 3;
+      fqdn = "mail.${tld}";
+      domains = [ tld ];
+
+      # We already have unbound
+      localDnsResolver = false;
+
+      # A list of all login accounts. To create the password hashes, use
+      # nix-shell -p mkpasswd --run 'mkpasswd -s'
+      loginAccounts = {
+        "noc@${tld}" = {
+          hashedPasswordFile = "/etc/mail/noc.pass";
+          aliases = [
+            "admin@${tld}"
+            "postmaster@${tld}"
+            "abuse@${tld}"
+          ];
+        };
+        "cfp@${tld}" = {
+          hashedPasswordFile = "/etc/mail/cfp.pass";
+        };
+        "sponsor@${tld}" = {
+          hashedPasswordFile = "/etc/mail/sponsor.pass";
+        };
+        "chat@${tld}" = {
+          hashedPasswordFile = "/etc/mail/chat.pass";
+        };
+        "system@${tld}" = {
+          hashedPasswordFile = "/etc/mail/system.pass";
+          aliases = [ "noreply@${tld}" ];
+        };
+      };
+    };
 
   security.acme = {
     acceptTerms = true;
     defaults.email = "noc@nix.vegas";
+    certs."auth.nix.vegas".group = kanidmCertsGroup;
+  };
+
+  users = {
+    groups."kanidm" = { };
+    groups.${kanidmCertsGroup} = { };
+
+    # Can't go through systemd config due to infinite recursion
+    users."kanidm" = {
+      isSystemUser = true;
+      group = "kanidm";
+      extraGroups = [
+        kanidmCertsGroup
+      ];
+    };
+
+    users."${config.services.nginx.user}".extraGroups = [
+      kanidmCertsGroup
+    ];
   };
 
   nixpkgs.system = "x86_64-linux";
-
-  system.stateVersion = "25.05";
 }

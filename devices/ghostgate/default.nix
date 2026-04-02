@@ -671,7 +671,6 @@ in
           {
             name = "Legacy";
             test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00000'";
-            #next-server = arena.address;
             boot-file-name = "${pkgs.ipxe}/undionly.kpxe";
           }
         ];

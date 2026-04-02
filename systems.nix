@@ -7,6 +7,7 @@ let
     ./modules/misc.nix
     ./modules/net.nix
     ./modules/users.nix
+    ./modules/zones.nix
     ./mesh.nix
   ];
 in
@@ -68,6 +69,31 @@ in
     address = "adamantia.arena.nixos.lv";
     profile = {
       sshUser = "numinit";
+    };
+  };
+
+  crystal = {
+    version = "25.11";
+    modules = [
+      ./devices/crystal
+    ]
+    ++ commonModules;
+    address = "crystal.arena.nixos.lv";
+    profile = {
+      sshUser = "numinit";
+    };
+  };
+
+  dagoth = {
+    version = "25.11";
+    modules = [
+      ./devices/dagoth
+    ]
+    ++ commonModules;
+    address = "dagoth.arena.nixos.lv";
+    profile = {
+      sshUser = "numinit";
+      sshOpts = [ "-t" "-p42070" ];
     };
   };
 }

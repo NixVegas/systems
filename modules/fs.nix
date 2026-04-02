@@ -5,6 +5,7 @@ in
 {
   boot.zfs = {
     forceImportRoot = true;
+    requestEncryptionCredentials = false;
   };
 
   services = {

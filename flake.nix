@@ -10,6 +10,20 @@
     nixpkcs.url = "github:numinit/nixpkcs/v1.3";
     meshos.url = "github:numinit/MeshOS";
 
+    nixpkgs-gold.url = "github:Jaculabilis/nixpkgs-gold";
+
+    nixos-mailserver = {
+      url = "gitlab:simple-nixos-mailserver/nixos-mailserver/nixos-25.11";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    freescout = {
+      url = "github:NixVegas/freescout-nix-flake";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
     nixos-pagefind = {
       url = "github:Jaculabilis/nixos-pagefind";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -17,7 +31,6 @@
 
     nix-vegas-site = {
       url = "github:NixVegas/nix.vegas";
-      #url = "git+file:///home/numinit/nix.vegas";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -32,6 +45,7 @@
       nixpkgs,
       nixpkgs-unstable,
       nixpkgs-lib,
+      nixpkgs-gold,
       nixpkcs,
       nixos-cosmic,
       deploy-rs,
@@ -157,11 +171,15 @@
                 nixpkgs.overlays = [
                   self.overlays.default
                   nixpkcs.overlays.default
+                  nixpkgs-gold.overlays.gold
                 ];
               }
               nixos-cosmic.nixosModules.default
               meshos.nixosModules.default
             ];
+            nixpkgs.config.gold = {
+              acceptEula = true;
+            };
           };
         };
 
