@@ -19,6 +19,12 @@
       SMTP_HOST = lib.mkDefault "localhost";
       SMTP_PORT = lib.mkDefault 25;
       ORG_EVENTS_ENABLED = lib.mkDefault true;
+
+      SSO_ENABLED = lib.mkDefault true;
+      SSO_ONLY = lib.mkDefault true;
+      SSO_AUTH_ONLY_NOT_SESSION = lib.mkDefault true;
+      SSO_SIGNUPS_MATCH_EMAIL = lib.mkDefault true;
+      SSO_SCOPES = lib.mkDefault "openid profile email email_verified offline_access";
     };
   };
 }

@@ -457,6 +457,9 @@ in
             SMTP_SECURITY = "force_tls";
             SMTP_FROM = "noreply@nix.vegas";
             SMTP_FROM_NAME = "Nix Village Vault";
+            SSO_AUTHORITY = "https://auth.nix.vegas/oauth2/openid/vaultwarden";
+            SSO_PKCE = true;
+            SSO_CLIENT_ID = "vaultwarden";
           };
         };
         system.stateVersion = "25.11";
