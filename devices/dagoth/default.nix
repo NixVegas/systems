@@ -380,7 +380,7 @@ in
             rootUrl = "https://${domain}";
           in
           {
-            appName = "Nix Village Git";
+            appName = "Nix Vegas Git";
             settings.server = {
               ROOT_URL = rootUrl;
               DOMAIN = domain;
@@ -395,7 +395,7 @@ in
       config = {
         imports = [ ../../containers/mattermost.nix ];
         services.mattermost = {
-          siteName = "Nix Village";
+          siteName = "Nix Vegas";
           siteUrl = "https://chat.nix.vegas";
         };
         networking = {
@@ -456,7 +456,7 @@ in
             SMTP_PORT = 465;
             SMTP_SECURITY = "force_tls";
             SMTP_FROM = "noreply@nix.vegas";
-            SMTP_FROM_NAME = "Nix Village Vault";
+            SMTP_FROM_NAME = "Nix Vegas Vault";
             SSO_AUTHORITY = "https://auth.nix.vegas/oauth2/openid/vaultwarden";
             SSO_PKCE = true;
             SSO_CLIENT_ID = "vaultwarden";
