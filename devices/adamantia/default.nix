@@ -408,6 +408,20 @@ in
     acceptTerms = true;
     defaults.email = "noc@nix.vegas";
     certs."auth.nix.vegas".group = kanidmCertsGroup;
+
+    # We need to add this to the chain because DANE pins it
+    certs."mail.nix.vegas".postRun =
+      let
+        isrgRoot = pkgs.fetchurl {
+          url = "https://letsencrypt.org/certs/isrgrootx1.pem";
+          hash = "sha256-IrVXonBVszYGtlWfN3A5KNPkrXnxELQH0EmG4YQ1Q9E=";
+        };
+      in
+      ''
+        cat ${isrgRoot} >> chain.pem
+        cat ${isrgRoot} >> fullchain.pem
+        cat ${isrgRoot} >> full.pem
+      '';
   };
 
   users = {
