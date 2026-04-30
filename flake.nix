@@ -205,6 +205,7 @@
           };
 
           overlayAttrs = rec {
+            pretalx = nixpkgs-unstable.legacyPackages.${system}.pretalx;
             nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
               inherit nixpkgs;
             };
