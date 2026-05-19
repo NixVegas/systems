@@ -209,10 +209,7 @@
             nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
               inherit nixpkgs;
             };
-            nix-vegas-site-offsite = nix-vegas-site.packages.${system}.nixVegasOffsite;
-            nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
-              onboardingArtifacts = nixos-lv-onboarding-artifacts;
-            };
+            nix-vegas-site-offsite = nix-vegas-site.packages.${system}.default;
             nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
             nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
               inherit nixpkgs nixos-pagefind;
