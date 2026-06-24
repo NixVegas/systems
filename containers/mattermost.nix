@@ -12,13 +12,13 @@
       buildNpmPackage = pkgs.buildNpmPackage.override {
         stdenv = pkgs.premenv;
       };
+      removeUserLimit = true;
     }).overrideAttrs (prev: {
       webapp = prev.webapp.overrideAttrs (prevWebapp: {
         patchFlags = ["-p2"]; # we're in the webapp directory but patches are relative to root
         patches = [
           ./mattermost/0001-constants-menu-header-Add-nixpkgs-gold-support.patch
         ];
-        goldLicense = "gold";
       });
     });
     host = "0.0.0.0";

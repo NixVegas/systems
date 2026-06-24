@@ -13,7 +13,7 @@ let
 in
 {
   bigzam = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/bigzam
     ]
@@ -21,7 +21,7 @@ in
   };
 
   tatsumaki = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/tatsumaki
     ]
@@ -29,7 +29,7 @@ in
   };
 
   genos = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/genos
     ]
@@ -37,7 +37,7 @@ in
   };
 
   saitama = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/saitama
     ]
@@ -45,7 +45,7 @@ in
   };
 
   ghostgate = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/ghostgate
     ]
@@ -53,7 +53,7 @@ in
   };
 
   vivec = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/vivec
     ]
@@ -61,7 +61,7 @@ in
   };
 
   adamantia = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/adamantia
     ]
@@ -73,7 +73,7 @@ in
   };
 
   crystal = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/crystal
     ]
@@ -85,7 +85,7 @@ in
   };
 
   dagoth = {
-    version = "25.11";
+    version = "26.05";
     modules = [
       ./devices/dagoth
     ]
