@@ -22,10 +22,6 @@
 
   users = {
     users = {
-      deploy = {
-        isNormalUser = true;
-        extraGroups = [ "wheel" ];
-      };
       ross = {
         isNormalUser = true;
         extraGroups = [
@@ -50,12 +46,17 @@
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMEiESod7DOT2cmT2QEYjBIrzYqTDnJLld1em3doDROq yubikey"
         ];
       };
+      djacu = {
+        isNormalUser = true;
+        extraGroups = [ "wheel" ];
+        openssh.authorizedKeys.keys = [
+          "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIO4LYXnixo0tFOD0X4QCOy84cKxSb5V6pOP7IkrqITlUAAAABHNzaDo="
+        ];
+      };
     };
   };
 
   nix.settings.trusted-users = [
-    "deploy"
-    "ross"
-    "numinit"
+    "@wheel"
   ];
 }
