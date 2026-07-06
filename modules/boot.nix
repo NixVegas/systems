@@ -18,9 +18,19 @@
   };
 
   boot.loader = {
-    systemd-boot.enable = lib.mkDefault true;
-    efi.canTouchEfiVariables = lib.mkDefault true;
+    limine = {
+      enable = lib.mkDefault true;
+      efiInstallAsRemovable = true;
+      secureBoot = {
+        enable = true;
+        autoGenerateKeys = true;
+        autoEnrollKeys.enable = true;
+      };
+    };
+    efi.canTouchEfiVariables = lib.mkDefault false;
   };
+
+  environment.systemPackages = with pkgs; [ sbctl ];
 
   console.font = lib.mkDefault "sun12x22";
   hardware.enableRedistributableFirmware = true;

@@ -18,11 +18,9 @@ let
 
   onboardWifi = "wlp7s0";
   wwan1 = onboardWifi;
-  externalUSBAWifi = "wlp0s13f0u2";
-  externalUSBCWifi1 = "wlp0s13f0u3u2";
-  externalUSBCWifi2 = "wlp0s13f0u3u3";
+  internalM2Wifi = "wlp0s13f0u1";
+  internalUSBWifi = "wlp0s20f0u4";
 
-  modemInterfaces = [ "enp0s20f0u3" ];
   wanInterface = "enp3s0";
   wanInterfaces = [ wanInterface ];
   wwanInterfaces = [ onboardWifi ];
@@ -73,15 +71,10 @@ in
     ./hardware-configuration.nix
   ];
 
-  # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.systemd-boot.memtest86.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
   boot.kernelParams = [
     "console=ttyS1,115200n8"
   ];
-  boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod_stable;
+  boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod;
 
   boot.kernel.sysctl = {
     "net.ipv4.conf.all.forwarding" = true;
@@ -111,7 +104,7 @@ in
     wifi = {
       enable = true;
       countryCode = "US";
-      dedicatedWifiDevices = [ externalUSBCWifi2 ];
+      dedicatedWifiDevices = [ ];
       useForFallbackInternetAccess = false;
       sharedInternetDevice = "nebula.arena";
     };
@@ -221,15 +214,12 @@ in
     };
 
     dhcpcd.extraConfig = ''
-      # deprioritize modem
       interface wan1
       metric 1000
       interface ${wwan1}
       metric 1001
       interface wwan2
       metric 1002
-      interface modem
-      metric 2000
     '';
 
     nat.enable = lib.mkForce false;
@@ -280,9 +270,6 @@ in
       ${wwan1}.useDHCP = true;
       wwan2.useDHCP = true;
 
-      # And the WWAN interface.
-      modem.useDHCP = true;
-
       noc = {
         ipv4.addresses = [
           {
@@ -318,8 +305,6 @@ in
         "trunk1.wwan2"
         "trunk2.wwan2"
       ];
-
-      modem.interfaces = modemInterfaces;
 
       noc.interfaces = nocInterfaces;
 
@@ -562,13 +547,13 @@ in
 
   services.hostapd = {
     enable = true;
-    radios.${externalUSBAWifi} = {
+    radios.${internalM2Wifi} = {
       countryCode = "US";
       band = "2g";
       channel = 4;
       wifi6.enable = true;
       networks = {
-        ${externalUSBAWifi} = {
+        ${internalM2Wifi} = {
           ssid = "NixVegas";
           authentication = {
             mode = "wpa3-sae-transition";
@@ -582,13 +567,13 @@ in
         };
       };
     };
-    radios.${externalUSBCWifi1} = {
+    radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
       channel = 36;
       wifi6.enable = true;
       networks = {
-        ${externalUSBCWifi1} = {
+        ${internalUSBWifi} = {
           ssid = "NixVegas_5";
           authentication = {
             mode = "wpa3-sae-transition";
@@ -1006,7 +991,7 @@ in
           addSSL = true;
           locations =
             let
-              public = "${pkgs.nix-vegas-site-onsite}/public";
+              public = "${pkgs.nix-vegas-site}/public";
               netboot = "${public}/nixos/systems/x86_64-linux/netboot";
             in
             {
@@ -1078,13 +1063,4 @@ in
   };
 
   systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];
-
-  # Set your time zone.
-  time.timeZone = lib.mkOverride 10 "America/Los_Angeles";
-
-  # This value determines the NixOS release with which your system is to be
-  # compatible, in order to avoid breaking some software such as database
-  # servers. You should change this only after NixOS release notes say you
-  # should.
-  system.stateVersion = "25.05"; # Did you read the comment?
 }

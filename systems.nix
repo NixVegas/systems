@@ -50,6 +50,7 @@ in
       ./devices/ghostgate
     ]
     ++ commonModules;
+    address = "10.3.7.136";
   };
 
   vivec = {
@@ -67,9 +68,6 @@ in
     ]
     ++ commonModules;
     address = "adamantia.arena.nixos.lv";
-    profile = {
-      sshUser = "numinit";
-    };
   };
 
   crystal = {
@@ -79,9 +77,6 @@ in
     ]
     ++ commonModules;
     address = "crystal.arena.nixos.lv";
-    profile = {
-      sshUser = "numinit";
-    };
   };
 
   dagoth = {
@@ -92,7 +87,6 @@ in
     ++ commonModules;
     address = "dagoth.arena.nixos.lv";
     profile = {
-      sshUser = "numinit";
       sshOpts = [ "-t" "-p42070" ];
     };
   };

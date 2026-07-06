@@ -132,7 +132,7 @@
                   user = "root";
                   sshUser = deployUser;
                   sshOpts = [ "-t" ];
-                  path = deploy-rs.lib.${config.config.nixpkgs.system}.activate.nixos config;
+                  path = deploy-rs.lib.${config.pkgs.system}.activate.nixos config;
                 } profile;
               };
             };
@@ -208,7 +208,7 @@
             nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
               inherit nixpkgs;
             };
-            nix-vegas-site-offsite = nix-vegas-site.packages.${system}.default;
+            nix-vegas-site = nix-vegas-site.packages.${system}.default;
             nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
             nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
               inherit nixpkgs nixos-pagefind;
@@ -218,7 +218,7 @@
           packages = {
             onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
             inherit (pkgs) nixos-lv-onboarding-artifacts nixos-pagefind-build;
-            inherit (pkgs) nix-vegas-site-offsite nix-vegas-site-onsite;
+            inherit (pkgs) nix-vegas-site;
           };
 
           devShells.default = pkgs.mkShell {
