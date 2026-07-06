@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-deployuser="deploy"
+if [[ -v DEPLOY_USER ]]; then
+  deployuser="$DEPLOY_USER"
+else
+  deployuser="$(whoami)"
+fi
 
 args=()
 provided_hosts=()
@@ -28,5 +32,5 @@ done
 set -x
 exec deploy ${args[@]:+"${args[@]}"} \
   --auto-rollback false --magic-rollback false --rollback-succeeded false \
-  --skip-checks --interactive-sudo true \
+  --skip-checks --interactive-sudo true --ssh-user "$deployuser" \
   ${hosts[@]:+"${hosts[@]}"} -- -L
