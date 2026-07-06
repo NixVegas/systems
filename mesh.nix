@@ -29,6 +29,32 @@
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGdx91MTYIyUYNxALvGeMkke3fPRxvOEzVdy2cDa8tbh root@adamantia";
         };
 
+      brass =
+        let
+          entryAddress = "185.193.48.248";
+          entry6Address = "2605:3b80:111:1ca8::1";
+        in
+        {
+          dns = {
+            addresses = {
+              ${entryAddress} = [ "brass.arena.nixos.lv" ];
+              ${entry6Address} = [ "brass.arena6.nixos.lv" ];
+            };
+          };
+          nebula = {
+            address = "10.6.6.6";
+            entryAddresses = [
+              entryAddress
+              entry6Address
+            ];
+            port = 5000;
+            isLighthouse = true;
+            isRelay = true;
+            defaultRouteMetric = 2010;
+          };
+          ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIDcupelpHeFAxV0MCb+/w8GVpDQO4LOZdI+EBS8qZIi root@brass";
+        };
+
       crystal =
         let
           entryAddress = "151.236.16.132";
@@ -52,7 +78,7 @@
             isRelay = true;
             defaultRouteMetric = 2010;
           };
-          ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGdx91MTYIyUYNxALvGeMkke3fPRxvOEzVdy2cDa8tbh root@adamantia";
+          ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGVGgBekGF8jkxkmHBYyNINkQb8/PtsleneLaOU7MnEq root@crystal";
         };
 
       dagoth =

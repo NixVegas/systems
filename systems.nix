@@ -70,6 +70,15 @@ in
     address = "adamantia.arena.nixos.lv";
   };
 
+  brass = {
+    version = "26.05";
+    modules = [
+      ./devices/brass
+    ]
+    ++ commonModules;
+    address = "brass.arena.nixos.lv";
+  };
+
   crystal = {
     version = "26.05";
     modules = [

@@ -37,6 +37,11 @@
         extraGroups = [ "wheel" ];
         openssh.authorizedKeys.keys = [
           "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBOLkms0KUv8J45FqK2WG6J6X4DZGhMB5sMM8gEl0bUCmH7XH36/D73+nDtVriXC2ITAduvKmCRvs+DW1js3jTwQAAAAEc3NoOg== numinit@cyrus#6460026"
+          "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBKbkBgZrUquZzDkohEHcWm3jn6L7swIAJO1FG/QPoAisX0VUiTLFXlk4Xz6tBWtTatHc8zTSa58hJuWmytww0CoAAAAEc3NoOg== numinit@vestige#6460026"
+          "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBCuAGKvba5h2PcMxw03+GutdrhqjaVPF9w2uIKJR0BFfNEgqKKidzw+0KJGBKwP760ziKT0gHVDdkPKupkK8wJ8AAAAEc3NoOg== numinit@talin#6460026"
+          "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBOCXnQOjfz1FD8Ome8WyZoNL9ViGSdE0WQpBP9PZSYi1aSAx03kotK2NS/+EwJJm+DkOebPBUCoHLzvxv2xmkjcAAAAEc3NoOg== numinit@dragonborn#6460026"
+          "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBKK0oBIjxEkgxG2a8gXHZjX8Q/VViG2NhK+IIomWeaqki2ttZ5jH8/M7tBgrV1kmd6xxK+nLCbBfjehxpmTFhCUAAAAEc3NoOg== numinit@monomyth#6460026"
+          "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBKh0nVO9z2hjBUAMHOHarozq+0QHTfu5rriX9C/8ZcOGuhz3kXyMZ19zwxJchIledp8SqqLbi9HWohvfPWV0W+sAAAAEc3NoOg== numinit@aurbis#6460026"
         ];
       };
       rob = {

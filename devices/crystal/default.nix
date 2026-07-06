@@ -41,7 +41,7 @@ in
   };
 
   boot.loader = {
-    systemd-boot.enable = false;
+    limine.enable = false;
     grub = {
       enable = true;
       device = "/dev/vda";
@@ -147,10 +147,6 @@ in
     };
 
   services = {
-    owncast = {
-      enable = true;
-    };
-
     immich = {
       enable = true;
       port = 2283;
@@ -210,7 +206,7 @@ in
         "nixos.lv" = {
           forceSSL = true;
           enableACME = true;
-          locations."/".root = "${pkgs.nix-vegas-site-offsite}/public";
+          locations."/".root = "${pkgs.nix-vegas-site}/public";
         };
 
         # strip www
@@ -230,24 +226,7 @@ in
         "nix.vegas" = {
           forceSSL = true;
           enableACME = true;
-          locations."/".root = "${pkgs.nix-vegas-site-offsite}/public";
-        };
-
-        # In case they go here...
-        "live.nixos.lv" = {
-          forceSSL = true;
-          enableACME = true;
-          globalRedirect = "live.nix.vegas";
-        };
-
-        # We redirect them here.
-        "live.nix.vegas" = {
-          forceSSL = true;
-          enableACME = true;
-          locations."/" = {
-            proxyPass = "http://owncast";
-            proxyWebsockets = true;
-          };
+          locations."/".root = "${pkgs.nix-vegas-site}/public";
         };
 
         "relive.nixos.lv" = {

@@ -51,7 +51,7 @@ in
   ];
 
   boot.loader = {
-    systemd-boot.enable = false;
+    limine.enable = false;
     grub = {
       enable = true;
       device = "/dev/vda";
