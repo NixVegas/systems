@@ -59,10 +59,10 @@ let
   arena = rec {
     id = 4;
     prefix = 24;
-    subnet = "10.33.0.0/${builtins.toString prefix}";
-    address = "10.33.0.1";
-    dhcpStart = "10.33.0.128";
-    dhcpEnd = "10.33.0.254";
+    subnet = "10.7.0.0/${builtins.toString prefix}";
+    address = "10.7.0.1";
+    dhcpStart = "10.7.0.128";
+    dhcpEnd = "10.7.0.254";
     dhcpDomain = "arena.${domain}";
   };
 in
@@ -125,11 +125,11 @@ in
     tun.device = lib.mkForce "nebula.arena";
     settings = {
       tun = {
-        # 10.6.6.6 is an internet gateway
+        # 10.6.6.7 is an internet gateway
         unsafe_routes = [
           {
             route = "0.0.0.0/0";
-            via = "10.6.6.6";
+            via = "10.6.6.7";
             install = false;
           }
         ];
@@ -476,6 +476,7 @@ in
           usage = [ "sign" ];
           soPinFile = "/etc/nixpkcs/yubikeys/6460026/so.pin";
           loginAsUser = false;
+          softFail = true;
         };
         certOptions = {
           digest = "SHA256";
@@ -502,6 +503,7 @@ in
           usage = [ "sign" ];
           soPinFile = "/etc/nixpkcs/yubikeys/6460026/so.pin";
           loginAsUser = false;
+          softFail = true;
         };
         certOptions = {
           digest = "SHA256";
@@ -941,7 +943,7 @@ in
         end
 
         -- Stub everything else over Nebula
-        policy:add(policy.suffix(policy.STUB('10.6.6.6@53'), {todname('.')}))
+        policy:add(policy.suffix(policy.STUB('10.6.6.7@53'), {todname('.')}))
 
         -- Uncomment one of the following stanzas in case you want to forward all requests to 1.1.1.1 or 9.9.9.9 via DNS-over-TLS.
         --policy:add(policy.all(policy.TLS_FORWARD({

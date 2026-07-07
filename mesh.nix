@@ -42,7 +42,7 @@
             };
           };
           nebula = {
-            address = "10.6.6.6";
+            address = "10.6.6.7";
             entryAddresses = [
               entryAddress
               entry6Address
