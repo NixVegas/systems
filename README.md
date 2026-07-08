@@ -93,6 +93,10 @@ Cache roles are declared per host in `mesh.nix` (`cache.server` /
 genos and tatsumaki are plain builders (`modules/builder` +
 `modules/arm-perf.nix`) and cache clients of `gvh-a`.
 
+Planned for this year (not yet in the config): ghostgate has big SSDs now
+and will run the cache itself, taking over Harmonia-serving roles from
+some of the sponsored builders.
+
 ### Identity and services
 
 The cloud hosts are deliberately named a/b/c/d:
@@ -120,18 +124,6 @@ VPSes, deliberately named a/b/c/d:
 | crystal | `crystal.arena.nixos.lv` | Lighthouse; nix.vegas website, Pretalx, Immich |
 | dagoth | `dagoth.arena.nixos.lv` | Lighthouse; nix.vegas zones (Gitea, Mattermost, FreeScout, Vaultwarden), Prometheus, La Suite Meet |
 
-### Sponsored hardware
-
-Loaner event hardware — not guaranteed to come back every year. All local
-only (no deploy address):
-
-| Host | Hardware | Role |
-| --- | --- | --- |
-| bigzam | System76 | Builder; `gvh-b` cache mirror; OBS Studio |
-| genos | NextComputing | Builder |
-| saitama | NextComputing | Hydra CI; Harmonia (`gvh-a`) |
-| tatsumaki | NextComputing | Builder (aarch64) |
-
 ### Protectli infra
 
 Owned hardware that travels with the event:
@@ -140,6 +132,18 @@ Owned hardware that travels with the event:
 | --- | --- | --- | --- |
 | ghostgate | Protectli VP6670 | `10.3.7.136` | Event border router: DHCP/PXE, DNS, firewall, WiFi AP, cache proxy |
 | vivec | Protectli VP2420 | local only | Wireless monitoring: Kismet, GPSd; WiFi mesh client |
+
+### Sponsored hardware
+
+Loaner event hardware — year-dependent, not guaranteed to come back. All
+local only (no deploy address):
+
+| Host | Hardware | Role |
+| --- | --- | --- |
+| bigzam | System76 | Builder; `gvh-b` cache mirror; OBS Studio |
+| genos | NextComputing | Builder |
+| saitama | NextComputing | Hydra CI; Harmonia (`gvh-a`) |
+| tatsumaki | NextComputing | Builder (aarch64) |
 
 Quirks worth knowing:
 
