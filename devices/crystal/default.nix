@@ -184,11 +184,6 @@ in
       recommendedOptimisation = true;
 
       upstreams = {
-        "owncast" = {
-          servers = {
-            "localhost:${toString config.services.owncast.port}" = { };
-          };
-        };
         "immich" = {
           servers = {
             "localhost:${toString config.services.immich.port}" = { };
