@@ -1,7 +1,7 @@
 # systems
 
-NixOS configurations and deploy tooling for the Nix Vegas ("Distractions")
-infrastructure. Everything is a flake: `systems.nix` registers each machine,
+NixOS configurations and deploy tooling for the Nix Vegas infrastructure.
+Everything is a flake: `systems.nix` registers each machine,
 `modules/` holds configuration shared by all of them, `mesh.nix` describes
 the overlay network and binary-cache topology, and
 [deploy-rs](https://github.com/serokell/deploy-rs) pushes it out.
@@ -95,29 +95,51 @@ genos and tatsumaki are plain builders (`modules/builder` +
 
 ### Identity and services
 
+The cloud hosts are deliberately named a/b/c/d:
+
 - **adamantia** — Kanidm (SSO), mail stack (`modules/mail`), Immich, Unbound.
+- **brass** — Owncast (live.nix.vegas), Unbound.
+- **crystal** — the nix.vegas / nixos.lv website, Pretalx (cfp.nix.vegas),
+  Immich (relive.nix.vegas).
 - **dagoth** — nginx + ACME in front of the nix.vegas services, which run as
   zones (NixOS containers managed by `modules/zones.nix`): Gitea
   (git.nix.vegas), Mattermost (chat.nix.vegas), FreeScout
   (webmail.nix.vegas), Vaultwarden (vault.nix.vegas). Also Prometheus,
   La Suite Meet, and fail2ban.
-- **crystal** — Pretalx, Immich, Owncast.
-- **brass** — Owncast, Unbound.
 
 ## Machines
 
+### Cloud hosts
+
+VPSes, deliberately named a/b/c/d:
+
 | Host | Deploy address | Role |
 | --- | --- | --- |
-| adamantia | `adamantia.arena.nixos.lv` | Lighthouse VPS; Kanidm, mail, Immich, Unbound |
-| bigzam | local only | Builder; `gvh-b` cache mirror; OBS Studio |
-| brass | `brass.arena.nixos.lv` | Lighthouse VPS; Owncast, Unbound |
-| crystal | `crystal.arena.nixos.lv` | Lighthouse VPS; Pretalx, Immich, Owncast |
-| dagoth | `dagoth.arena.nixos.lv` | Lighthouse VPS; nix.vegas zones (Gitea, Mattermost, FreeScout, Vaultwarden), Prometheus, La Suite Meet |
-| genos | local only | Builder |
-| ghostgate | `10.3.7.136` | Event border router: DHCP/PXE, DNS, firewall, WiFi AP, cache proxy |
-| saitama | local only | Hydra CI; Harmonia (`gvh-a`) |
-| tatsumaki | local only | Builder (aarch64) |
-| vivec | local only | Wireless monitoring: Kismet, GPSd; WiFi mesh client |
+| adamantia | `adamantia.arena.nixos.lv` | Lighthouse; Kanidm, mail, Immich, Unbound |
+| brass | `brass.arena.nixos.lv` | Lighthouse; Owncast, Unbound |
+| crystal | `crystal.arena.nixos.lv` | Lighthouse; nix.vegas website, Pretalx, Immich |
+| dagoth | `dagoth.arena.nixos.lv` | Lighthouse; nix.vegas zones (Gitea, Mattermost, FreeScout, Vaultwarden), Prometheus, La Suite Meet |
+
+### Sponsored hardware
+
+Loaner event hardware — not guaranteed to come back every year. All local
+only (no deploy address):
+
+| Host | Hardware | Role |
+| --- | --- | --- |
+| bigzam | System76 | Builder; `gvh-b` cache mirror; OBS Studio |
+| genos | NextComputing | Builder |
+| saitama | NextComputing | Hydra CI; Harmonia (`gvh-a`) |
+| tatsumaki | NextComputing | Builder (aarch64) |
+
+### Protectli infra
+
+Owned hardware that travels with the event:
+
+| Host | Hardware | Deploy address | Role |
+| --- | --- | --- | --- |
+| ghostgate | Protectli VP6670 | `10.3.7.136` | Event border router: DHCP/PXE, DNS, firewall, WiFi AP, cache proxy |
+| vivec | Protectli VP2420 | local only | Wireless monitoring: Kismet, GPSd; WiFi mesh client |
 
 Quirks worth knowing:
 
