@@ -16,12 +16,8 @@ for arg in "$@"; do
   fi
 done
 
-if [ "${#provided_hosts[@]}" -gt 0 ]; then
-  full_hosts=("${provided_hosts[@]}")
-fi
-
 hosts=()
-for host in "${full_hosts[@]}"; do
+for host in "${provided_hosts[@]}"; do
   host="$(basename -- "$host")"
 
   if [ -n "$host" ]; then
@@ -29,8 +25,10 @@ for host in "${full_hosts[@]}"; do
   fi
 done
 
-set -x
-exec deploy ${args[@]:+"${args[@]}"} \
-  --auto-rollback false --magic-rollback false --rollback-succeeded false \
-  --skip-checks --interactive-sudo true --ssh-user "$deployuser" \
-  ${hosts[@]:+"${hosts[@]}"} -- -L
+for host in "${hosts[@]}"; do
+  set -x
+  deploy "${args[@]}" \
+    --auto-rollback false --magic-rollback false --rollback-succeeded false \
+    --skip-checks --interactive-sudo true --ssh-user "$deployuser" \
+    "${host}" -- -L
+done
