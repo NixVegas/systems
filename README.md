@@ -40,3 +40,66 @@ $ sudo nixos-rebuild switch --flake .#<host>
 deploy-rs exits nonzero if activation fails. To double-check what a host is
 running, compare `ssh <host> readlink /run/current-system` with the store
 path printed during the deploy.
+
+## Architecture
+
+### Repo layout
+
+| Path | Purpose |
+| --- | --- |
+| `flake.nix` | Inputs, the `nixosSystem`/`deploySystem` helpers, overlays, dev shell |
+| `systems.nix` | Machine registry: NixOS version, module list, deploy address per host |
+| `mesh.nix` | Mesh plan: Nebula addresses and roles, WiFi mesh, cache sets, public DNS names, SSH host keys |
+| `devices/<host>/` | Per-machine configuration |
+| `modules/` | Shared modules. boot/fs/misc/net/users/zones apply to every host (`commonModules` in `systems.nix`); the rest (`builder`, `arm-perf`, `kanidm`, `mail`, `pretalx`, `unbound`, ...) are opt-in per device |
+| `containers/` | Service modules that run as NixOS containers ("zones") on a host |
+| `pkgs/` | Custom packages (onboarding artifacts, pagefind site build, channel index) |
+| `deploy` | deploy-rs wrapper script |
+| `arena.ca.crt` | CA bundle for the Nebula mesh |
+
+### Mesh
+
+All hosts share a Nebula overlay network ("arena", `10.6.0.0/16`, CA
+`arena.ca.crt`). Five hosts are lighthouses **and** relays: adamantia
+(10.6.6.6), brass (10.6.6.7), crystal (10.6.6.8), and dagoth (10.6.6.9) are
+publicly reachable VPSes; ghostgate (10.6.7.1) anchors the event network.
+Builders sit at 10.6.8.x. There is also a MeshOS WiFi mesh (`10.5.0.0/16`)
+with ghostgate as the AP (10.5.0.1) and vivec as a client.
+
+`mesh.nix` is the source of truth for addresses, roles, cache sets, and SSH
+host keys; each device additionally opts in with
+`networking.mesh.nebula.enable = true` (see `devices/tatsumaki/default.nix`).
+
+### Network core: ghostgate
+
+ghostgate is the border router for the event network: nftables firewall,
+Kea DHCP handing out iPXE netboot entries (TFTP plus nginx-served netboot
+images), knot (authoritative DNS) with kresd (resolver), the MeshOS WiFi
+AP, and an ncps cache proxy serving `cache.nixos.lv` to the floor. It boots
+via limine with secure boot, keeps its Nebula key in the TPM2, and manages
+the core CA on a YubiKey via nixpkcs.
+
+### Build farm and caches
+
+Cache roles are declared per host in `mesh.nix` (`cache.server` /
+`cache.client`), grouped into named sets:
+
+- `gvh-a` ("great-value-hydra"): served by saitama — Hydra CI plus a
+  Harmonia binary cache (priority 10).
+- `gvh-b`: bigzam's mirror of the same, at priority 20.
+- `cnl` (`cache.nixos.lv`): served by ghostgate's ncps proxy, which itself
+  consumes `gvh-a`/`gvh-b`.
+
+genos and tatsumaki are plain builders (`modules/builder` +
+`modules/arm-perf.nix`) and cache clients of `gvh-a`.
+
+### Identity and services
+
+- **adamantia** — Kanidm (SSO), mail stack (`modules/mail`), Immich, Unbound.
+- **dagoth** — nginx + ACME in front of the nix.vegas services, which run as
+  zones (NixOS containers managed by `modules/zones.nix`): Gitea
+  (git.nix.vegas), Mattermost (chat.nix.vegas), FreeScout
+  (webmail.nix.vegas), Vaultwarden (vault.nix.vegas). Also Prometheus,
+  La Suite Meet, and fail2ban.
+- **crystal** — Pretalx, Immich, Owncast.
+- **brass** — Owncast, Unbound.
