@@ -103,3 +103,28 @@ genos and tatsumaki are plain builders (`modules/builder` +
   La Suite Meet, and fail2ban.
 - **crystal** — Pretalx, Immich, Owncast.
 - **brass** — Owncast, Unbound.
+
+## Machines
+
+| Host | Deploy address | Role |
+| --- | --- | --- |
+| adamantia | `adamantia.arena.nixos.lv` | Lighthouse VPS; Kanidm, mail, Immich, Unbound |
+| bigzam | local only | Builder; `gvh-b` cache mirror; OBS Studio |
+| brass | `brass.arena.nixos.lv` | Lighthouse VPS; Owncast, Unbound |
+| crystal | `crystal.arena.nixos.lv` | Lighthouse VPS; Pretalx, Immich, Owncast |
+| dagoth | `dagoth.arena.nixos.lv` | Lighthouse VPS; nix.vegas zones (Gitea, Mattermost, FreeScout, Vaultwarden), Prometheus, La Suite Meet |
+| genos | local only | Builder |
+| ghostgate | `10.3.7.136` | Event border router: DHCP/PXE, DNS, firewall, WiFi AP, cache proxy |
+| saitama | local only | Hydra CI; Harmonia (`gvh-a`) |
+| tatsumaki | local only | Builder (aarch64) |
+| vivec | local only | Wireless monitoring: Kismet, GPSd; WiFi mesh client |
+
+Quirks worth knowing:
+
+- **dagoth** listens for SSH on port 42070 (`profile.sshOpts` in
+  `systems.nix`; the deploy wrapper handles it).
+- **ghostgate** uses limine + secure boot, keeps its Nebula key in the
+  TPM2, and manages the core CA on a YubiKey via nixpkcs.
+- **vivec** carries a custom kernel patch (Tremont support) in
+  `devices/vivec/`.
+- Details for any host live in `devices/<host>/default.nix`.
