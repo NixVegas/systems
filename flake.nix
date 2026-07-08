@@ -1,5 +1,7 @@
 {
-  description = "Nix flake for deploying Distractions infrastructure";
+  # Based on the Distractions stack we ran from DC30-DC32 — notably the
+  # Nebula, MeshOS, and Mattermost config is derived from it.
+  description = "Nix flake for deploying Nix Vegas infrastructure";
 
   inputs = {
     nixpkgs-lib.url = "github:nix-community/nixpkgs.lib";
