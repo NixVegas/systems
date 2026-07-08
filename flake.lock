@@ -382,11 +382,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783488626,
-        "narHash": "sha256-XdGe4VXqPNeZ1jL6SGvlNfOyfHMIyQsNctOr+DVcT+w=",
+        "lastModified": 1783493498,
+        "narHash": "sha256-UzfG6B/Vb9j+MWi38itjGzLkk0F6AImwkxkFH4NYGWY=",
         "owner": "NixVegas",
         "repo": "nix.vegas",
-        "rev": "74f0a93f2d122f4ef94e1f1ee35b0e74bbf59448",
+        "rev": "d32ed4ca23e7729cbeab1de60c3b1cc5d8a9669b",
         "type": "github"
       },
       "original": {
