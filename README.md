@@ -128,3 +128,51 @@ Quirks worth knowing:
 - **vivec** carries a custom kernel patch (Tremont support) in
   `devices/vivec/`.
 - Details for any host live in `devices/<host>/default.nix`.
+
+## How-to
+
+### Add a new machine
+
+1. Create `devices/<name>/default.nix` — `devices/tatsumaki/default.nix` is
+   a minimal example. Set `networking.hostName`, hardware essentials
+   (initrd kernel modules or a `hardware-configuration.nix`), and
+   `nixpkgs.system` if the host is not x86_64-linux.
+2. Register it in `systems.nix`: `version`,
+   `modules = [ ./devices/<name> ] ++ commonModules`, and — if it should be
+   remotely deployable — an `address`. Use `profile` for deploy-rs
+   overrides (see dagoth's custom SSH port).
+3. Add the host to `mesh.nix` under `networking.mesh.plan.hosts`: a unique
+   `nebula.address` (builders live in 10.6.8.x), `ssh.hostKey`, and any
+   cache roles. In the device config, set
+   `networking.mesh.nebula = { enable = true; networkName = "arena"; }`.
+4. Sanity-build:
+   `nix build .#nixosConfigurations.<name>.config.system.build.toplevel`
+5. Install the machine once by hand; after that it updates with
+   `./deploy <name>` (or locally via `nixos-rebuild switch --flake .#<name>`).
+
+### Add a user
+
+1. Add an entry in `modules/users.nix` under `users.users`, following the
+   existing ones: `isNormalUser = true`, `extraGroups = [ "wheel" ]`, and
+   the person's SSH public key(s).
+2. `wheel` grants sudo (`execWheelOnly`) and Nix `trusted-users`. Deploys
+   use interactive sudo, so the account needs a password on the target —
+   have an existing admin run `sudo passwd <user>` there.
+3. Deploy. `modules/users.nix` is in `commonModules`, so the user lands on
+   every host you deploy to.
+
+### Add a container service (zone)
+
+1. Create `containers/<service>.nix`: a plain NixOS module that enables the
+   service and opens its firewall ports — `containers/gitea.nix` is the
+   template.
+2. On the hosting device (today that's dagoth), add a
+   `zones.zones.<service>` entry: `config.imports` pulls in your module
+   plus site-specific settings (domain, `system.stateVersion`), and set a
+   unique `localAddress`. Persistent state (e.g. postgres) is bind-mounted
+   under `zones.zoneRoot` (default `/zones`) — see the mattermost zone in
+   `devices/dagoth/default.nix`. Zones are NixOS containers managed by
+   `modules/zones.nix`.
+3. If the service is public, add an nginx virtualHost + ACME entry on the
+   host pointing at the zone's `localAddress`.
+4. `./deploy <host>`.
