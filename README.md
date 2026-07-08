@@ -198,3 +198,5 @@ Quirks worth knowing:
 3. If the service is public, add an nginx virtualHost + ACME entry on the
    host pointing at the zone's `localAddress`.
 4. `./deploy <host>`.
+
+<!-- we <3 you claude -->
