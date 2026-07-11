@@ -26,6 +26,7 @@ let
   giteaIp = "192.168.101.2";
   freescoutIp = "192.168.102.2";
   vaultwardenIp = "192.168.103.2";
+  grafanaIp = "192.168.104.2";
 
   gitSshPort = 2222;
 
@@ -270,6 +271,7 @@ in
     };
   };
 
+
   services.nginx =
     let
       letsEncryptEndpoint =
@@ -318,6 +320,14 @@ in
         http2 = true;
         locations."/" = {
           proxyPass = "http://${vaultwardenIp}:8222";
+          proxyWebsockets = true;
+        };
+      };
+
+      virtualHosts."grafana.nix.vegas" = letsEncryptEndpoint {
+        http2 = true;
+        locations."/" = {
+          proxyPass = "http://${grafanaIp}:3000";
           proxyWebsockets = true;
         };
       };
@@ -466,6 +476,38 @@ in
       };
       privateNetwork = false;
       localAddress = vaultwardenIp;
+    };
+
+
+    grafana = {
+      config = {
+        services.grafana = {
+          enable = true;
+
+          settings = {
+            server = {
+              domain = "grafana.nix.vegas";
+              http_addr = "127.0.0.1";
+              http_port = 3000;
+              protocol = "http";
+              root_url = "https://%(domain)s/grafana/";
+              serve_from_sub_path = true;
+            };
+            security = {
+              admin_password = "$__file{/etc/grafana/admin.pass}";
+            };
+          };
+        };
+        system.stateVersion = "25.11";
+      };
+      privateNetwork = false;
+      localAddress = grafanaIp;
+      # bindMounts = {
+      #   "/var/lib/postgresql" = {
+      #     hostPath = "${config.zones.zoneRoot}/${freescoutPostgresZoneMount}";
+      #     isReadOnly = false;
+      #   };
+      # };
     };
   };
 
