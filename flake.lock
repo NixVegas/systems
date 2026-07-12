@@ -391,6 +391,27 @@
         "type": "github"
       }
     },
+    "nix-vegas-ctf": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783834590,
+        "narHash": "sha256-iDFISbMQpJpbWzioDGNzyh+tQF/3XOk67ILuUiSbRnk=",
+        "owner": "NixVegas",
+        "repo": "ctf-server",
+        "rev": "87db7c7aca0435f89954ab76be504f40e401fd34",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixVegas",
+        "ref": "pull/7/head",
+        "repo": "ctf-server",
+        "type": "github"
+      }
+    },
     "nix-vegas-site": {
       "inputs": {
         "flake-compat": "flake-compat_3",
@@ -904,6 +925,7 @@
         "flake-parts": "flake-parts",
         "freescout": "freescout",
         "meshos": "meshos",
+        "nix-vegas-ctf": "nix-vegas-ctf",
         "nix-vegas-site": "nix-vegas-site",
         "nixos-cosmic": "nixos-cosmic",
         "nixos-mailserver": "nixos-mailserver",

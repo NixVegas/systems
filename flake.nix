@@ -43,6 +43,11 @@
       url = "github:RossComputerGuy/tenstorrent.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    nix-vegas-ctf = {
+      url = "github:NixVegas/ctf-server?ref=pull/7/head";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -60,6 +65,7 @@
       nix-vegas-site,
       meshos,
       tenstorrent-nix,
+      nix-vegas-ctf,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -185,6 +191,7 @@
               nixos-cosmic.nixosModules.default
               meshos.nixosModules.default
               tenstorrent-nix.nixosModules.default
+              nix-vegas-ctf.nixosModules.default
             ];
             nixpkgs.config.gold = {
               acceptEula = true;

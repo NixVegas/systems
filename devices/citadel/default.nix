@@ -23,9 +23,20 @@
     meshName = "p150_x4";
   };
 
-  services.llama-cpp = {
-    enable = true;
-    package = pkgs.llama-cpp-metalium;
+  services = {
+    llama-cpp = {
+      enable = true;
+      package = pkgs.llama-cpp-metalium;
+      openFirewall = true; # TODO: proper network slices between priv/pub side
+    };
+    ctf-server = {
+      enable = true;
+      openFirewall = true; # TODO: proper network slices between priv/pub side
+      secretKeyBaseFile = "/run/secrets/ctf-secret-key-base";
+    };
+    postgresql.ensureDatabases = [
+      "ctf-server"
+    ];
   };
 
   nixpkgs.system = "x86_64-linux";
