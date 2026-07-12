@@ -18,5 +18,15 @@
     hostName = "citadel";
   };
 
+  hardware.tenstorrent = {
+    enable = true;
+    meshName = "p150_x4";
+  };
+
+  services.llama-cpp = {
+    enable = true;
+    package = pkgs.llama-cpp-metalium;
+  };
+
   nixpkgs.system = "x86_64-linux";
 }
