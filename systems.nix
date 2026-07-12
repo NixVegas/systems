@@ -99,4 +99,12 @@ in
       sshOpts = [ "-t" "-p42070" ];
     };
   };
+
+  citadel = {
+    version = "26.05";
+    modules = [
+      ./devices/citadel
+    ]
+    ++ commonModules;
+  };
 }
