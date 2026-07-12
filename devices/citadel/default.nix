@@ -27,6 +27,10 @@
     llama-cpp = {
       enable = true;
       package = pkgs.llama-cpp-metalium;
+      extraFlags = [
+        "-hf"
+        "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M"
+      ];
       openFirewall = true; # TODO: proper network slices between priv/pub side
     };
     ctf-server = {
