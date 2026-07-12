@@ -39,5 +39,10 @@
     ];
   };
 
+  systemd.services.llama-cpp.serviceConfig = {
+    MemoryDenyWriteExecute = lib.mkForce false;
+    ProcSubset = lib.mkForce "all";
+  };
+
   nixpkgs.system = "x86_64-linux";
 }
