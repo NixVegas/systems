@@ -30,6 +30,10 @@
       extraFlags = [
         "-hf"
         "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M"
+        # Metalium backend only partially supports SET_ROWS and rejects the KV
+        # cache write, aborting graph reserve. Keep the KV cache on the host so
+        # that op runs on the CPU backend, matmuls still run on the card.
+        "-nkvo"
       ];
       openFirewall = true; # TODO: proper network slices between priv/pub side
     };
