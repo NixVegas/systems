@@ -32,7 +32,6 @@
     ctf-server = {
       enable = true;
       openFirewall = true; # TODO: proper network slices between priv/pub side
-      secretKeyBaseFile = "/run/secrets/ctf-secret-key-base";
     };
     postgresql.ensureDatabases = [
       "ctf-server"
