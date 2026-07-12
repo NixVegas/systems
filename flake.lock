@@ -1029,11 +1029,11 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1783835339,
-        "narHash": "sha256-j3o2BkN/MXZ2OTbBNjk8SYSKj/M2NzJKdRgUXBEUqNM=",
+        "lastModified": 1783841165,
+        "narHash": "sha256-bQdLrgaavOi7UuMjsLPgFxCyV6AZ+HZ2+qzVo/7Ev90=",
         "owner": "RossComputerGuy",
         "repo": "tenstorrent.nix",
-        "rev": "b07317db5af50bbade7e8b1c3f6bccdee2670b62",
+        "rev": "6ea9a8eea2e429db6cffd69d61ceda957cd749c7",
         "type": "github"
       },
       "original": {
