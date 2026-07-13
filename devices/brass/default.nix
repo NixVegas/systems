@@ -100,10 +100,18 @@ in
               address = publicIpv4;
               prefixLength = 24;
             }
+            {
+              address = nebulaEgress;
+              prefixLength = 24;
+            }
           ];
           routes = [
             {
               address = "151.236.16.0";
+              prefixLength = 24;
+            }
+            {
+              address = "188.190.1.0";
               prefixLength = 24;
             }
           ];
