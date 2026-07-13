@@ -398,16 +398,15 @@
         ]
       },
       "locked": {
-        "lastModified": 1783849139,
-        "narHash": "sha256-78swydIOhJ0uf/1A66JvEkUCaxCvl/wmfm5cICQEU0c=",
+        "lastModified": 1783919738,
+        "narHash": "sha256-/jyxs3VHWmqjxTEmNYEhHjntuK7uDfTk/v8r6XDPtG4=",
         "owner": "NixVegas",
         "repo": "ctf-server",
-        "rev": "e881590198d9f1a28531a77ccd305f5d7389477e",
+        "rev": "06be803479d3103481c03938afe80fbfeb527d0f",
         "type": "github"
       },
       "original": {
         "owner": "NixVegas",
-        "ref": "pull/7/head",
         "repo": "ctf-server",
         "type": "github"
       }

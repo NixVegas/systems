@@ -45,7 +45,7 @@
     };
 
     nix-vegas-ctf = {
-      url = "github:NixVegas/ctf-server?ref=pull/7/head";
+      url = "github:NixVegas/ctf-server";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
