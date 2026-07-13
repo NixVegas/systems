@@ -39,6 +39,7 @@ let
 
   mattermostPostgresZoneMount = "mattermost-postgres";
   freescoutPostgresZoneMount = "freescout-postgres";
+  grafanaStateZoneMount = "grafana-state";
 
   externalInterface = "ens3";
 in
@@ -92,6 +93,7 @@ in
     extraZoneMounts = [
       mattermostPostgresZoneMount
       freescoutPostgresZoneMount
+      grafanaStateZoneMount
     ];
     inherit externalInterface;
   };
@@ -506,7 +508,8 @@ in
               serve_from_sub_path = false;
             };
             security = {
-              admin_password = "$__file{/etc/grafana/admin.pass}";
+              # bootstrap admin user pass
+              admin_password = "$__file{/var/lib/grafana/admin.pass}";
             };
           };
         };
@@ -514,12 +517,12 @@ in
       };
       privateNetwork = false;
       localAddress = grafanaIp;
-      # bindMounts = {
-      #   "/var/lib/postgresql" = {
-      #     hostPath = "${config.zones.zoneRoot}/${freescoutPostgresZoneMount}";
-      #     isReadOnly = false;
-      #   };
-      # };
+      bindMounts = {
+        "/var/lib/grafana" = {
+          hostPath = "${config.zones.zoneRoot}/${grafanaStateZoneMount}";
+          isReadOnly = false;
+        };
+      };
     };
   };
 
