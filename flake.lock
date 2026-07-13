@@ -217,6 +217,24 @@
         "type": "github"
       }
     },
+    "flake-parts_6": {
+      "inputs": {
+        "nixpkgs-lib": "nixpkgs-lib_9"
+      },
+      "locked": {
+        "lastModified": 1754487366,
+        "narHash": "sha256-pHYj8gUBapuUzKV/kN/tR3Zvqc7o6gdFB9XKXIp1SQ8=",
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "rev": "af66ad14b28a127c5c0f3bbb298218fc63528a18",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems_2"
@@ -370,6 +388,26 @@
       "original": {
         "owner": "numinit",
         "repo": "MeshOS",
+        "type": "github"
+      }
+    },
+    "nix-vegas-ctf": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783919738,
+        "narHash": "sha256-/jyxs3VHWmqjxTEmNYEhHjntuK7uDfTk/v8r6XDPtG4=",
+        "owner": "NixVegas",
+        "repo": "ctf-server",
+        "rev": "06be803479d3103481c03938afe80fbfeb527d0f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixVegas",
+        "repo": "ctf-server",
         "type": "github"
       }
     },
@@ -706,6 +744,21 @@
         "type": "github"
       }
     },
+    "nixpkgs-lib_9": {
+      "locked": {
+        "lastModified": 1753579242,
+        "narHash": "sha256-zvaMGVn14/Zz8hnp4VWT9xVnhc8vuL3TStRqwk22biA=",
+        "owner": "nix-community",
+        "repo": "nixpkgs.lib",
+        "rev": "0f36c44e01a6129be94e3ade315a5883f0228a6e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "nixpkgs.lib",
+        "type": "github"
+      }
+    },
     "nixpkgs-npmlock2nix": {
       "locked": {
         "lastModified": 1636623366,
@@ -833,6 +886,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_7": {
+      "locked": {
+        "lastModified": 1770107345,
+        "narHash": "sha256-tbS0Ebx2PiA1FRW8mt8oejR0qMXmziJmPaU1d4kYY9g=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "4533d9293756b63904b7238acb84ac8fe4c8c2c4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "npmlock2nix": {
       "flake": false,
       "locked": {
@@ -855,6 +924,7 @@
         "flake-parts": "flake-parts",
         "freescout": "freescout",
         "meshos": "meshos",
+        "nix-vegas-ctf": "nix-vegas-ctf",
         "nix-vegas-site": "nix-vegas-site",
         "nixos-cosmic": "nixos-cosmic",
         "nixos-mailserver": "nixos-mailserver",
@@ -863,7 +933,8 @@
         "nixpkgs": "nixpkgs_5",
         "nixpkgs-gold": "nixpkgs-gold",
         "nixpkgs-lib": "nixpkgs-lib_8",
-        "nixpkgs-unstable": "nixpkgs-unstable"
+        "nixpkgs-unstable": "nixpkgs-unstable",
+        "tenstorrent-nix": "tenstorrent-nix"
       }
     },
     "rust-overlay": {
@@ -929,6 +1000,62 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "systems_4": {
+      "locked": {
+        "lastModified": 1689347949,
+        "narHash": "sha256-12tWmuL2zgBgZkdoB6qXZsgJEH9LR3oUgpaQq2RbI80=",
+        "owner": "nix-systems",
+        "repo": "default-linux",
+        "rev": "31732fcf5e8fea42e59c2488ad31a0e651500f68",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default-linux",
+        "type": "github"
+      }
+    },
+    "tenstorrent-nix": {
+      "inputs": {
+        "flake-parts": "flake-parts_6",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "systems": "systems_4",
+        "treefmt-nix": "treefmt-nix"
+      },
+      "locked": {
+        "lastModified": 1783919184,
+        "narHash": "sha256-bGMACaPusLpghAajvI5BKZY4Lu05kKoYrKpyQLQZ1xg=",
+        "owner": "RossComputerGuy",
+        "repo": "tenstorrent.nix",
+        "rev": "529acd6d22d1e1387ce700c367c1fdcf2ac706fb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "RossComputerGuy",
+        "repo": "tenstorrent.nix",
+        "type": "github"
+      }
+    },
+    "treefmt-nix": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_7"
+      },
+      "locked": {
+        "lastModified": 1780220602,
+        "narHash": "sha256-eynAfOmbmxJnkp7YewvCEbShNnnYJ9gLLqkzsYtBPeM=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "db947814a175b7ca6ded66e21383d938df01c227",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
         "type": "github"
       }
     },
