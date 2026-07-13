@@ -508,6 +508,8 @@ in
               serve_from_sub_path = false;
             };
             security = {
+              # openssl rand -hex 32
+              secret_key = "$__file{/var/lib/grafana/secret_key}";
               # bootstrap admin user pass
               admin_password = "$__file{/var/lib/grafana/admin.pass}";
             };
