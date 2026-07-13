@@ -30,8 +30,8 @@ password on the target. It SSHes as `$(whoami)`; override with
 to deploy-rs, and `-L` is always passed to the underlying build.
 
 Only hosts with an `address` in `systems.nix` can be deployed remotely:
-ghostgate, adamantia, brass, crystal, dagoth. The rest (bigzam, saitama,
-genos, tatsumaki, vivec) are updated on the machine itself:
+ghostgate, adamantia, brass, crystal, dagoth, ayem, vehk. The rest (bigzam,
+saitama, genos, tatsumaki, seht) are updated on the machine itself:
 
 ```console
 $ sudo nixos-rebuild switch --flake .#<host>
@@ -63,8 +63,9 @@ All hosts share a Nebula overlay network ("arena", `10.6.0.0/16`, CA
 `arena.ca.crt`). Five hosts are lighthouses **and** relays: adamantia
 (10.6.6.6), brass (10.6.6.7), crystal (10.6.6.8), and dagoth (10.6.6.9) are
 publicly reachable VPSes; ghostgate (10.6.7.1) anchors the event network.
-Builders sit at 10.6.8.x. There is also a MeshOS WiFi mesh (`10.5.0.0/16`)
-with ghostgate as the AP (10.5.0.1) and vivec as a client.
+Builders sit at 10.6.9.x; the Protectli VP2420 travel routers (ayem, seht,
+vehk) sit at 10.6.8.x. There is also a MeshOS WiFi mesh (`10.5.0.0/16`) with
+ghostgate as the AP (10.5.0.1) and the VP2420 routers as clients.
 
 `mesh.nix` is the source of truth for addresses, roles, cache sets, and SSH
 host keys; each device additionally opts in with
@@ -131,7 +132,9 @@ Owned hardware that travels with the event:
 | Host | Hardware | Deploy address | Role |
 | --- | --- | --- | --- |
 | ghostgate | Protectli VP6670 | `10.3.7.136` | Event border router: DHCP/PXE, DNS, firewall, WiFi AP, cache proxy |
-| vivec | Protectli VP2420 | local only | Wireless monitoring: Kismet, GPSd; WiFi mesh client |
+| ayem | Protectli VP2420 | `10.3.7.168` | Wireless monitoring: Kismet, GPSd; WiFi mesh client |
+| seht | Protectli VP2420 | local only | Same role as ayem (sibling); shares `modules/vp2420` |
+| vehk | Protectli VP2420 | `10.3.7.170` | Same role as ayem (sibling); shares `modules/vp2420` |
 
 ### Sponsored hardware
 
@@ -151,8 +154,10 @@ Quirks worth knowing:
   `systems.nix`; the deploy wrapper handles it).
 - **ghostgate** uses limine + secure boot, keeps its Nebula key in the
   TPM2, and manages the core CA on a YubiKey via nixpkcs.
-- **vivec** carries a custom kernel patch (Tremont support) in
-  `devices/vivec/`.
+- **ayem**, **seht**, and **vehk** are Protectli VP2420 siblings: their
+  shared configuration lives in `modules/vp2420/`, and each
+  `devices/<host>/default.nix` is a thin wrapper that just sets the hostname
+  and the host's LAN range (`vp2420.arena.networkPrefix`).
 - Details for any host live in `devices/<host>/default.nix`.
 
 ## How-to
@@ -168,7 +173,8 @@ Quirks worth knowing:
    remotely deployable — an `address`. Use `profile` for deploy-rs
    overrides (see dagoth's custom SSH port).
 3. Add the host to `mesh.nix` under `networking.mesh.plan.hosts`: a unique
-   `nebula.address` (builders live in 10.6.8.x), `ssh.hostKey`, and any
+   `nebula.address` (builders live in 10.6.9.x, VP2420 routers in 10.6.8.x),
+   `ssh.hostKey`, and any
    cache roles. In the device config, set
    `networking.mesh.nebula = { enable = true; networkName = "arena"; }`.
 4. Sanity-build:
