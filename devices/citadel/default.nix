@@ -1,4 +1,9 @@
-{ pkgs, lib, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  ...
+}:
 {
   boot = {
     initrd.availableKernelModules = [
@@ -27,12 +32,10 @@
     llama-cpp = {
       enable = true;
       package = pkgs.llama-cpp-metalium;
+      host = "0.0.0.0"; # TODO: bind to priv slice only + add auth before public
       extraFlags = [
         "-hf"
         "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M"
-        # Metalium backend only partially supports SET_ROWS and rejects the KV
-        # cache write, aborting graph reserve. Keep the KV cache on the host so
-        # that op runs on the CPU backend, matmuls still run on the card.
         "-nkvo"
       ];
       openFirewall = true; # TODO: proper network slices between priv/pub side
@@ -46,10 +49,18 @@
     ];
   };
 
-  systemd.services.llama-cpp.serviceConfig = {
-    MemoryDenyWriteExecute = lib.mkForce false;
-    ProcSubset = lib.mkForce "all";
+  systemd.services.llama-cpp = {
+    serviceConfig = {
+      MemoryDenyWriteExecute = lib.mkForce false;
+      ProcSubset = lib.mkForce "all";
+    };
+
+    environment = {
+      inherit (config.environment.variables) TT_MESH_GRAPH_DESC_PATH GGML_METALIUM_MESH_SHAPE;
+    };
   };
+
+  environment.variables.GGML_METALIUM_MESH_SHAPE = "2x2";
 
   nixpkgs.system = "x86_64-linux";
 }
