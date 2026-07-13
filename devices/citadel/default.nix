@@ -43,6 +43,7 @@
     ctf-server = {
       enable = true;
       openFirewall = true; # TODO: proper network slices between priv/pub side
+      host = "citadel.local";
     };
     postgresql.ensureDatabases = [
       "ctf-server"
