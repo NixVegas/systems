@@ -134,7 +134,7 @@
                   user = "root";
                   sshUser = deployUser;
                   sshOpts = [ "-t" ];
-                  path = deploy-rs.lib.${config.pkgs.system}.activate.nixos config;
+                  path = deploy-rs.lib.${config.pkgs.stdenv.hostPlatform.system}.activate.nixos config;
                 } profile;
               };
             };
