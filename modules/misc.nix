@@ -12,7 +12,7 @@
     htop
     btop
     iftop
-    config.boot.kernelPackages.perf
+    perf
   ];
 
   systemd.services.nix-daemon.serviceConfig.LimitNOFILE = lib.mkForce 1073741816;
