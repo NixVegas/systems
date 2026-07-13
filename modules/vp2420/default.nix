@@ -13,30 +13,37 @@ let
   baseDomain = "nixos.lv";
   domain = "dc.${baseDomain}";
 
+  # Shared event-router helpers (kea/knot/kresd builders).
+  erlib = import ../event-router/lib.nix { inherit lib pkgs; };
+
   thisHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
+
+  brassNebula = config.networking.mesh.plan.hosts.brass.nebula.address;
+  ghostgateMesh = lib.head (lib.splitString "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address);
+
+  # Nebula tun interface — traffic arriving here is already CA-authenticated
+  # by nebula, so we trust it like the LAN/mesh.
+  nebulaTun = config.services.nebula.networks.arena.tun.device;
 
   # WWAN
   wwan = "wlp0s20f0u3";
 
   # WLAN
-  wlan = "wlp0s20f0u8";
+  wlan = "wlp0s20f0u9";
 
   # Monitor
   mon = "wlp0s20f0u2";
 
-  # Attendee network.
-  arena = rec {
-    id = 1;
-    prefix = 24;
-    subnet = "10.33.1.0/${builtins.toString prefix}";
-    address = "10.33.1.1";
-    dhcpStart = "10.33.1.128";
-    dhcpEnd = "10.33.1.254";
-    dhcpDomain = "arena.${domain}";
+  # Attendee network. Base/id come from the fleet arena map (arena-hosts.nix),
+  # keyed by this host's name.
+  arena = erlib.mkArena {
+    self = config.networking.hostName;
+    inherit domain;
   };
 in
 {
   imports = [
+    ../event-router/common.nix
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
@@ -56,17 +63,17 @@ in
   boot.extraModulePackages = [ ];
 
   fileSystems."/nix" = lib.mkForce {
-    device = "vehk/local/nix";
+    device = "${config.networking.hostName}/local/nix";
     fsType = "zfs";
   };
 
   fileSystems."/home" = lib.mkForce {
-    device = "vehk/user/home";
+    device = "${config.networking.hostName}/user/home";
     fsType = "zfs";
   };
 
   fileSystems."/var/lib/ncps" = {
-    device = "vehk/local/cache";
+    device = "${config.networking.hostName}/local/cache";
     fsType = "zfs";
   };
 
@@ -77,7 +84,6 @@ in
     "console=tty0"
     "console=ttyS0,115200n8"
   ];
-  boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod_stable;
 
   services.gpsd =
     let
@@ -96,27 +102,12 @@ in
       ];
     };
 
-  boot.kernelPatches = [
-    {
-      name = "tremont-march";
-      patch = ./0001-arch-x86-Kconfig.cpu-Add-Tremont-support.patch;
-      extraStructuredConfig.MTREMONT = lib.kernel.yes;
-    }
-  ];
-
-  boot.kernel.sysctl = {
-    "net.ipv4.conf.all.forwarding" = true;
-    "net.ipv6.conf.all.forwarding" = true;
-  };
-
   # Try to save power since these machines are usually on battery
   powerManagement.cpuFreqGovernor = "powersave";
 
-  hardware.enableRedistributableFirmware = true;
-
   networking.hosts = {
     # We get to lv over 802.11s
-    "10.5.0.1" = [ "cache.nixos.lv" ];
+    "${ghostgateMesh}" = [ "cache.nixos.lv" ];
   };
 
   networking.mesh = {
@@ -150,19 +141,62 @@ in
 
   services.nebula.networks.arena = {
     tun.device = lib.mkForce "nebula.arena";
+    # Full-mesh inter-arena routing: reach every other router's arena LAN over
+    # Nebula (cert-authorized). Kernel routes are installed in the postStart
+    # below (table arena), so install = false here.
+    # Attendee internet exits at the fleet Nebula endpoint (brass); inter-arena
+    # goes direct to the peer routers.
+    settings.tun.unsafe_routes = [
+      (erlib.arenaDefaultRoute { planHosts = config.networking.mesh.plan.hosts; })
+    ]
+    ++ erlib.arenaUnsafeRoutes {
+      self = config.networking.hostName;
+      planHosts = config.networking.mesh.plan.hosts;
+    };
+
+    # Relays are driven by mesh.nix: brass is the sole lighthouse+relay, so
+    # every node gets `relays = [brass]` automatically. A single relay removes
+    # the fan-out churn entirely — a peer's handshake no longer arrives via
+    # multiple relay paths at once, so collision-resolution can't thrash.
+
+    # NOTE: `preferred_ranges = [ wifi.subnet ]` (prefer the 802.11s mesh) is
+    # intentionally NOT set. Forcing the mesh while its RF is marginal pins
+    # Nebula to a flapping path and makes it thrash instead of falling back to a
+    # relay. Re-enable only once the mesh underlay is consistently healthy (~1ms).
+
+    # Constrain Nebula underlay address discovery. These are multi-homed
+    # routers; without this each advertises (and tries peers on) every internal
+    # interface. The Nebula overlay (10.6) and the arena LANs (10.7/10.8) are
+    # routed *over* Nebula, so a handshake aimed at such an address loops back
+    # into the tun and never completes. Exclude the overlay + routed arena
+    # aggregates in both directions; the WiFi mesh (10.5, a real low-latency
+    # underlay), the WAN and public addresses stay usable.
+    settings.lighthouse =
+      let
+        deny = builtins.listToAttrs (
+          map (c: lib.nameValuePair c false) (
+            [
+              config.networking.mesh.plan.constants.nebula.subnet # 10.6/16 overlay
+              "10.3.0.0/16" # deploy/mgmt LAN — collides across sites, never a Nebula underlay
+              "192.168.0.0/16" # stale roamed private nets
+            ]
+            ++ erlib.arenaAggregates # 10.7/16, 10.8/16 (routed over Nebula)
+          )
+        );
+        allowList = deny // { "0.0.0.0/0" = true; };
+      in
+      {
+        local_allow_list = allowList;
+        remote_allow_list = allowList;
+      };
   };
 
   # These commands will let users on DHCP get out over the LAN ports.
   systemd.services."nebula@arena".postStart = ''
-    _ip() {
-      ${lib.getExe' pkgs.iproute2 "ip"} "$@"
-    }
-
-    _rule_replace() {
-      if [ -z "$(_ip rule show "$@" || true)" ]; then
-        _ip rule add "$@"
-      fi
-    }
+    ${erlib.arenaPostStartPreamble {
+      ip = lib.getExe' pkgs.iproute2 "ip";
+      sleep = lib.getExe' pkgs.coreutils "sleep";
+    }}
     _rule_replace from ${arena.subnet} lookup arena
 
     _ip route flush table arena || true
@@ -170,17 +204,23 @@ in
     # Let them get to the local network
     _ip route replace ${arena.subnet} dev arena table arena
 
-    # Let them get to the mesh peers
-    _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 via ${lib.head (lib.split "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address)} table arena
+    # Let them get to the mesh peers (the mesh subnet is on-link on mesh2, so
+    # no `via` — that nexthop may not be resolvable when this first runs).
+    _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 table arena
 
-    # If there's a wan port, route through that
-    # Left commented for now since linkdown behaves weirdly.
-    #_ip route replace default dev wan metric 1000 table arena
+    # Reach the other routers' arena LANs over Nebula (full mesh) — in table
+    # arena for LAN clients, and in the main table so the router itself can
+    # reach them too.
+    ${erlib.arenaTableRoutes { }}
+    ${erlib.arenaTableRoutes { table = "main"; }}
+    # Attendee internet exits at the normal Nebula endpoint (brass): `dev
+    # nebula.arena`, and Nebula's 0.0.0.0/0 unsafe_route tunnels it to brass.
+    # This is underlay-agnostic — it works near ghostgate (Nebula rides the
+    # mesh) and while roaming on the modem/WAN — and always stays encrypted.
+    _ip route replace default dev nebula.arena table arena
 
-    # Otherwise route them through our wifi.
-    # TODO: Maybe actually go nebula with the router as a gateway; Nebula will be more resilient
-    # but BATMAN will work here too.
-    _ip route replace default via ${lib.head (lib.split "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address)} metric 1001 table arena
+    # Router's own traffic default (main table): wired WAN (dhcpcd metric 1000)
+    # preferred, WiFi mesh as fallback.
     _ip route replace default via ${lib.head (lib.split "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address)} metric 1001
   '';
 
@@ -212,7 +252,7 @@ in
     psmisc
     man-pages
     htop
-    linuxPackages.perf
+    perf
     iftop
     speedtest-cli
     zip
@@ -235,12 +275,39 @@ in
     nebula
   ];
 
+  # Keep mDNS internal-only (still reachable over trustedInterfaces); avahi
+  # would otherwise open 5353 on every interface.
+  services.avahi.openFirewall = lib.mkForce false;
+
   networking = {
-    hostName = "vivec";
     nameservers = [ "127.0.0.1" ];
 
     nat.enable = lib.mkForce false;
-    firewall.enable = false;
+
+    # Host input filtering is delegated to the NixOS firewall; the custom
+    # nftables table below only handles routing (forward) and NAT.
+    firewall = {
+      enable = true;
+      # Loose reverse-path filtering: attendee internet is policy-routed out
+      # nebula.arena (to brass), but replies come back with an internet source
+      # whose main-table route is the WAN/mesh — strict rp_filter would drop
+      # them on nebula.arena. Loose only requires the source be routable at all.
+      checkReversePath = "loose";
+      # Internal networks (LAN, WiFi mesh, and the CA-authenticated nebula
+      # tun) are fully trusted.
+      trustedInterfaces = [
+        "arena"
+        "mesh2"
+        nebulaTun
+      ];
+      # SSH for remote deploys over any uplink. mkForce so ports other modules
+      # open globally (e.g. the ncps cache on 8501, which has no openFirewall
+      # toggle) aren't exposed on the uplinks — internal clients still reach
+      # them over trustedInterfaces.
+      allowedTCPPorts = lib.mkForce config.services.openssh.ports;
+      # ...and the Nebula transport so the overlay forms over the uplinks.
+      allowedUDPPorts = [ (config.networking.mesh.plan.nebula.portFor thisHost) ];
+    };
 
     iproute2 = {
       enable = true;
@@ -308,48 +375,29 @@ in
 
     wireless = {
       enable = true;
+      # Restrict wpa_supplicant to the WWAN client radio so it doesn't try to
+      # manage the hostapd AP interface (${wlan}) or the kismet monitor radio.
       interfaces = [ wwan ];
       fallbackToWPA2 = false;
       allowAuxiliaryImperativeNetworks = true;
-      userControlled.enable = true;
+      userControlled = true;
     };
 
     nftables = {
       enable = true;
+      flushRuleset = true;
       tables = {
         filter = {
           family = "inet";
           content = ''
-            chain output {
-              type filter hook output priority 100; policy accept;
-            }
-
-            chain input {
-              type filter hook input priority filter; policy drop;
-
-              # Allow trusted networks to access the router
-              iifname {
-                "lo",
-                "arena",
-                "mesh2"
-              } counter accept
-
-              # Allow returning traffic from WAN, WWAN, the modem, arena, and the mesh
-              iifname {"wan", "${wwan}", "modem", "arena", "mesh2"} ct state { established, related } counter accept
-
-              # Allow Nebula traffic from external interfaces.
-              iifname {"wan", "${wwan}", "modem", "mesh2"} udp dport ${toString (config.networking.mesh.plan.nebula.portFor thisHost)} counter accept
-
-              # Allow some ICMP by default
-              ip protocol icmp icmp type { destination-unreachable, echo-request, time-exceeded, parameter-problem } accept
-              ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, echo-request, time-exceeded, parameter-problem, packet-too-big } accept
-
-              # Drop everything else from untrusted external interfaces
-              iifname {"${wwan}", "modem"} drop
-            }
-
+            # Host input filtering lives in the NixOS firewall
+            # (networking.firewall above). This table only governs routing.
             chain forward {
               type filter hook forward priority filter; policy drop;
+
+              # Route between arena LANs over Nebula (cert-authorized, no NAT).
+              iifname "arena" oifname "${nebulaTun}" counter accept comment "arena -> nebula (inter-arena)"
+              iifname "${nebulaTun}" oifname "arena" counter accept comment "nebula -> arena (inter-arena)"
 
               # Allow trusted networks access to arena or the mesh
               iifname {
@@ -400,10 +448,24 @@ in
               iifname {"arena"} tcp dport {53} counter redirect
             }
 
-            # Setup NAT masquerading on the Arena interface
+            # Setup NAT masquerading on egress interfaces
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
-              oifname {"wan", "arena", "mesh2"} masquerade
+              # Masquerade internet egress on the WAN only — NOT the arena LAN,
+              # so inter-arena delivery keeps real source IPs.
+              oifname "wan" masquerade
+              # mesh2 is the Nebula *underlay*, not an internet uplink. Masquerading
+              # the router's own mesh peer-to-peer traffic (10.5.x → 10.5.x, e.g.
+              # Nebula handshakes to the other 2420s) collides in conntrack when
+              # both peers initiate simultaneously and rewrites the source port,
+              # breaking the handshake and forcing a relay fallback. Only
+              # masquerade non-mesh egress here; keep mesh peer traffic untouched.
+              oifname "mesh2" ip daddr != ${config.networking.mesh.plan.constants.wifi.subnet} masquerade
+              # Masquerade only genuine internet egress over Nebula. Traffic to
+              # other arenas OR to Nebula hosts (e.g. a router's own Nebula IP,
+              # as when pinging from the box) keeps its real source so replies
+              # match conntrack and stay reachable both ways.
+              oifname "${nebulaTun}" ip daddr != { ${lib.concatStringsSep ", " (erlib.arenaCidrs ++ [ config.networking.mesh.plan.constants.nebula.subnet ])} } masquerade
             }
           '';
         };
@@ -414,14 +476,17 @@ in
   systemd = {
     network.wait-online.enable = false;
 
-    extraConfig = ''
-      # Make boot snappier.
-      DefaultDeviceTimeoutSec=15
-    '';
+    # Make boot snappier.
+    settings.Manager.DefaultDeviceTimeoutSec = 15;
 
     services = {
       # HACK to support pluggable devices: https://github.com/NixOS/nixpkgs/pull/155017
       "wpa_supplicant-${wwan}" = {
+        # Don't block boot ~15s waiting for this pluggable WWAN dongle: drop the
+        # multi-user.target pull (which Requires the device unit) so the
+        # supplicant is started only by the udev rule below (SYSTEMD_WANTS) when
+        # the device is actually present.
+        wantedBy = lib.mkForce [ ];
         serviceConfig = {
           Restart = "always";
           RestartSec = 15;
@@ -544,13 +609,9 @@ in
         ENV{SYSTEMD_WANTS}+="wpa_supplicant-${wwan}.service", ENV{SYSTEMD_WANTS}+="network-addresses-${wwan}.service"
     '';
 
-    acpid = {
-      enable = true;
-    };
-
     ntp = {
       enable = true;
-      servers = [ "10.6.0.1" ];
+      servers = [ ghostgateMesh ];
       extraConfig = ''
         # GPS Serial data reference
         server 127.127.28.0 minpoll 4 maxpoll 4
@@ -570,11 +631,11 @@ in
         channel = 8;
         wifi6.enable = true;
         networks.${wlan} = {
-          ssid = "NixVegas";
+          ssid = "NixVegas_${config.networking.hostName}";
           authentication = {
             mode = "wpa3-sae-transition";
-            saePasswordsFile = "/etc/meshos/dc33/nixvegas.wpa3.keys";
-            wpaPskFile = "/etc/meshos/dc33/nixvegas.wpa2.keys";
+            saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
+            wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
           };
           settings = {
@@ -603,38 +664,21 @@ in
             "arena"
           ];
 
-          # Retry the socket binding until we're bound. Give up after 5 minutes.
-          service-sockets-max-retries = 60;
+          # The arena bridge may have no carrier at boot (nothing plugged in
+          # yet, AP not up), so the raw socket can't open ("interface isn't
+          # running"). Don't require it up front, and keep retrying effectively
+          # forever so kea binds as soon as the interface is running instead of
+          # giving up and needing a manual restart.
+          service-sockets-require-all = false;
+          service-sockets-max-retries = 1000000;
           service-sockets-retry-wait-time = 5000;
         };
 
         subnet4 = [
-          {
-            inherit (arena) subnet id;
-            pools = [
-              {
-                pool = "${arena.dhcpStart} - ${arena.dhcpEnd}";
-              }
-            ];
-            ddns-qualifying-suffix = "${arena.dhcpDomain}.";
-            option-data = [
-              {
-                name = "routers";
-                data = arena.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name-servers";
-                data = arena.address;
-                always-send = true;
-              }
-              {
-                name = "domain-name";
-                data = arena.dhcpDomain;
-                always-send = true;
-              }
-            ];
-          }
+          (erlib.mkDhcp4Subnet {
+            net = arena;
+            ntp = false;
+          })
         ];
 
         # Enable communication between dhcp4 and a local dhcp-ddns
@@ -655,146 +699,51 @@ in
 
     kea.dhcp-ddns = {
       enable = true;
-      settings = {
-        forward-ddns = {
-          ddns-domains = [
-            {
-              name = "${domain}.";
-              key-name = "dc-nixos-lv-key";
-              dns-servers = [
-                {
-                  ip-address = "127.0.0.1";
-                  port = 53535;
-                }
-              ];
-            }
-          ];
-        };
-        tsig-keys = [
-          {
-            name = "dc-nixos-lv-key";
-            algorithm = "HMAC-SHA256";
-            secret-file = "/etc/kea/tsig.key";
-          }
-        ];
+      settings = erlib.mkDhcpDdns {
+        keyName = "dc-nixos-lv-key";
+        zoneName = domain;
       };
     };
 
-    knot =
-      let
-        zone = pkgs.writeTextDir "${baseDomain}.zone" ''
-          @ SOA ns noc.${baseDomain} 1 86400 7200 3600000 172800
-          @ NS nameserver
-          nameserver A 127.0.0.1
-          ${config.networking.hostName}.${arena.dhcpDomain}. A ${arena.address}
-          ${config.networking.hostName}.cache.${baseDomain}. CNAME ${config.networking.hostName}.${arena.dhcpDomain}.
-        '';
-        zonesDir = pkgs.buildEnv {
-          name = "knot-zones";
-          paths = [ zone ];
-        };
-      in
-      {
-        enable = true;
-        extraArgs = [
-          "-v"
-        ];
-        keyFiles = [ "/etc/knot/tsig.conf" ];
-        settings = {
-          server = {
-            listen = "127.0.0.1@53535";
-          };
-          log = {
-            syslog = {
-              any = "debug";
-            };
-          };
-          acl = {
-            dc-nixos-lv-acl = {
-              key = "dc-nixos-lv-key";
-              action = "update";
-            };
-          };
-          template = {
-            default = {
-              storage = zonesDir;
-              zonefile-sync = -1;
-              zonefile-load = "difference-no-serial";
-              journal-content = "all";
-            };
-          };
-          zone = {
-            ${baseDomain} = {
-              file = "${baseDomain}.zone";
-              acl = [ "dc-nixos-lv-acl" ];
-            };
-          };
-        };
-      };
+    knot = erlib.mkKnot {
+      inherit baseDomain;
+      aclName = "dc-nixos-lv-acl";
+      keyName = "dc-nixos-lv-key";
+      zoneText = ''
+        @ SOA ns noc.${baseDomain} 1 86400 7200 3600000 172800
+        @ NS nameserver
+        nameserver A 127.0.0.1
+        ${config.networking.hostName}.${arena.dhcpDomain}. A ${arena.address}
+        ${config.networking.hostName}.cache.${baseDomain}. CNAME ${config.networking.hostName}.${arena.dhcpDomain}.
+      '';
+    };
 
     kresd = {
       # knot resolver daemon
       enable = true;
-      package = pkgs.knot-resolver.override { extraFeatures = true; };
+      package = pkgs.knot-resolver_5.override { extraFeatures = true; };
       listenPlain = [
         "${arena.address}:53"
         "127.0.0.1:53"
         "[::1]:53"
       ];
-      extraConfig = ''
-        cache.size = 32 * MB
-
-        -- Uncomment for a LOT of logging.
-        -- verbose(true)
-
-        modules = {
-          'policy',
-          'view',
-          'hints',
-          'serve_stale < cache',
-          'workarounds < iterate',
-          'stats',
-          'predict'
-        }
-
-        -- Accept all requests from these subnets
-        subnets = { '${arena.subnet}', '127.0.0.0/8' }
-        for i, v in ipairs(subnets) do
-          view:addr(v, function(req, qry) return policy.PASS end)
-        end
-
-        -- Drop everything that hasn't matched
-        view:addr('0.0.0.0/0', function (req, qry) return policy.DROP end)
-
-        -- We are responsible for these.
-        our_domains = {
-          'vivec.cache.nixos.lv.'
-        }
-        policy:add(policy.domains(policy.STUB('127.0.0.1@53535'), policy.todnames(our_domains)))
-
-        -- Forward requests for the local DHCP domains.
-        local_domains = { 'arena.${domain}' }
-        for i, v in ipairs(local_domains) do
-          policy:add(policy.suffix(policy.FORWARD({'127.0.0.1@53535'}), {todname(v)}))
-        end
-
-        -- Route upstream, over the meshes
-        policy:add(policy.suffix(policy.STUB('10.5.0.1@53'), {todname('.')}))
-        policy:add(policy.suffix(policy.STUB('10.6.6.6@53'), {todname('.')}))
-
-        -- Prefetch learning (20-minute blocks over 24 hours)
-        predict.config({ window = 20, period = 72 })
-      '';
+      extraConfig = erlib.mkKresdExtraConfig {
+        subnets = [
+          arena.subnet
+          "127.0.0.0/8"
+        ];
+        ourDomains = [ "${config.networking.hostName}.cache.nixos.lv." ];
+        localDomains = [ "arena.${domain}" ];
+        localForward = true;
+        upstreams = [
+          "${ghostgateMesh}@53"
+          "${brassNebula}@53"
+        ];
+      };
     };
 
     nginx = {
       enable = true;
-      recommendedTlsSettings = true;
-      recommendedGzipSettings = true;
-      recommendedBrotliSettings = true;
-      recommendedProxySettings = true;
-      recommendedUwsgiSettings = true;
-      recommendedOptimisation = true;
 
       upstreams = {
         "${config.networking.hostName}.cache.${baseDomain}" = {
@@ -822,7 +771,7 @@ in
   # compatible, in order to avoid breaking some software such as database
   # servers. You should change this only after NixOS release notes say you
   # should.
-  system.stateVersion = "25.05"; # Did you read the comment?
+  system.stateVersion = lib.mkDefault "25.05"; # Did you read the comment?
 
   nixpkgs.system = "x86_64-linux";
 }

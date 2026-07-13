@@ -22,8 +22,9 @@
               entry6Address
             ];
             port = 5000;
-            isLighthouse = true;
-            isRelay = true;
+            # Single-lighthouse topology: brass is the sole lighthouse+relay.
+            isLighthouse = false;
+            isRelay = false;
             defaultRouteMetric = 2010;
           };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGdx91MTYIyUYNxALvGeMkke3fPRxvOEzVdy2cDa8tbh root@adamantia";
@@ -74,8 +75,9 @@
               entry6Address
             ];
             port = 5000;
-            isLighthouse = true;
-            isRelay = true;
+            # Single-lighthouse topology: brass is the sole lighthouse+relay.
+            isLighthouse = false;
+            isRelay = false;
             defaultRouteMetric = 2010;
           };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGVGgBekGF8jkxkmHBYyNINkQb8/PtsleneLaOU7MnEq root@crystal";
@@ -100,8 +102,9 @@
               entry6Address
             ];
             port = 4200;
-            isLighthouse = true;
-            isRelay = true;
+            # Single-lighthouse topology: brass is the sole lighthouse+relay.
+            isLighthouse = false;
+            isRelay = false;
             defaultRouteMetric = 2020;
           };
           ssh = {
@@ -120,6 +123,10 @@
           dns = {
             addresses = {
               ${entryAddressBuild} = [ "ghostgate.build.dc.nixos.lv" ];
+              # Also advertise the mesh address so mesh peers (the VP2420s) get
+              # it in their Nebula static host map — without this they only know
+              # ghostgate at its build-net address, which they can't reach.
+              ${entryAddressMesh} = [ "ghostgate.mesh.dc.nixos.lv" ];
             };
           };
           wifi.address = "10.5.0.1/16";
@@ -129,8 +136,14 @@
               entryAddressBuild
               entryAddressMesh
             ];
-            isLighthouse = true;
-            isRelay = true;
+            # Not a lighthouse/relay: ghostgate has no stable public address, so
+            # as a lighthouse its dynamic location was never reported to the
+            # cloud lighthouses — a roaming 2420 only had ghostgate's (internal)
+            # static addresses and nothing to relay toward. As a regular node it
+            # checks in with the cloud lighthouses, so off-mesh peers can
+            # hole-punch or relay to it (adamantia/brass/…).
+            isLighthouse = false;
+            isRelay = false;
           };
           cache = {
             server = {
@@ -150,8 +163,11 @@
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
         };
 
-      vivec = {
-        wifi.address = "10.5.1.3/16";
+      ayem = {
+        wifi.address = "10.5.1.1/16";
+        # Advertise the mesh address so local peers reach us directly over the
+        # mesh via the Nebula static host map — no cloud lighthouse needed.
+        dns.addresses."10.5.1.1" = [ "ayem.mesh.dc.nixos.lv" ];
         nebula.address = "10.6.8.1";
         cache = {
           client = {
@@ -159,11 +175,38 @@
             sets = [ "cnl" ];
           };
         };
-        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vivec";
+        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILGezmmzvw5lnAulHSaw5zjLQDEdey1VwcPT8SAN6Et4 root@ayem";
       };
 
-      bigzam = {
+      seht = {
+        wifi.address = "10.5.1.2/16";
+        dns.addresses."10.5.1.2" = [ "seht.mesh.dc.nixos.lv" ];
         nebula.address = "10.6.8.2";
+        cache = {
+          client = {
+            # wants cache.nixos.lv
+            sets = [ "cnl" ];
+          };
+        };
+        #ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILGezmmzvw5lnAulHSaw5zjLQDEdey1VwcPT8SAN6Et4 root@ayem";
+      };
+
+      vehk = {
+        wifi.address = "10.5.1.3/16";
+        dns.addresses."10.5.1.3" = [ "vehk.mesh.dc.nixos.lv" ];
+        nebula.address = "10.6.8.3";
+        cache = {
+          client = {
+            # wants cache.nixos.lv
+            sets = [ "cnl" ];
+          };
+        };
+        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vehk";
+      };
+
+
+      bigzam = {
+        nebula.address = "10.6.9.2";
         cache = {
           client = {
             sets = [ "gvh-a" ];
@@ -178,7 +221,7 @@
       };
 
       saitama = {
-        nebula.address = "10.6.8.3";
+        nebula.address = "10.6.9.3";
         cache = {
           server = {
             priority = 10;
@@ -190,22 +233,22 @@
       };
 
       genos = {
-        nebula.address = "10.6.8.4";
+        nebula.address = "10.6.9.4";
         cache.client.sets = [ "gvh-a" ];
       };
 
       tatsumaki = {
-        nebula.address = "10.6.8.5";
+        nebula.address = "10.6.9.5";
         cache.client.sets = [ "gvh-a" ];
       };
     };
 
     constants = {
       wifi = {
-        essid = "/nix/var/nix/gcroots/dc33-mesh-a";
+        essid = "NixMesh";
         primaryChannel = 5240;
         secondaryChannel = 5745;
-        passwordFile = "/etc/meshos/dc33/a.key";
+        passwordFile = "/etc/meshos/dc34/mesh.key";
         subnet = "10.5.0.0/16";
       };
 

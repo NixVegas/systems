@@ -50,15 +50,34 @@ in
       ./devices/ghostgate
     ]
     ++ commonModules;
-    address = "10.3.7.136";
+    address = "10.3.7.174";
   };
 
-  vivec = {
+  vehk = {
     version = "26.05";
     modules = [
-      ./devices/vivec
+      ./devices/vehk
     ]
     ++ commonModules;
+    address = "10.3.7.170";
+  };
+
+  ayem = {
+    version = "26.05";
+    modules = [
+      ./devices/ayem
+    ]
+    ++ commonModules;
+    address = "10.3.7.168";
+  };
+
+  seht = {
+    version = "26.05";
+    modules = [
+      ./devices/seht
+    ]
+    ++ commonModules;
+    # TODO: add deploy `address` once seht is installed (local-only for now).
   };
 
   adamantia = {
