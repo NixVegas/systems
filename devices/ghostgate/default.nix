@@ -23,7 +23,6 @@ let
 
   wanInterface = "enp3s0";
   wanInterfaces = [ wanInterface ];
-  wwanInterfaces = [ onboardWifi ];
   nocInterfaces = [
     "enp4s0"
     "enp5s0"
@@ -44,11 +43,19 @@ let
     inherit domain;
   };
 
-  # Trunked sponsored servers.
+  # Build machines.
   build = erlib.mkNet {
     id = 2;
     base = "10.4.1";
     subdomain = "build";
+    inherit domain;
+  };
+
+  # CTF machines
+  ctf = erlib.mkNet {
+    id = 3;
+    base = "10.4.2";
+    subdomain = "ctf";
     inherit domain;
   };
 
@@ -87,11 +94,6 @@ in
 
     "net.ipv6.conf.${wanInterface}.accept_ra" = 2;
     "net.ipv6.conf.${wanInterface}.autoconf" = 1;
-  };
-
-  fileSystems."/var/lib/ncps" = {
-    device = "ghostgate/local/cache";
-    fsType = "zfs";
   };
 
   networking.mesh = {
@@ -138,8 +140,8 @@ in
         };
       };
 
-      # Prefer build (10Gbit)
-      preferred_ranges = [ build.subnet ];
+      # Prefer build and ctf (10Gbit)
+      preferred_ranges = [ build.subnet ctf.subnet ];
 
       # Constrain Nebula underlay address discovery. ghostgate is a multi-homed
       # router; by default Nebula advertises every local interface to the
@@ -186,6 +188,7 @@ in
     }}
     _rule_replace from ${arena.subnet} lookup arena
     _rule_replace from ${build.subnet} lookup arena
+    _rule_replace from ${ctf.subnet} lookup arena
     _rule_replace from ${noc.subnet} lookup arena
     _rule_replace from ${config.networking.mesh.plan.constants.wifi.subnet} lookup arena
     _rule_replace from ${config.networking.mesh.plan.constants.nebula.subnet} lookup arena
@@ -203,6 +206,7 @@ in
 
     _ip route replace ${arena.subnet} dev arena table arena
     _ip route replace ${build.subnet} dev build table arena
+    _ip route replace ${ctf.subnet} dev ctf table arena
     _ip route replace ${noc.subnet} dev noc table arena
     _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 table arena
 
@@ -296,22 +300,28 @@ in
 
     useDHCP = false;
 
+    bonds = {
+      trunk = {
+        interfaces = [ trunkInterface1 trunkInterface2 ];
+        # LACP over the 2x10G backbone to citadel. Both ends must match.
+        driverOptions = {
+          mode = "802.3ad";
+          lacp_rate = "fast";
+          xmit_hash_policy = "layer3+4";
+          miimon = "100";
+        };
+      };
+    };
+
     vlans = {
-      "trunk1.build" = {
+      "trunk.build" = {
         inherit (build) id;
-        interface = trunkInterface1;
+        interface = "trunk";
       };
-      "trunk2.build" = {
-        inherit (build) id;
-        interface = trunkInterface2;
-      };
-      "trunk1.wwan2" = {
-        id = 3;
-        interface = trunkInterface1;
-      };
-      "trunk2.wwan2" = {
-        id = 3;
-        interface = trunkInterface2;
+
+      "trunk.ctf" = {
+        inherit (ctf) id;
+        interface = "trunk";
       };
     };
 
@@ -339,6 +349,15 @@ in
         ];
       };
 
+      ctf = {
+        ipv4.addresses = [
+          {
+            inherit (ctf) address;
+            prefixLength = ctf.prefix;
+          }
+        ];
+      };
+
       arena = {
         ipv4.addresses = [
           {
@@ -352,16 +371,14 @@ in
     bridges = {
       wan1.interfaces = wanInterfaces;
 
-      wwan2.interfaces = [
-        "trunk1.wwan2"
-        "trunk2.wwan2"
-      ];
-
       noc.interfaces = nocInterfaces;
 
       build.interfaces = [
-        "trunk1.build"
-        "trunk2.build"
+        "trunk.build"
+      ];
+
+      ctf.interfaces = [
+        "trunk.ctf"
       ];
 
       arena.interfaces = arenaInterfaces;
@@ -387,6 +404,7 @@ in
                 "lo",
                 "noc",
                 "build",
+                "ctf",
                 "arena",
                 "nebula.arena",
                 "mesh2"
@@ -416,6 +434,14 @@ in
               iifname "arena" oifname "nebula.arena" counter accept comment "arena -> nebula (inter-arena)"
               iifname "nebula.arena" oifname "arena" counter accept comment "nebula -> arena (inter-arena)"
 
+              # Attendees reach the CTF backbone with real source IPs (no NAT):
+              # ghostgate's own arena LAN directly, and remote arenas over Nebula.
+              # citadel's default gateway is ghostgate, so replies route back the
+              # same way.
+              iifname "arena" oifname "ctf" counter accept comment "arena -> ctf"
+              iifname "nebula.arena" oifname "ctf" counter accept comment "nebula -> ctf (remote arena)"
+              iifname "ctf" oifname { "arena", "nebula.arena" } counter accept comment "ctf -> arena (replies)"
+
               # Allow only localhost WAN access
               iifname {
                 "lo"
@@ -425,7 +451,7 @@ in
                 "wwan2",
               } counter accept comment "Allow trusted LAN to WAN"
 
-              iifname { "lo", "arena", "build", "mesh2", "noc" } oifname { "nebula.arena" } counter accept comment "Allow Arena networks to get out"
+              iifname { "lo", "arena", "build", "ctf", "mesh2", "noc" } oifname { "nebula.arena" } counter accept comment "Allow Arena networks to get out"
 
               # Let mesh clients (2420s falling back through ghostgate) reach the
               # Nebula lighthouses via the clear WAN to bootstrap their own
@@ -435,9 +461,9 @@ in
               iifname "mesh2" oifname "wan1" udp dport { ${lib.concatMapStringsSep ", " toString lighthousePorts} } counter accept comment "mesh -> lighthouse (clear bootstrap)"
               iifname "wan1" oifname "mesh2" ct state established,related counter accept comment "lighthouse reply -> mesh"
 
-              # Let NOC get to build.
-              iifname { "noc" } oifname { "build" } counter accept
-              iifname { "build" } oifname { "noc" } ct state established,related counter accept
+              # Let NOC get to build and ctf.
+              iifname { "noc" } oifname { "build", "ctf" } counter accept
+              iifname { "build", "ctf" } oifname { "noc" } ct state established,related counter accept
 
               # Allow established WAN to return
               iifname {
@@ -454,6 +480,7 @@ in
                 "lo",
                 "arena",
                 "build",
+                "ctf",
                 "mesh2",
                 "noc"
               } ct state established,related counter accept comment "Allow established back to LANs"
@@ -468,15 +495,16 @@ in
               type nat hook prerouting priority filter; policy accept;
 
               # Redirect DNS, TFTP, and NTP queries to us
-              iifname {"noc", "build", "arena", "mesh2"} udp dport {53, 123} counter redirect
-              iifname {"noc", "build", "arena", "mesh2"} tcp dport {53} counter redirect
+              iifname {"noc", "build", "ctf", "arena", "mesh2"} udp dport {53, 123} counter redirect
+              iifname {"noc", "build", "ctf", "arena", "mesh2"} tcp dport {53} counter redirect
             }
 
             # Setup NAT masquerading on the wan interface
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
-              # Note: no "arena" here — inter-arena traffic delivered to the
-              # arena LAN must keep its real source IP (reachable both ways).
+              # Note: no "arena" or "ctf" here — traffic delivered to the arena
+              # LANs and the CTF backbone keeps its real source IP (so the CTF
+              # sees real attendee IPs; reachable both ways).
               oifname {
                 "build",
                 "noc",
@@ -694,6 +722,7 @@ in
           interfaces = [
             "noc"
             "build"
+            "ctf"
             "arena"
           ];
 
@@ -750,20 +779,17 @@ in
           [
             (erlib.mkDhcp4Subnet {
               net = noc;
-              reservations = [
-                (mkReservation noc "10:ff:e0:37:91:ba" 2 "bigzam")
-                (mkReservation noc "9c:6b:00:4b:13:38" 3 "saitama")
-                (mkReservation noc "9c:6b:00:4b:13:32" 4 "genos")
-                (mkReservation noc "9c:6b:00:47:31:fe" 5 "tatsumaki")
-              ];
             })
             (erlib.mkDhcp4Subnet {
               net = build;
+            })
+            (erlib.mkDhcp4Subnet {
+              net = ctf;
+              # Pin citadel (the CTF server) to a stable ctf address so the
+              # `ctf -> citadel.ctf` CNAME resolves consistently. The MAC is
+              # pinned on citadel's ctf bridge; .2 sits just outside the pool.
               reservations = [
-                (mkReservation build "10:ff:e0:37:91:bb" 2 "bigzam")
-                (mkReservation build "9c:6b:00:4b:13:36" 3 "saitama")
-                (mkReservation build "9c:6b:00:4b:13:30" 4 "genos")
-                (mkReservation build "9c:6b:00:47:31:fc" 5 "tatsumaki")
+                (mkReservation ctf "02:ca:fe:c7:f0:02" 2 "citadel")
               ];
             })
             (erlib.mkDhcp4Subnet {
@@ -808,8 +834,12 @@ in
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
-        hydra.saitama.build.${domain}. CNAME saitama.build.${domain}.
-        hydra.${baseDomain}. CNAME hydra.saitama.build.${domain}.
+        ctf.${domain}. CNAME citadel.ctf.${domain}.
+
+        # ctf.nixos.lv resolves internally straight to citadel (the direct
+        # arena -> ctf path) while public DNS points it at brass, which fronts
+        # TLS and proxies back in.
+        ctf.${baseDomain}. CNAME citadel.ctf.${domain}.
       '';
     };
 
@@ -820,6 +850,7 @@ in
       listenPlain = [
         "${noc.address}:53"
         "${build.address}:53"
+        "${ctf.address}:53"
         "${arena.address}:53"
         "${
           lib.head (
@@ -833,6 +864,7 @@ in
         subnets = [
           noc.subnet
           build.subnet
+          ctf.subnet
           arena.subnet
           config.networking.mesh.plan.constants.wifi.subnet
           config.networking.mesh.plan.constants.nebula.subnet
@@ -843,9 +875,18 @@ in
           "www.nixos.lv."
           "cache.nixos.lv."
           "hydra.nixos.lv."
+          # Split-horizon: hand ctf.nixos.lv to our knot (-> citadel) instead of
+          # the public upstream (-> brass), so ghostgate's arena reaches the CTF
+          # directly.
+          "ctf.nixos.lv."
         ];
         localDomains = [ "${domain}." ];
         upstreams = [ "10.6.6.7@53" ];
+        # nixc.tf isn't under the nixos.lv knot zone, so answer it here (-> the
+        # CTF server) for ghostgate's own arena; public DNS still points to brass.
+        hints = {
+          "nixc.tf" = erlib.ctfServer;
+        };
       };
     };
 
@@ -855,15 +896,8 @@ in
       upstreams = {
         "cache.dc.nixos.lv" = {
           servers = {
-            # NCPS upstreams to saitama and bigzam, comment this and uncomment the below if you want to skip ncps
-            #"localhost:8501" = { };
-            "${config.networking.mesh.plan.hosts.saitama.nebula.address}:5000" = {
+            "localhost:5000" = {
               weight = 100;
-              fail_timeout = "30s";
-              max_fails = 3;
-            };
-            "${config.networking.mesh.plan.hosts.bigzam.nebula.address}:5000" = {
-              weight = 50;
               fail_timeout = "30s";
               max_fails = 3;
             };
@@ -904,14 +938,15 @@ in
           forceSSL = true;
           locations."/".proxyPass = "http://cache.dc.nixos.lv";
         };
-      };
-    };
 
-    ncps = {
-      # This is actually what is reverse proxied to, as opposed to what MeshOS sets up
-      server.addr = lib.mkForce "127.0.0.1:8501";
-      # We have ~1 TB of storage, use 3/4 of it for local cache
-      cache.maxSize = "750G";
+        # ghostgate is now the passthrough backend for cache.nix.vegas too.
+        "cache.nix.vegas" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          globalRedirect = "cache.nixos.lv";
+        };
+      };
     };
   };
 
@@ -921,6 +956,10 @@ in
       group = "tftpd";
     };
     groups.tftpd = { };
+  };
+
+  services.harmonia = {
+    enable = true;
   };
 
   systemd.services = {

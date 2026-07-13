@@ -4,6 +4,35 @@
   config,
   ...
 }:
+
+let
+  nocInterface1 = "enp200s0";
+  nocInterface2 = "enp201s0";
+
+  trunkInterface1 = "enp10s0f0np0";
+  trunkInterface2 = "enp10s0f1np1";
+
+  erlib = import ../../modules/event-router/lib.nix { inherit lib pkgs; };
+
+  baseDomain = "nixos.lv";
+  domain = "ctf.${baseDomain}";
+
+  # Build machines.
+  build = erlib.mkNet {
+    id = 2;
+    base = "10.4.1";
+    subdomain = "build";
+    inherit domain;
+  };
+
+  # CTF machines
+  ctf = erlib.mkNet {
+    id = 3;
+    base = "10.4.2";
+    subdomain = "ctf";
+    inherit domain;
+  };
+in
 {
   boot = {
     initrd.availableKernelModules = [
@@ -19,8 +48,61 @@
   };
 
   networking = {
-    useDHCP = true; # TODO: set to false for NOC
+    useDHCP = false;
     hostName = "citadel";
+
+    bonds = {
+      trunk = {
+        interfaces = [ trunkInterface1 trunkInterface2 ];
+        # LACP over the 2x10G backbone to ghostgate. Both ends must match.
+        driverOptions = {
+          mode = "802.3ad";
+          lacp_rate = "fast";
+          xmit_hash_policy = "layer3+4";
+          miimon = "100";
+        };
+      };
+    };
+
+    vlans = {
+      "trunk.build" = {
+        inherit (build) id;
+        interface = "trunk";
+      };
+
+      "trunk.ctf" = {
+        inherit (ctf) id;
+        interface = "trunk";
+      };
+    };
+
+    bridges = {
+      noc.interfaces = [ nocInterface1 nocInterface2 ];
+      build.interfaces = [ "trunk.build" ];
+      ctf.interfaces = [ "trunk.ctf" ];
+    };
+
+    # Explicit per-bridge DHCP (all served by ghostgate). Only ctf carries the
+    # default route, so CTF traffic stays symmetric (in and out the same
+    # backbone); noc and build get addresses but must not install competing
+    # default routes (the multi-default asymmetric-routing footgun).
+    interfaces = {
+      noc.useDHCP = true;
+      build.useDHCP = true;
+      ctf = {
+        useDHCP = true;
+        # Pinned so ghostgate's DHCP reservation is stable regardless of which
+        # bond member's MAC the LACP bond happens to adopt.
+        macAddress = "02:ca:fe:c7:f0:02";
+      };
+    };
+
+    dhcpcd.extraConfig = ''
+      interface noc
+      nogateway
+      interface build
+      nogateway
+    '';
   };
 
   hardware.tenstorrent = {
@@ -29,21 +111,76 @@
   };
 
   services = {
+    nginx = {
+      enable = true;
+
+      upstreams = {
+        "ctf-app" = {
+          servers = {
+            "localhost:5000" = {
+              weight = 100;
+              fail_timeout = "30s";
+              max_fails = 3;
+            };
+          };
+        };
+      };
+
+      virtualHosts = {
+        # Front-facing: terminate TLS + serve the CTF app. Reached both locally
+        # (arena -> citadel direct) and publicly (brass SNI passthrough); ACME
+        # HTTP-01 via brass's :80 forward. PHX_HOST is nixc.tf, so Origin matches.
+        "nixc.tf" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          locations."/" = {
+            proxyPass = "http://ctf-app";
+            proxyWebsockets = true;
+          };
+        };
+
+        # Canonical + legacy -> redirect to the front.
+        "ctf.nixos.lv" = {
+          enableACME = true;
+          forceSSL = true;
+          globalRedirect = "nixc.tf";
+        };
+        "ctf.nix.vegas" = {
+          enableACME = true;
+          forceSSL = true;
+          globalRedirect = "nixc.tf";
+        };
+      };
+    };
+
     llama-cpp = {
       enable = true;
       package = pkgs.llama-cpp-metalium;
-      host = "0.0.0.0"; # TODO: bind to priv slice only + add auth before public
       extraFlags = [
         "-hf"
         "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M"
         "-nkvo"
       ];
-      openFirewall = true; # TODO: proper network slices between priv/pub side
+      openFirewall = false;
     };
     ctf-server = {
       enable = true;
-      openFirewall = true; # TODO: proper network slices between priv/pub side
-      host = "citadel.local";
+      openFirewall = false;
+      openVmFirewall = true; # open the challenge-VM SSH range (below)
+      # Front-facing domain the app presents (Phoenix PHX_HOST): nixc.tf. The
+      # nginx vhost + cert stay ctf.nixos.lv (canonical) — brass proxies with
+      # Host: ctf.nixos.lv, so citadel needn't be on the nixc.tf cert.
+      host = "nixc.tf";
+      vmSshHost = "nixc.tf";
+      # 1024 per-challenge-VM SSH forwarding ports, anchored on id Software's
+      # Quake (IANA 26000 = "quake"). On the way up it also squats FlexLM license
+      # servers (27000-27009), Steam (27015), and MongoDB (27017-19) — a CTF host
+      # will run none of them in a million years, and none bind these ports here.
+      vmPortRange = {
+        from = 26000;
+        to = 27023;
+      };
     };
     postgresql.ensureDatabases = [
       "ctf-server"
@@ -62,6 +199,20 @@
   };
 
   environment.variables.GGML_METALIUM_MESH_SHAPE = "2x2";
+
+  # The CTF is reached by attendees over the arena -> ctf path and by brass's
+  # public front, so open the web ports (the challenge-VM SSH range is opened by
+  # openVmFirewall above).
+  networking.firewall.allowedTCPPorts = [
+    80
+    443
+  ];
+
+  # Required by the nginx `enableACME` on ctf.nixos.lv (matches the other hosts).
+  security.acme = {
+    acceptTerms = true;
+    defaults.email = "noc@nix.vegas";
+  };
 
   nixpkgs.system = "x86_64-linux";
 }

@@ -17,6 +17,22 @@ let
   nebulaEgress = "188.190.9.32";
 
   nebulaSubnet = config.networking.mesh.plan.constants.nebula.subnet;
+
+  erlib = import ../../modules/event-router/lib.nix { inherit lib pkgs; };
+
+  # Public TLS-passthrough ingress. brass has the public IP; each name's TLS and
+  # ACME are handled by the backend that owns it — brass just SNI-routes :443 and
+  # forwards :80 so the backends' HTTP-01 challenges land.
+  ghostgateNebula = config.networking.mesh.plan.hosts.ghostgate.nebula.address;
+  citadelCtf = "10.4.2.2"; # citadel's pinned ctf reservation
+  passthrough = {
+    "nixc.tf" = citadelCtf;
+    "ctf.nixos.lv" = citadelCtf;
+    "ctf.nix.vegas" = citadelCtf;
+    "cache.nixos.lv" = ghostgateNebula;
+    "cache.nix.vegas" = ghostgateNebula;
+    "nixos.lv" = ghostgateNebula;
+  };
 in
 {
   imports = [
@@ -178,38 +194,50 @@ in
         };
       };
 
-      virtualHosts = {
-        # Just issue redirects to c.n.o.
-        "cache.nixos.lv" = {
-          addSSL = true;
-          enableACME = true;
-          globalRedirect = "cache.nixos.org";
-        };
+      # brass's own TLS vhosts terminate here, but behind the SNI router on
+      # :8443 (the router's `default`). Public :443 is the passthrough router.
+      defaultSSLListenPort = 8443;
 
-        # Redirect them to cache.nixos.lv.
-        "cache.nix.vegas" = {
-          addSSL = true;
-          enableACME = true;
-          globalRedirect = "cache.nixos.lv";
-        };
-
-        # In case they go here...
-        "live.nixos.lv" = {
-          forceSSL = true;
-          enableACME = true;
-          globalRedirect = "live.nix.vegas";
-        };
-
-        # We redirect them here.
-        "live.nix.vegas" = {
-          forceSSL = true;
-          enableACME = true;
-          locations."/" = {
-            proxyPass = "http://owncast";
-            proxyWebsockets = true;
+      virtualHosts =
+        {
+          # In case they go here...
+          "live.nixos.lv" = {
+            forceSSL = true;
+            enableACME = true;
+            globalRedirect = "live.nix.vegas";
           };
-        };
-      };
+
+          # We redirect them here.
+          "live.nix.vegas" = {
+            forceSSL = true;
+            enableACME = true;
+            locations."/" = {
+              proxyPass = "http://owncast";
+              proxyWebsockets = true;
+            };
+          };
+        }
+        # Passed-through names get a plain :80 vhost forwarding to the backend,
+        # so the backend's ACME HTTP-01 challenge lands and its own http->https
+        # redirect is served. Their TLS (:443) is SNI-passed-through below.
+        // lib.mapAttrs (_: be: {
+          locations."/".proxyPass = "http://${be}";
+        }) passthrough;
+
+      # L4 SNI router on :443: pass each name through to the backend that owns
+      # its cert; everything else (owncast/live) to brass's local nginx on :8443.
+      streamConfig = ''
+        map $ssl_preread_server_name $tls_upstream {
+          hostnames;
+        ${lib.concatStrings (lib.mapAttrsToList (sni: be: "  ${sni} ${be}:443;\n") passthrough)}  default 127.0.0.1:8443;
+        }
+        server {
+          listen 443 reuseport;
+          listen [::]:443 reuseport;
+          proxy_pass $tls_upstream;
+          ssl_preread on;
+        }
+      '';
 
       appendHttpConfig = ''
         geo $source {
@@ -219,6 +247,22 @@ in
       '';
     };
   };
+
+  # Reach the internal CTF backbone (citadel) over Nebula via ghostgate, so the
+  # ctf.nixos.lv front above can proxy to it. Requires ghostgate's Nebula cert to
+  # authorize 10.4.2.0/24.
+  services.nebula.networks.arena = {
+    tun.device = lib.mkForce "nebula.arena";
+    settings.tun.unsafe_routes = [
+      (erlib.ctfUnsafeRoute { planHosts = config.networking.mesh.plan.hosts; })
+    ];
+  };
+  # Nebula won't install a `via <peer>` route (the peer isn't on-link on the
+  # tun), so add the route by device; the unsafe_route above directs it to
+  # ghostgate.
+  systemd.services."nebula@arena".postStart = ''
+    ${lib.getExe' pkgs.iproute2 "ip"} route replace ${erlib.ctfNet} dev nebula.arena || true
+  '';
 
   security.acme = {
     acceptTerms = true;
