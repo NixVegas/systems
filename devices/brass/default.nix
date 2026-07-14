@@ -20,18 +20,27 @@ let
 
   erlib = import ../../modules/event-router/lib.nix { inherit lib pkgs; };
 
-  # Public TLS-passthrough ingress. brass has the public IP; each name's TLS and
-  # ACME are handled by the backend that owns it — brass just SNI-routes :443 and
-  # forwards :80 so the backends' HTTP-01 challenges land.
+  # Backends behind brass. Each terminates its own TLS and runs its own HTTP-01
+  # ACME; brass forwards their :80 challenges so certs renew from Let's Encrypt.
+  #
+  #   publicBackends — brass ALSO SNI-passes :443 through, so the name is
+  #                    reachable from the public internet.
+  #   onsiteBackends — brass forwards ONLY the ACME challenge. The site is
+  #                    onsite-only: attendees resolve it split-horizon straight
+  #                    to the backend and never traverse brass. Public :443 (and
+  #                    non-challenge :80) are refused here.
   ghostgateNebula = config.networking.mesh.plan.hosts.ghostgate.nebula.address;
   citadelCtf = "10.4.2.2"; # citadel's pinned ctf reservation
-  passthrough = {
+  publicBackends = {
+    "nixos.lv" = ghostgateNebula;
+  };
+  onsiteBackends = {
     "nixc.tf" = citadelCtf;
+    "www.nixc.tf" = citadelCtf;
     "ctf.nixos.lv" = citadelCtf;
     "ctf.nix.vegas" = citadelCtf;
     "cache.nixos.lv" = ghostgateNebula;
     "cache.nix.vegas" = ghostgateNebula;
-    "nixos.lv" = ghostgateNebula;
   };
 in
 {
@@ -225,19 +234,29 @@ in
             };
           };
         }
-        # Passed-through names get a plain :80 vhost forwarding to the backend,
-        # so the backend's ACME HTTP-01 challenge lands and its own http->https
-        # redirect is served. Their TLS (:443) is SNI-passed-through below.
+        # Public names: a plain :80 vhost forwarding everything to the backend
+        # (its ACME HTTP-01 challenge lands and its http->https redirect is
+        # served); TLS (:443) is SNI-passed-through below.
         // lib.mapAttrs (_: be: {
           locations."/".proxyPass = "http://${be}";
-        }) passthrough;
+        }) publicBackends
+        # Onsite-only names: forward ONLY the ACME challenge to the backend so its
+        # cert renews; refuse everything else. There is no :443 passthrough for
+        # these (see streamConfig), so the site is unreachable from the public
+        # internet — attendees reach it via split-horizon DNS to the backend.
+        // lib.mapAttrs (_: be: {
+          locations."/.well-known/acme-challenge/".proxyPass = "http://${be}";
+          locations."/".return = "404";
+        }) onsiteBackends;
 
-      # L4 SNI router on :443: pass each name through to the backend that owns
-      # its cert; everything else (owncast/live) to brass's local nginx on :8443.
+      # L4 SNI router on :443: only public names are passed through to their
+      # backend; onsite-only names and brass's own vhosts (owncast/live) fall to
+      # the local nginx on :8443, which does not serve the onsite sites — so
+      # public TLS to them is effectively refused.
       streamConfig = ''
         map $ssl_preread_server_name $tls_upstream {
           hostnames;
-        ${lib.concatStrings (lib.mapAttrsToList (sni: be: "  ${sni} ${be}:443;\n") passthrough)}  default 127.0.0.1:8443;
+        ${lib.concatStrings (lib.mapAttrsToList (sni: be: "  ${sni} ${be}:443;\n") publicBackends)}  default 127.0.0.1:8443;
         }
         server {
           listen 443 reuseport;

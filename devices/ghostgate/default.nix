@@ -898,6 +898,7 @@ in
         # CTF server) for ghostgate's own arena; public DNS still points to brass.
         hints = {
           "nixc.tf" = erlib.ctfServer;
+          "www.nixc.tf" = erlib.ctfServer;
         };
       };
     };

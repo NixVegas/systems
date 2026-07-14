@@ -757,6 +757,7 @@ in
         # nixc.tf -> the internal CTF server for this arena; public stays brass.
         hints = {
           "nixc.tf" = erlib.ctfServer;
+          "www.nixc.tf" = erlib.ctfServer;
         };
       };
     };

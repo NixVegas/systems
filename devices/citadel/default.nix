@@ -127,9 +127,10 @@ in
       };
 
       virtualHosts = {
-        # Front-facing: terminate TLS + serve the CTF app. Reached both locally
-        # (arena -> citadel direct) and publicly (brass SNI passthrough); ACME
-        # HTTP-01 via brass's :80 forward. PHX_HOST is nixc.tf, so Origin matches.
+        # Front-facing: terminate TLS + serve the CTF app. Onsite-only — attendees
+        # resolve nixc.tf straight here via split-horizon DNS; brass refuses public
+        # :443 for it and only forwards the ACME HTTP-01 challenge so the cert
+        # renews. PHX_HOST is nixc.tf, so Origin matches.
         "nixc.tf" = {
           http2 = true;
           enableACME = true;
@@ -140,7 +141,12 @@ in
           };
         };
 
-        # Canonical + legacy -> redirect to the front.
+        # www + canonical + legacy -> redirect to the front.
+        "www.nixc.tf" = {
+          enableACME = true;
+          forceSSL = true;
+          globalRedirect = "nixc.tf";
+        };
         "ctf.nixos.lv" = {
           enableACME = true;
           forceSSL = true;
