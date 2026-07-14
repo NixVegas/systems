@@ -50,16 +50,7 @@ in
       ./devices/ghostgate
     ]
     ++ commonModules;
-    address = "10.3.7.174";
-  };
-
-  vehk = {
-    version = "26.05";
-    modules = [
-      ./devices/vehk
-    ]
-    ++ commonModules;
-    address = "10.3.7.170";
+    address = "ghostgate.dc.nixos.lv";
   };
 
   ayem = {
@@ -68,7 +59,7 @@ in
       ./devices/ayem
     ]
     ++ commonModules;
-    address = "10.3.7.168";
+    address = "ayem";
   };
 
   seht = {
@@ -77,7 +68,16 @@ in
       ./devices/seht
     ]
     ++ commonModules;
-    # TODO: add deploy `address` once seht is installed (local-only for now).
+    address = "seht";
+  };
+
+  vehk = {
+    version = "26.05";
+    modules = [
+      ./devices/vehk
+    ]
+    ++ commonModules;
+    address = "vehk";
   };
 
   adamantia = {
@@ -115,6 +115,7 @@ in
     ++ commonModules;
     address = "dagoth.arena.nixos.lv";
     profile = {
+      # 22 is gitea
       sshOpts = [ "-t" "-p42070" ];
     };
   };
@@ -125,5 +126,6 @@ in
       ./devices/citadel
     ]
     ++ commonModules;
+    address = "citadel.local";
   };
 }

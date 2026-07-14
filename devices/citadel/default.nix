@@ -117,7 +117,7 @@ in
       upstreams = {
         "ctf-app" = {
           servers = {
-            "localhost:5000" = {
+            "localhost:4000" = {
               weight = 100;
               fail_timeout = "30s";
               max_fails = 3;
