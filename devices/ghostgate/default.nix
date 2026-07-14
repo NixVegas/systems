@@ -513,6 +513,18 @@ in
                 "wwan2",
                 "mesh2"
               } masquerade
+              # NOC (management) reaching the CTF backbone: citadel is multi-homed
+              # onto noc, so a real-source noc packet arriving on its ctf interface
+              # fails citadel's strict reverse-path filter (its route back to noc is
+              # the noc interface, not ctf). Masquerade noc->ctf so citadel replies
+              # to us symmetrically. Arena traffic keeps its real source (attendee
+              # IPs) because this only matches the noc subnet.
+              oifname "ctf" ip saddr ${noc.subnet} masquerade
+              # NOC is a management network with no presence in Nebula, so hosts
+              # reached over the overlay (the builders at 10.6.9.x, other arenas)
+              # can't route back to it. Masquerade its Nebula egress so they reply
+              # to us; this must come before the real-source rule below.
+              oifname "nebula.arena" ip saddr ${noc.subnet} masquerade
               # Masquerade only genuine internet egress over Nebula. Traffic to
               # other arenas OR to Nebula hosts (e.g. a router's own Nebula IP,
               # as when pinging from the box) keeps its real source so replies
