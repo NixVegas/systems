@@ -95,6 +95,10 @@ in
     "net.ipv6.conf.${wanInterface}.accept_ra" = 2;
     "net.ipv6.conf.${wanInterface}.autoconf" = 1;
   };
+  boot.extraModprobeConfig = ''
+    # Feed the L2ARC at 256 MB/s until it's full
+    options zfs l2arc_noprefetch=0 l2arc_write_boost=${toString (256 * 1024 * 1024)}
+  '';
 
   networking.mesh = {
     nebula = {
