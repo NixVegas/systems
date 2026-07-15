@@ -1004,12 +1004,22 @@ in
           root = "/var/cache/nar";
           locations."/".tryFiles = "$uri @upstream";
           locations."@upstream" = {
-            proxyPass = "https://cache.nixos.org";
             extraConfig = ''
+              # Variable proxy_pass + resolver: re-resolve fastly at request
+              # time instead of baking startup answers, and ipv6=off — with
+              # AAAA answers nginx builds an all-v6 upstream list and 502s
+              # when the WAN has no v6 route. kresd serves 127.0.0.1.
+              resolver 127.0.0.1 ipv6=off valid=300s;
+              set $mirror_upstream cache.nixos.org;
+              proxy_pass https://$mirror_upstream$request_uri;
               proxy_set_header Host cache.nixos.org;
               proxy_ssl_server_name on;
               proxy_ssl_name cache.nixos.org;
               proxy_ssl_verify on;
+              # LE's 2026 chain is leaf -> YR2 -> Root YR -> ISRG Root X1;
+              # the nginx default depth (1) fails it with "unable to get
+              # local issuer certificate". curl/openssl don't enforce depth.
+              proxy_ssl_verify_depth 4;
               proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
               # Upstream a HEAD as a GET so proxy_store never plants an
               # empty file where a narinfo should be.

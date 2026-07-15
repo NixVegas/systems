@@ -224,6 +224,15 @@ Immediately after the `networking.mesh = { ... };` top-level block, add:
   nix.settings.substituters = lib.mkAfter [ "https://upstream.cache.nixos.lv?priority=35" ];
 ```
 
+> **Deviation note (found live, post-deploy):** the static `proxy_pass` 502'd
+> two ways: nginx built an all-AAAA upstream list (no v6 route on the WAN),
+> and LE's 2026 chain (leaf → YR2 → Root YR → ISRG Root X1) exceeds the
+> `proxy_ssl_verify_depth` default of 1. As-built: `resolver 127.0.0.1
+> ipv6=off valid=300s` + variable `proxy_pass
+> https://$mirror_upstream$request_uri` (runtime re-resolution, v4-only) and
+> `proxy_ssl_verify_depth 4`. Verified against real cache.nixos.org in a
+> local nginx repro: 200, stored file byte-identical, second hit from disk.
+
 > **Deviation note (found during execution):** nixpkgs' `nixos/modules/config/nix.nix`
 > unconditionally appends `https://cache.nixos.org/` via `mkAfter`; MeshOS's
 > `mkForce` used to mask it. It cannot be removed without `mkForce`ing the
