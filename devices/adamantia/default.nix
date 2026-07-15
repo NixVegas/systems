@@ -64,6 +64,8 @@ in
     openssl
     net-tools
     config.services.kanidm.package
+    great-value-hydra.cachePkgs
+    great-value-hydra.cacheUnstablePkgs
   ];
 
   networking =
