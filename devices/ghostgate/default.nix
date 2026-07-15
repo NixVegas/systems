@@ -846,6 +846,13 @@ in
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
+        # ghostgate on each of its LANs, so clients resolve it by its local
+        # gateway address — both the FQDN and bare `ghostgate` (which a client
+        # expands via its DHCP search domain, e.g. noc.dc.nixos.lv).
+        ghostgate.${noc.dhcpDomain}. A ${noc.address}
+        ghostgate.${build.dhcpDomain}. A ${build.address}
+        ghostgate.${ctf.dhcpDomain}. A ${ctf.address}
+
         ctf.${domain}. CNAME citadel.ctf.${domain}.
 
         # ctf.nixos.lv resolves internally straight to citadel (the direct
