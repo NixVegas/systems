@@ -6,30 +6,30 @@
   ];
   services.mattermost = {
     enable = true;
-    package = (pkgs.mattermost.override {
-      # Use a premium build environment for the frontend
-      # Backend injects ads before it starts and we r poor :-(
-      buildNpmPackage = pkgs.buildNpmPackage.override {
-        stdenv = pkgs.premenv;
-      };
-      removeUserLimit = true;
-    }).overrideAttrs (prev: {
-      webapp = prev.webapp.overrideAttrs (prevWebapp: {
-        patchFlags = ["-p2"]; # we're in the webapp directory but patches are relative to root
-        patches = [
-          ./mattermost/0001-constants-menu-header-Add-nixpkgs-gold-support.patch
-        ];
-      });
-    });
+    package =
+      (pkgs.mattermost.override {
+        # Use a premium build environment for the frontend
+        # Backend injects ads before it starts and we r poor :-(
+        buildNpmPackage = pkgs.buildNpmPackage.override {
+          stdenv = pkgs.premenv;
+        };
+        removeUserLimit = true;
+      }).overrideAttrs
+        (prev: {
+          webapp = prev.webapp.overrideAttrs (prevWebapp: {
+            patchFlags = [ "-p2" ]; # we're in the webapp directory but patches are relative to root
+            patches = [
+              ./mattermost/0001-constants-menu-header-Add-nixpkgs-gold-support.patch
+            ];
+          });
+        });
     host = "0.0.0.0";
     port = 8065;
     environment.MM_CALLS_GROUP_CALLS_ALLOWED = "true";
     mutableConfig = true;
     preferNixConfig = true;
 
-    /*
-      Grab these using `nix-prefetch-url`
-    */
+    # Grab these using `nix-prefetch-url`
     plugins = [
       /*
         calls

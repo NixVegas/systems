@@ -273,7 +273,6 @@ in
     };
   };
 
-
   services.nginx =
     let
       letsEncryptEndpoint =
@@ -479,7 +478,6 @@ in
       privateNetwork = false;
       localAddress = vaultwardenIp;
     };
-
 
     grafana = {
       config = {

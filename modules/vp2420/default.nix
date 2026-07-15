@@ -19,7 +19,9 @@ let
   thisHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
 
   brassNebula = config.networking.mesh.plan.hosts.brass.nebula.address;
-  ghostgateMesh = lib.head (lib.splitString "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address);
+  ghostgateMesh = lib.head (
+    lib.splitString "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address
+  );
 
   # Nebula tun interface — traffic arriving here is already CA-authenticated
   # by nebula, so we trust it like the LAN/mesh.
@@ -185,7 +187,9 @@ in
             ++ erlib.arenaAggregates # 10.7/16, 10.8/16 (routed over Nebula)
           )
         );
-        allowList = deny // { "0.0.0.0/0" = true; };
+        allowList = deny // {
+          "0.0.0.0/0" = true;
+        };
       in
       {
         local_allow_list = allowList;
@@ -471,7 +475,15 @@ in
               # other arenas, the CTF backbone, OR Nebula hosts (e.g. a router's
               # own Nebula IP, as when pinging from the box) keeps its real source
               # so replies match conntrack and the CTF sees real attendee IPs.
-              oifname "${nebulaTun}" ip daddr != { ${lib.concatStringsSep ", " (erlib.arenaCidrs ++ [ config.networking.mesh.plan.constants.nebula.subnet erlib.ctfNet ])} } masquerade
+              oifname "${nebulaTun}" ip daddr != { ${
+                lib.concatStringsSep ", " (
+                  erlib.arenaCidrs
+                  ++ [
+                    config.networking.mesh.plan.constants.nebula.subnet
+                    erlib.ctfNet
+                  ]
+                )
+              } } masquerade
             }
           '';
         };

@@ -53,7 +53,10 @@ in
 
     bonds = {
       trunk = {
-        interfaces = [ trunkInterface1 trunkInterface2 ];
+        interfaces = [
+          trunkInterface1
+          trunkInterface2
+        ];
         # LACP over the 2x10G backbone to ghostgate. Both ends must match.
         driverOptions = {
           mode = "802.3ad";
@@ -77,7 +80,10 @@ in
     };
 
     bridges = {
-      noc.interfaces = [ nocInterface1 nocInterface2 ];
+      noc.interfaces = [
+        nocInterface1
+        nocInterface2
+      ];
       build.interfaces = [ "trunk.build" ];
       ctf.interfaces = [ "trunk.ctf" ];
     };

@@ -113,7 +113,6 @@
           };
         };
 
-
       ghostgate =
         let
           entryAddressBuild = "10.4.1.1";

@@ -162,7 +162,10 @@ in
       };
 
       # Prefer build and ctf (10Gbit)
-      preferred_ranges = [ build.subnet ctf.subnet ];
+      preferred_ranges = [
+        build.subnet
+        ctf.subnet
+      ];
 
       # Constrain Nebula underlay address discovery. ghostgate is a multi-homed
       # router; by default Nebula advertises every local interface to the
@@ -326,7 +329,10 @@ in
 
     bonds = {
       trunk = {
-        interfaces = [ trunkInterface1 trunkInterface2 ];
+        interfaces = [
+          trunkInterface1
+          trunkInterface2
+        ];
         # LACP over the 2x10G backbone to citadel. Both ends must match.
         driverOptions = {
           mode = "802.3ad";
@@ -439,7 +445,9 @@ in
 
               # Allow SSH in over the wired WAN uplink so ghostgate can be
               # deployed remotely. The WWAN uplinks stay closed (below).
-              iifname "wan1" tcp dport { ${lib.concatMapStringsSep ", " toString config.services.openssh.ports} } counter accept
+              iifname "wan1" tcp dport { ${
+                lib.concatMapStringsSep ", " toString config.services.openssh.ports
+              } } counter accept
 
               # Allow some ICMP by default
               ip protocol icmp icmp type { destination-unreachable, echo-request, time-exceeded, parameter-problem } accept
@@ -482,7 +490,9 @@ in
               # Nebula. Scoped to the lighthouse UDP ports only — all other mesh
               # traffic stays encrypted over Nebula (matching the carve-out in
               # the nebula@arena postStart).
-              iifname "mesh2" oifname "wan1" udp dport { ${lib.concatMapStringsSep ", " toString lighthousePorts} } counter accept comment "mesh -> lighthouse (clear bootstrap)"
+              iifname "mesh2" oifname "wan1" udp dport { ${
+                lib.concatMapStringsSep ", " toString lighthousePorts
+              } } counter accept comment "mesh -> lighthouse (clear bootstrap)"
               iifname "wan1" oifname "mesh2" ct state established,related counter accept comment "lighthouse reply -> mesh"
 
               # Let NOC get to build and ctf.
@@ -553,7 +563,11 @@ in
               # other arenas OR to Nebula hosts (e.g. a router's own Nebula IP,
               # as when pinging from the box) keeps its real source so replies
               # match conntrack and stay reachable both ways.
-              oifname "nebula.arena" ip daddr != { ${lib.concatStringsSep ", " (erlib.arenaCidrs ++ [ config.networking.mesh.plan.constants.nebula.subnet ])} } masquerade
+              oifname "nebula.arena" ip daddr != { ${
+                lib.concatStringsSep ", " (
+                  erlib.arenaCidrs ++ [ config.networking.mesh.plan.constants.nebula.subnet ]
+                )
+              } } masquerade
             }
           '';
         };
@@ -685,26 +699,28 @@ in
 
   services.hostapd = {
     enable = true;
-    /*radios.${internalM2Wifi} = {
-      countryCode = "US";
-      band = "2g";
-      channel = 4;
-      wifi6.enable = true;
-      networks = {
-        ${internalM2Wifi} = {
-          ssid = "NixVegas";
-          authentication = {
-            mode = "wpa3-sae-transition";
-            saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
-            wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
-            enableRecommendedPairwiseCiphers = true;
-          };
-          settings = {
-            bridge = "arena";
+    /*
+      radios.${internalM2Wifi} = {
+        countryCode = "US";
+        band = "2g";
+        channel = 4;
+        wifi6.enable = true;
+        networks = {
+          ${internalM2Wifi} = {
+            ssid = "NixVegas";
+            authentication = {
+              mode = "wpa3-sae-transition";
+              saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
+              wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
+              enableRecommendedPairwiseCiphers = true;
+            };
+            settings = {
+              bridge = "arena";
+            };
           };
         };
       };
-    };*/
+    */
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
