@@ -968,6 +968,39 @@ in
           forceSSL = true;
           globalRedirect = "cache.nixos.lv";
         };
+
+        # Pull-through mirror of cache.nixos.org for the nixpkgs storage study:
+        # serve from the ghostgate-nar dataset if present, otherwise proxy
+        # upstream and proxy_store the response verbatim (URL path == file
+        # path, bytes == upstream bytes, signatures survive). No eviction by
+        # design. cache.nixos.lv (harmonia, the dedup'd local store) is the
+        # other half of the experiment.
+        "upstream.cache.nixos.lv" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          root = "/var/cache/nar";
+          locations."/".tryFiles = "$uri @upstream";
+          locations."@upstream" = {
+            proxyPass = "https://cache.nixos.org";
+            extraConfig = ''
+              proxy_set_header Host cache.nixos.org;
+              proxy_ssl_server_name on;
+              proxy_ssl_name cache.nixos.org;
+              proxy_ssl_verify on;
+              proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+              # Upstream a HEAD as a GET so proxy_store never plants an
+              # empty file where a narinfo should be.
+              proxy_method GET;
+              proxy_store on;
+              proxy_store_access user:rw group:r all:r;
+              proxy_temp_path /var/cache/nar/tmp;
+              # Some nars exceed the 1g default; a truncated temp file is
+              # discarded instead of stored.
+              proxy_max_temp_file_size 32g;
+            '';
+          };
+        };
       };
     };
   };
