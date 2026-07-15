@@ -116,9 +116,12 @@ Inside `services.nginx.virtualHosts`, after the `"cache.nix.vegas"` entry, add:
               proxy_store on;
               proxy_store_access user:rw group:r all:r;
               proxy_temp_path /var/cache/nar/tmp;
-              # Some nars exceed the 1g default; a truncated temp file is
-              # discarded instead of stored.
-              proxy_max_temp_file_size 32g;
+              # Some nars exceed the 1024m default; a truncated temp file is
+              # discarded instead of stored. NB: size-typed nginx directives
+              # only take k/m suffixes ("g" fails config parse — found live;
+              # nix build does NOT catch this: validateConfigFile only runs
+              # gixy, not nginx -t).
+              proxy_max_temp_file_size 32768m;
             '';
           };
         };

@@ -579,7 +579,7 @@ in
     };
   };
 
-  nixpkcs = {
+  security.pkcs11 = {
     enable = true;
     pcsc = {
       enable = true;
@@ -1007,9 +1007,10 @@ in
               proxy_store on;
               proxy_store_access user:rw group:r all:r;
               proxy_temp_path /var/cache/nar/tmp;
-              # Some nars exceed the 1g default; a truncated temp file is
-              # discarded instead of stored.
-              proxy_max_temp_file_size 32g;
+              # Some nars exceed the 1024m default; a truncated temp file is
+              # discarded instead of stored. NB: size-typed nginx directives
+              # only take k/m suffixes ("g" fails config parse).
+              proxy_max_temp_file_size 32768m;
             '';
           };
         };
@@ -1049,7 +1050,7 @@ in
     unitConfig.RequiresMountsFor = [ "/var/cache/nar" ];
   };
 
-  services.harmonia = {
+  services.harmonia.cache = {
     enable = true;
     settings = {
       # Serve raw NARs: harmonia 3.x otherwise zstd-encodes on the fly for
