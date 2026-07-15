@@ -133,6 +133,12 @@ in
   # the mirror itself is down.
   nix.settings.substituters = lib.mkAfter [ "https://upstream.cache.nixos.lv?priority=35" ];
 
+  # On ghostgate itself the mirror is pinned to loopback: public DNS points
+  # this name at brass (a 302), and even the knot CNAME answer (the Nebula
+  # address) needs the tun up. TLS stays valid — the cert matches the SNI
+  # name, not the address. LAN clients still get the knot CNAME -> ghostgate.
+  networking.hosts."127.0.0.1" = [ "upstream.cache.nixos.lv" ];
+
   services.nebula.networks.arena = {
     tun.device = lib.mkForce "nebula.arena";
     settings = {

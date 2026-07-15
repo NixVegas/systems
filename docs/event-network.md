@@ -122,7 +122,11 @@ direct path); the public resolves them to brass.
   `/var/cache/nar`), miss → `proxy_store` from upstream, bytes verbatim, no
   eviction. `cache.nixos.lv` stays harmonia over the dedup+zstd local store
   (compression off). Only ghostgate substitutes through the mirror (pinned
-  `?priority=35`, ahead of the direct cache.nixos.org fallback at 40). See
+  `?priority=35`, ahead of the direct cache.nixos.org fallback at 40). On
+  ghostgate itself the name is pinned to `127.0.0.1` in `/etc/hosts` — public
+  DNS answers brass (a 302) and the knot CNAME answers the Nebula address,
+  which needs the tun up; loopback keeps ghostgate's own substitution
+  self-contained. See
   `docs/superpowers/specs/2026-07-14-nar-mirror-study-design.md`.
 - **brass's unbound** (`modules/unbound.nix`) is the Nebula-side split-horizon
   resolver; it deliberately does **not** answer the CTF names (onsite-only).
