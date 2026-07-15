@@ -163,6 +163,15 @@
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
         };
 
+      citadel = {
+        cache = {
+          client = {
+            sets = [ "cnl" ];
+          };
+        };
+        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKp3ggyZEEY2wbg2QXH5JytwADeRYluOszL5ooeQSMzL root@citadel";
+      };
+
       ayem = {
         wifi.address = "10.5.1.1/16";
         # Advertise the mesh address so local peers reach us directly over the
@@ -203,7 +212,6 @@
         };
         ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vehk";
       };
-
 
       bigzam = {
         nebula.address = "10.6.9.2";

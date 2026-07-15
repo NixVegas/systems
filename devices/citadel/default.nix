@@ -103,6 +103,27 @@ in
       interface build
       nogateway
     '';
+
+    # ghostgate's cache endpoints, pinned to its ctf-side address so cache
+    # traffic rides the 20G LACP backbone regardless of DNS (the knot answer
+    # is ghostgate's Nebula address). TLS stays valid: the certs match the
+    # SNI names, not the IP. The substituter itself comes from the mesh plan
+    # (cnl cache client set in mesh.nix).
+    hosts.${ctf.address} = [
+      "cache.nixos.lv"
+      "upstream.cache.nixos.lv"
+    ];
+
+    # Consume the cnl cache set (-> https://cache.nixos.lv:443, see mesh.nix).
+    # useHydra = false: don't let the module inject cache.nixos.org?priority=10
+    # ahead of the local cache; the nixpkgs default cache.nixos.org/ (40)
+    # remains as the last-resort fallback.
+    mesh.cache.client = {
+      enable = true;
+      useHydra = false;
+      trustHydra = true;
+      useRecommendedCacheSettings = true;
+    };
   };
 
   hardware.tenstorrent = {
