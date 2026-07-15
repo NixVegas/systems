@@ -271,6 +271,9 @@ in
     ipxe
     tftp-hpa
     wol
+
+    great-value-hydra.cachePkgs
+    great-value-hydra.cacheUnstablePkgs
   ];
 
   networking = {
