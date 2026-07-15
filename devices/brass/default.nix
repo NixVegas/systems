@@ -217,6 +217,20 @@ in
 
       virtualHosts =
         {
+          # Catch-all default server. Any request we don't explicitly route — an
+          # unknown Host on :80, or unknown SNI arriving via the stream's :8443
+          # fallback (e.g. a public client hitting an onsite-only name) — is
+          # answered here instead of leaking another vhost's cert/content or
+          # proxying to a backend that isn't prepared for the request. On :80 it
+          # redirects to the public site; on :443 it refuses the TLS handshake
+          # cleanly (we hold no public cert for these names, so presenting one
+          # would just be a mismatch).
+          "_default" = {
+            default = true;
+            rejectSSL = true;
+            locations."/".return = "302 https://nix.vegas";
+          };
+
           # In case they go here...
           "live.nixos.lv" = {
             forceSSL = true;
@@ -240,19 +254,26 @@ in
         // lib.mapAttrs (_: be: {
           locations."/".proxyPass = "http://${be}";
         }) publicBackends
-        # Onsite-only names: forward ONLY the ACME challenge to the backend so its
-        # cert renews; refuse everything else. There is no :443 passthrough for
-        # these (see streamConfig), so the site is unreachable from the public
-        # internet — attendees reach it via split-horizon DNS to the backend.
+        # Onsite-only names: brass terminates TLS here with its OWN publicly
+        # trusted cert and redirects to the public site on both :80 and :443, so
+        # an accidental public visitor gets a clean redirect (no
+        # SSL_ERROR_UNRECOGNIZED_NAME) instead of a rejected handshake.
+        # acmeFallbackHost forwards any ACME challenge token brass doesn't own to
+        # the backend, so the backend's *onsite* cert keeps renewing too. There is
+        # still no :443 passthrough (see streamConfig) — the actual site stays
+        # unreachable publicly; attendees reach it via split-horizon DNS to the
+        # backend.
         // lib.mapAttrs (_: be: {
-          locations."/.well-known/acme-challenge/".proxyPass = "http://${be}";
-          locations."/".return = "404";
+          enableACME = true;
+          addSSL = true;
+          acmeFallbackHost = be;
+          locations."/".return = "302 https://nix.vegas";
         }) onsiteBackends;
 
       # L4 SNI router on :443: only public names are passed through to their
-      # backend; onsite-only names and brass's own vhosts (owncast/live) fall to
-      # the local nginx on :8443, which does not serve the onsite sites — so
-      # public TLS to them is effectively refused.
+      # backend. Onsite-only names and brass's own vhosts (owncast/live) fall to
+      # the local nginx on :8443, where each onsite name has a valid-cert redirect
+      # vhost; only genuinely unknown SNI reaches the _default server's rejectSSL.
       streamConfig = ''
         map $ssl_preread_server_name $tls_upstream {
           hostnames;
