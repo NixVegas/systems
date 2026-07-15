@@ -980,6 +980,30 @@ in
     groups.tftpd = { };
   };
 
+  # Storage-study mirror dataset (see
+  # docs/superpowers/specs/2026-07-14-nar-mirror-study-design.md): verbatim
+  # cache.nixos.org nar/narinfo files, written by nginx proxy_store. The pool
+  # and dataset (mountpoint=legacy) are created by hand.
+  fileSystems."/var/cache/nar" = {
+    device = "ghostgate-nar/local/nar";
+    fsType = "zfs";
+  };
+
+  systemd.tmpfiles.rules = [
+    "d /var/cache/nar 0755 nginx nginx -"
+    # proxy_temp_path: must be on the same filesystem as the store root so
+    # completed downloads move into place with an atomic rename.
+    "d /var/cache/nar/tmp 0700 nginx nginx -"
+  ];
+
+  systemd.services.nginx = {
+    # The NixOS nginx unit runs ProtectSystem=strict; proxy_store can't write
+    # outside /var/cache/nginx without this.
+    serviceConfig.ReadWritePaths = [ "/var/cache/nar" ];
+    # Don't let nginx start against the bare mountpoint directory.
+    unitConfig.RequiresMountsFor = [ "/var/cache/nar" ];
+  };
+
   services.harmonia = {
     enable = true;
   };
