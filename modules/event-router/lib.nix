@@ -240,11 +240,19 @@ rec {
       keyName,
     }:
     let
-      zone = pkgs.writeTextDir "${baseDomain}.zone" zoneText;
-      zonesDir = pkgs.buildEnv {
-        name = "knot-zones";
-        paths = [ zone ];
-      };
+      # Validate the zone at build time: a syntax error here (e.g. a `#`
+      # comment — zone files only know `;`) otherwise fails the zone load on
+      # the running router, taking down resolution for the whole domain.
+      zonesDir =
+        pkgs.runCommand "knot-zones"
+          {
+            nativeBuildInputs = [ pkgs.knot-dns ];
+          }
+          ''
+            mkdir -p $out
+            cp ${pkgs.writeText "${baseDomain}.zone" zoneText} $out/${baseDomain}.zone
+            kzonecheck -o ${baseDomain} $out/${baseDomain}.zone
+          '';
     in
     {
       enable = true;

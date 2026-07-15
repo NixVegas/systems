@@ -842,22 +842,24 @@ in
         @ NS nameserver
         nameserver A 127.0.0.1
         ${baseDomain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
-        www.${baseDomain} CNAME ghostgate.${domain}.
+        www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
-        # ghostgate on each of its LANs, so clients resolve it by its local
-        # gateway address — both the FQDN and bare `ghostgate` (which a client
-        # expands via its DHCP search domain, e.g. noc.dc.nixos.lv).
+        ; ghostgate on each of its LANs, so clients resolve it by its local
+        ; gateway address — both the FQDN and bare `ghostgate` (which a client
+        ; expands via its DHCP search domain, e.g. noc.dc.nixos.lv).
+        ; NB: zone file comments are `;` — a `#` line is parsed as a record
+        ; ("owner is invalid") and kills the whole zone load.
         ghostgate.${noc.dhcpDomain}. A ${noc.address}
         ghostgate.${build.dhcpDomain}. A ${build.address}
         ghostgate.${ctf.dhcpDomain}. A ${ctf.address}
 
         ctf.${domain}. CNAME citadel.ctf.${domain}.
 
-        # ctf.nixos.lv resolves internally straight to citadel (the direct
-        # arena -> ctf path) while public DNS points it at brass, which fronts
-        # TLS and proxies back in.
+        ; ctf.nixos.lv resolves internally straight to citadel (the direct
+        ; arena -> ctf path) while public DNS points it at brass, which fronts
+        ; TLS and proxies back in.
         ctf.${baseDomain}. CNAME citadel.ctf.${domain}.
       '';
     };

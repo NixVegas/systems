@@ -50,7 +50,7 @@ in
       ./devices/ghostgate
     ]
     ++ commonModules;
-    address = "ghostgate.dc.nixos.lv";
+    address = "ghostgate";
   };
 
   ayem = {

@@ -121,6 +121,15 @@ direct path); the public resolves them to brass.
 
 ## Footguns (hard-won — read before touching the routers)
 
+- **Zone files only know `;` comments.** A `#` comment in a `zoneText` is
+  parsed as a resource record ("owner is invalid") and knot then refuses to
+  load the *entire* zone. The failure is deceptively indirect: knot runs with
+  no zone contents, so every name under `nixos.lv` SERVFAILs (ssh by name
+  breaks, deploys break — the deploy address is in the zone), and every Kea
+  DDNS update is rejected with `DDNS, processing failed (semantic check)` /
+  RCODE 2, because knot applies updates against an empty zone whose apex has
+  no SOA. `erlib.mkKnot` now runs `kzonecheck` at build time so this class of
+  mistake fails the `nix build` instead.
 - **Nebula multi-homed underlay pollution.** A multi-homed router advertises
   *every* local interface IP to the lighthouses, and peers try them all as
   underlay endpoints. Interfaces in ranges peers route *over* Nebula (the arena
