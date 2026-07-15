@@ -855,6 +855,7 @@ in
         ${baseDomain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
+        upstream.cache.${baseDomain}. CNAME ghostgate.${domain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
         ; ghostgate on each of its LANs, so clients resolve it by its local
