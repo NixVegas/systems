@@ -12,38 +12,6 @@ let
   ];
 in
 {
-  bigzam = {
-    version = "26.05";
-    modules = [
-      ./devices/bigzam
-    ]
-    ++ commonModules;
-  };
-
-  tatsumaki = {
-    version = "26.05";
-    modules = [
-      ./devices/tatsumaki
-    ]
-    ++ commonModules;
-  };
-
-  genos = {
-    version = "26.05";
-    modules = [
-      ./devices/genos
-    ]
-    ++ commonModules;
-  };
-
-  saitama = {
-    version = "26.05";
-    modules = [
-      ./devices/saitama
-    ]
-    ++ commonModules;
-  };
-
   ghostgate = {
     version = "26.05";
     modules = [
@@ -51,6 +19,15 @@ in
     ]
     ++ commonModules;
     address = "ghostgate";
+  };
+
+  citadel = {
+    version = "26.05";
+    modules = [
+      ./devices/citadel
+    ]
+    ++ commonModules;
+    address = "citadel";
   };
 
   ayem = {
@@ -118,14 +95,5 @@ in
       # 22 is gitea
       sshOpts = [ "-t" "-p42070" ];
     };
-  };
-
-  citadel = {
-    version = "26.05";
-    modules = [
-      ./devices/citadel
-    ]
-    ++ commonModules;
-    address = "citadel.local";
   };
 }

@@ -197,6 +197,7 @@
             sets = [ "cnl" ];
           };
         };
+        # still needs provisioned (in houston)
         #ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILGezmmzvw5lnAulHSaw5zjLQDEdey1VwcPT8SAN6Et4 root@ayem";
       };
 
@@ -211,43 +212,6 @@
           };
         };
         ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vehk";
-      };
-
-      bigzam = {
-        nebula.address = "10.6.9.2";
-        cache = {
-          client = {
-            sets = [ "gvh-a" ];
-          };
-          server = {
-            priority = 20;
-            port = 5000;
-            # provides great-value-hydra mirror
-            sets = [ "gvh-b" ];
-          };
-        };
-      };
-
-      saitama = {
-        nebula.address = "10.6.9.3";
-        cache = {
-          server = {
-            priority = 10;
-            port = 5000;
-            # provides great-value-hydra
-            sets = [ "gvh-a" ];
-          };
-        };
-      };
-
-      genos = {
-        nebula.address = "10.6.9.4";
-        cache.client.sets = [ "gvh-a" ];
-      };
-
-      tatsumaki = {
-        nebula.address = "10.6.9.5";
-        cache.client.sets = [ "gvh-a" ];
       };
     };
 
