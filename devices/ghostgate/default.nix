@@ -910,9 +910,13 @@ in
           "127.0.0.0/8"
         ];
         ourDomains = [
+          # NB: policy.domains matches these names EXACTLY (not as suffixes) —
+          # every split-horizon name under nixos.lv must be listed here or
+          # kresd forwards it upstream and answers with brass.
           "nixos.lv."
           "www.nixos.lv."
           "cache.nixos.lv."
+          "upstream.cache.nixos.lv."
           "hydra.nixos.lv."
           # Split-horizon: hand ctf.nixos.lv to our knot (-> citadel) instead of
           # the public upstream (-> brass), so ghostgate's arena reaches the CTF
