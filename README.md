@@ -56,6 +56,7 @@ path printed during the deploy.
 | `pkgs/` | Custom packages (onboarding artifacts, pagefind site build, channel index) |
 | `deploy` | deploy-rs wrapper script |
 | `arena.ca.crt` | CA bundle for the Nebula mesh |
+| `docs/` | Deep-dives that outgrew this README (e.g. `event-network.md`) |
 
 ### Mesh
 
@@ -79,6 +80,23 @@ images), knot (authoritative DNS) with kresd (resolver), the MeshOS WiFi
 AP, and an ncps cache proxy serving `cache.nixos.lv` to the floor. It boots
 via limine with secure boot, keeps its Nebula key in the TPM2, and manages
 the core CA on a YubiKey via nixpkcs.
+
+### Event LANs, CTF, and public ingress
+
+Behind ghostgate are three wired `/24`s — **noc** (`10.4.0`, management),
+**build** (`10.4.1`, builders' underlay), and **ctf** (`10.4.2`, the CTF
+backbone) — the last two carried as VLANs over a 2×10G LACP bond to
+**citadel**, the CTF + AI server. The CTF is reachable from every arena (over
+Nebula, with real source IPs) and from noc. Public HTTPS is fronted by
+**brass**, which SNI-routes public names straight through to their backend and
+terminates the *onsite-only* ones (`nixc.tf`, `ctf.*`, `cache.*`) with its own
+cert — redirecting the public to `nix.vegas` while attendees resolve them
+split-horizon straight to the internal host.
+
+This subsystem — plus the Nebula / rp_filter / policy-routing footguns it
+taught us — is written up in
+[`docs/event-network.md`](docs/event-network.md); read that before touching the
+routers. Shared router helpers live in `modules/event-router/lib.nix`.
 
 ### Build farm and caches
 
@@ -136,6 +154,15 @@ Owned hardware that travels with the event:
 | seht | Protectli VP2420 | local only | Same role as ayem (sibling); shares `modules/vp2420` |
 | vehk | Protectli VP2420 | `10.3.7.170` | Same role as ayem (sibling); shares `modules/vp2420` |
 
+### Event compute
+
+Behind ghostgate on the ctf/build/noc LANs (see
+[`docs/event-network.md`](docs/event-network.md)):
+
+| Host | Hardware | Deploy address | Role |
+| --- | --- | --- | --- |
+| citadel | Tenstorrent p150 ×4 | `citadel.local` (on-path) | CTF challenge server (`ctf-server`, `nixc.tf`; challenge-VM SSH on 26000–27023) + llama.cpp. Multi-homed on noc/build/ctf. |
+
 ### Sponsored hardware
 
 Loaner event hardware — year-dependent, not guaranteed to come back. All
@@ -154,6 +181,10 @@ Quirks worth knowing:
   `systems.nix`; the deploy wrapper handles it).
 - **ghostgate** uses limine + secure boot, keeps its Nebula key in the
   TPM2, and manages the core CA on a YubiKey via nixpkcs.
+- **citadel** deploys on-path only (`citadel.local`) and is multi-homed on
+  noc/build/ctf; its ctf address (`10.4.2.2`) is a pinned interface MAC plus a
+  Kea reservation. Reaching it from noc depends on a masquerade on ghostgate
+  (strict rp_filter) — see [`docs/event-network.md`](docs/event-network.md).
 - **ayem**, **seht**, and **vehk** are Protectli VP2420 siblings: their
   shared configuration lives in `modules/vp2420/`, and each
   `devices/<host>/default.nix` is a thin wrapper that just sets the hostname
