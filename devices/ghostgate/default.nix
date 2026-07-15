@@ -1039,6 +1039,11 @@ in
 
   services.harmonia = {
     enable = true;
+    settings = {
+      # Serve raw NARs: harmonia 3.x otherwise zstd-encodes on the fly for
+      # Accept-Encoding: zstd clients. The study serves the dedup'd store as-is.
+      enable_compression = false;
+    };
   };
 
   systemd.services = {
