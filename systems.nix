@@ -12,54 +12,22 @@ let
   ];
 in
 {
-  bigzam = {
-    version = "26.05";
-    modules = [
-      ./devices/bigzam
-    ]
-    ++ commonModules;
-  };
-
-  tatsumaki = {
-    version = "26.05";
-    modules = [
-      ./devices/tatsumaki
-    ]
-    ++ commonModules;
-  };
-
-  genos = {
-    version = "26.05";
-    modules = [
-      ./devices/genos
-    ]
-    ++ commonModules;
-  };
-
-  saitama = {
-    version = "26.05";
-    modules = [
-      ./devices/saitama
-    ]
-    ++ commonModules;
-  };
-
   ghostgate = {
     version = "26.05";
     modules = [
       ./devices/ghostgate
     ]
     ++ commonModules;
-    address = "10.3.7.174";
+    address = "ghostgate";
   };
 
-  vehk = {
+  citadel = {
     version = "26.05";
     modules = [
-      ./devices/vehk
+      ./devices/citadel
     ]
     ++ commonModules;
-    address = "10.3.7.170";
+    address = "citadel";
   };
 
   ayem = {
@@ -68,7 +36,7 @@ in
       ./devices/ayem
     ]
     ++ commonModules;
-    address = "10.3.7.168";
+    address = "ayem";
   };
 
   seht = {
@@ -77,7 +45,16 @@ in
       ./devices/seht
     ]
     ++ commonModules;
-    # TODO: add deploy `address` once seht is installed (local-only for now).
+    address = "seht";
+  };
+
+  vehk = {
+    version = "26.05";
+    modules = [
+      ./devices/vehk
+    ]
+    ++ commonModules;
+    address = "vehk";
   };
 
   adamantia = {
@@ -115,15 +92,11 @@ in
     ++ commonModules;
     address = "dagoth.arena.nixos.lv";
     profile = {
-      sshOpts = [ "-t" "-p42070" ];
+      # 22 is gitea
+      sshOpts = [
+        "-t"
+        "-p42070"
+      ];
     };
-  };
-
-  citadel = {
-    version = "26.05";
-    modules = [
-      ./devices/citadel
-    ]
-    ++ commonModules;
   };
 }

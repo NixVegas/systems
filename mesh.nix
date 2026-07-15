@@ -113,7 +113,6 @@
           };
         };
 
-
       ghostgate =
         let
           entryAddressBuild = "10.4.1.1";
@@ -153,15 +152,24 @@
               sets = [ "cnl" ];
             };
             client = {
-              # we want great-value-hydra and the mirror
-              sets = [
-                "gvh-a"
-                "gvh-b"
-              ];
+              # The gvh builders (saitama/bigzam) don't exist this year; an
+              # empty set list keeps their dead 10.6.9.x substituters out of
+              # ghostgate's nix.conf (they only time out). ghostgate pulls
+              # through its own nar mirror instead (see devices/ghostgate).
+              sets = [ ];
             };
           };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
         };
+
+      citadel = {
+        cache = {
+          client = {
+            sets = [ "cnl" ];
+          };
+        };
+        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKp3ggyZEEY2wbg2QXH5JytwADeRYluOszL5ooeQSMzL root@citadel";
+      };
 
       ayem = {
         wifi.address = "10.5.1.1/16";
@@ -188,6 +196,7 @@
             sets = [ "cnl" ];
           };
         };
+        # still needs provisioned (in houston)
         #ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILGezmmzvw5lnAulHSaw5zjLQDEdey1VwcPT8SAN6Et4 root@ayem";
       };
 
@@ -202,44 +211,6 @@
           };
         };
         ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vehk";
-      };
-
-
-      bigzam = {
-        nebula.address = "10.6.9.2";
-        cache = {
-          client = {
-            sets = [ "gvh-a" ];
-          };
-          server = {
-            priority = 20;
-            port = 5000;
-            # provides great-value-hydra mirror
-            sets = [ "gvh-b" ];
-          };
-        };
-      };
-
-      saitama = {
-        nebula.address = "10.6.9.3";
-        cache = {
-          server = {
-            priority = 10;
-            port = 5000;
-            # provides great-value-hydra
-            sets = [ "gvh-a" ];
-          };
-        };
-      };
-
-      genos = {
-        nebula.address = "10.6.9.4";
-        cache.client.sets = [ "gvh-a" ];
-      };
-
-      tatsumaki = {
-        nebula.address = "10.6.9.5";
-        cache.client.sets = [ "gvh-a" ];
       };
     };
 

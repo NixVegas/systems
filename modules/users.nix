@@ -58,6 +58,13 @@
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEbH7DL3UpeYHm+J3YHJTIsnk/vdo5JgEzwD/Bf1tupp yubikey"
         ];
       };
+      crertel = {
+        isNormalUser = true;
+        extraGroups = [ "wheel" ];
+        openssh.authorizedKeys.keys = [
+          "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIGKDzVwo8Xe1dJk2hhIizPai/KfIPhWUYRs18gKv9JygAAAABHNzaDo= crertel"
+        ];
+      };
     };
   };
 

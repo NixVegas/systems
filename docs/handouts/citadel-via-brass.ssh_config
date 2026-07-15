@@ -1,0 +1,38 @@
+# citadel (CTF/AI server) via brass — nix.vegas event infra
+#
+# brass is the public jump host (185.193.48.248). citadel is onsite-only;
+# brass reaches it at its pinned CTF-backbone address (10.4.2.2, routed over
+# Nebula through ghostgate), so everything rides one ProxyJump.
+#
+# Setup:
+#   1. Replace YOUR_USER (you need an account + authorized key on BOTH hosts).
+#   2. Append citadel-via-brass.known_hosts to ~/.ssh/known_hosts (or keep it
+#      as its own file and uncomment the UserKnownHostsFile lines below).
+#   3. Copy this into ~/.ssh/config, or save it separately and use:
+#        Include ~/.ssh/citadel-via-brass.ssh_config
+#
+# Usage:
+#   ssh citadel          # shell
+#   ssh -N citadel       # pure tunnel (with a LocalForward uncommented)
+
+Host brass
+    HostName brass.arena.nixos.lv
+    User YOUR_USER
+    IdentityFile ~/.ssh/id_ed25519
+    ServerAliveInterval 30
+    ServerAliveCountMax 4
+    # UserKnownHostsFile ~/.ssh/citadel-via-brass.known_hosts
+
+Host citadel
+    HostName 10.4.2.2
+    User YOUR_USER
+    ProxyJump brass
+    IdentityFile ~/.ssh/id_ed25519
+    ServerAliveInterval 30
+    # UserKnownHostsFile ~/.ssh/citadel-via-brass.known_hosts
+
+    # Example tunnels — uncomment what you need:
+    # CTF web app on citadel (send SNI/Host ctf.nixos.lv or nixc.tf):
+    # LocalForward 8443 localhost:443
+    # A challenge VM's SSH (the Quake-range ports, 26000-27023):
+    # LocalForward 26000 localhost:26000

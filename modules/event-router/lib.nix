@@ -139,6 +139,35 @@ rec {
       install = false;
     };
 
+  # The CTF backbone LAN, hosted behind ghostgate (see devices/ghostgate). Every
+  # arena reaches it over Nebula via ghostgate so attendees can hit challenge
+  # VMs; ghostgate delivers with real source IPs (no NAT). Keep `ctfNet` in sync
+  # with ghostgate's `ctf` net descriptor.
+  ctfNet = "10.4.2.0/24";
+  ctfGateway = "ghostgate";
+  # citadel's pinned ctf address (the DHCP reservation on ghostgate). The CTF
+  # server terminates TLS here; internal split-horizon points nixc.tf at it.
+  ctfServer = "10.4.2.2";
+
+  # Nebula unsafe_route to the CTF backbone via ghostgate (kernel route managed
+  # in the postStart, matching the arena aggregates — hence install = false).
+  ctfUnsafeRoute =
+    { planHosts }:
+    {
+      route = ctfNet;
+      via = planHosts.${ctfGateway}.nebula.address;
+      install = false;
+    };
+
+  # Shell line installing the CTF route into a policy table (for the nebula@arena
+  # postStart). `dev nebula.arena`, no `via` — same reasoning as arenaTableRoutes.
+  ctfTableRoutes =
+    {
+      table ? "arena",
+      dev ? "nebula.arena",
+    }:
+    "_ip route replace ${ctfNet} dev ${dev} table ${table}\n";
+
   # A single kea `subnet4` entry from a net descriptor. `reservations` is
   # omitted entirely when empty, and `ntp` controls whether an ntp-servers
   # option is advertised — both to match the hand-written entries exactly.
@@ -211,11 +240,19 @@ rec {
       keyName,
     }:
     let
-      zone = pkgs.writeTextDir "${baseDomain}.zone" zoneText;
-      zonesDir = pkgs.buildEnv {
-        name = "knot-zones";
-        paths = [ zone ];
-      };
+      # Validate the zone at build time: a syntax error here (e.g. a `#`
+      # comment — zone files only know `;`) otherwise fails the zone load on
+      # the running router, taking down resolution for the whole domain.
+      zonesDir =
+        pkgs.runCommand "knot-zones"
+          {
+            nativeBuildInputs = [ pkgs.knot-dns ];
+          }
+          ''
+            mkdir -p $out
+            cp ${pkgs.writeText "${baseDomain}.zone" zoneText} $out/${baseDomain}.zone
+            kzonecheck -o ${baseDomain} $out/${baseDomain}.zone
+          '';
     in
     {
       enable = true;
@@ -252,6 +289,12 @@ rec {
       localDomains,
       upstreams,
       localForward ? false,
+      # Split-horizon: forward specific suffixes to a chosen resolver, ahead of
+      # the general upstream. Each entry is { domain = "ctf.nixos.lv."; server; }.
+      forwardZones ? [ ],
+      # Static A answers (split-horizon), e.g. { "nixc.tf" = "10.4.2.2"; } to
+      # point a public name at an internal host ahead of its public answer.
+      hints ? { },
       cacheSizeMB ? 32,
     }:
     let
@@ -272,6 +315,9 @@ rec {
         'predict'
       }
 
+      -- Static split-horizon answers (e.g. nixc.tf -> the internal CTF server),
+      -- taking precedence over the public answer.
+      ${lib.concatStrings (lib.mapAttrsToList (name: ip: "hints.set('${name} ${ip}')\n      ") hints)}
       -- Accept all requests from these subnets
       subnets = { ${quote subnets} }
       for i, v in ipairs(subnets) do
@@ -290,6 +336,13 @@ rec {
       for i, v in ipairs(local_domains) do
         policy:add(policy.suffix(${localPolicy}, {todname(v)}))
       end
+
+      -- Split-horizon forwards (specific suffixes to a chosen resolver), ahead
+      -- of the general upstream so e.g. ctf.nixos.lv resolves to the internal
+      -- CTF server via ghostgate instead of the public front.
+      ${lib.concatMapStringsSep "\n" (
+        z: "policy:add(policy.suffix(policy.FORWARD('${z.server}'), {todname('${z.domain}')}))"
+      ) forwardZones}
 
       -- Route upstream
       ${lib.concatMapStringsSep "\n" (

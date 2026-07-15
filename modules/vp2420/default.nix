@@ -19,7 +19,9 @@ let
   thisHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
 
   brassNebula = config.networking.mesh.plan.hosts.brass.nebula.address;
-  ghostgateMesh = lib.head (lib.splitString "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address);
+  ghostgateMesh = lib.head (
+    lib.splitString "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address
+  );
 
   # Nebula tun interface — traffic arriving here is already CA-authenticated
   # by nebula, so we trust it like the LAN/mesh.
@@ -152,7 +154,9 @@ in
     ++ erlib.arenaUnsafeRoutes {
       self = config.networking.hostName;
       planHosts = config.networking.mesh.plan.hosts;
-    };
+    }
+    # Reach the CTF backbone (behind ghostgate) so attendees can hit challenge VMs.
+    ++ [ (erlib.ctfUnsafeRoute { planHosts = config.networking.mesh.plan.hosts; }) ];
 
     # Relays are driven by mesh.nix: brass is the sole lighthouse+relay, so
     # every node gets `relays = [brass]` automatically. A single relay removes
@@ -183,7 +187,9 @@ in
             ++ erlib.arenaAggregates # 10.7/16, 10.8/16 (routed over Nebula)
           )
         );
-        allowList = deny // { "0.0.0.0/0" = true; };
+        allowList = deny // {
+          "0.0.0.0/0" = true;
+        };
       in
       {
         local_allow_list = allowList;
@@ -213,6 +219,10 @@ in
     # reach them too.
     ${erlib.arenaTableRoutes { }}
     ${erlib.arenaTableRoutes { table = "main"; }}
+    # Reach the CTF backbone (behind ghostgate) over Nebula — table arena for LAN
+    # clients, main table so the router itself can reach it.
+    ${erlib.ctfTableRoutes { }}
+    ${erlib.ctfTableRoutes { table = "main"; }}
     # Attendee internet exits at the normal Nebula endpoint (brass): `dev
     # nebula.arena`, and Nebula's 0.0.0.0/0 unsafe_route tunnels it to brass.
     # This is underlay-agnostic — it works near ghostgate (Nebula rides the
@@ -462,10 +472,18 @@ in
               # masquerade non-mesh egress here; keep mesh peer traffic untouched.
               oifname "mesh2" ip daddr != ${config.networking.mesh.plan.constants.wifi.subnet} masquerade
               # Masquerade only genuine internet egress over Nebula. Traffic to
-              # other arenas OR to Nebula hosts (e.g. a router's own Nebula IP,
-              # as when pinging from the box) keeps its real source so replies
-              # match conntrack and stay reachable both ways.
-              oifname "${nebulaTun}" ip daddr != { ${lib.concatStringsSep ", " (erlib.arenaCidrs ++ [ config.networking.mesh.plan.constants.nebula.subnet ])} } masquerade
+              # other arenas, the CTF backbone, OR Nebula hosts (e.g. a router's
+              # own Nebula IP, as when pinging from the box) keeps its real source
+              # so replies match conntrack and the CTF sees real attendee IPs.
+              oifname "${nebulaTun}" ip daddr != { ${
+                lib.concatStringsSep ", " (
+                  erlib.arenaCidrs
+                  ++ [
+                    config.networking.mesh.plan.constants.nebula.subnet
+                    erlib.ctfNet
+                  ]
+                )
+              } } masquerade
             }
           '';
         };
@@ -735,10 +753,24 @@ in
         ourDomains = [ "${config.networking.hostName}.cache.nixos.lv." ];
         localDomains = [ "arena.${domain}" ];
         localForward = true;
+        # Split-horizon: resolve ctf.nixos.lv via ghostgate (-> the internal CTF
+        # server, citadel) instead of the public front, so this arena's players
+        # reach the CTF directly over the arena -> ctf path.
+        forwardZones = [
+          {
+            domain = "ctf.nixos.lv.";
+            server = "${ghostgateMesh}@53";
+          }
+        ];
         upstreams = [
           "${ghostgateMesh}@53"
           "${brassNebula}@53"
         ];
+        # nixc.tf -> the internal CTF server for this arena; public stays brass.
+        hints = {
+          "nixc.tf" = erlib.ctfServer;
+          "www.nixc.tf" = erlib.ctfServer;
+        };
       };
     };
 

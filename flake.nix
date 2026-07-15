@@ -14,6 +14,11 @@
 
     nixpkgs-gold.url = "github:Jaculabilis/nixpkgs-gold";
 
+    great-value-hydra = {
+      url = "github:NixVegas/great-value-hydra";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nixos-mailserver = {
       url = "gitlab:simple-nixos-mailserver/nixos-mailserver/nixos-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -58,6 +63,7 @@
       nixpkgs-unstable,
       nixpkgs-lib,
       nixpkgs-gold,
+      great-value-hydra,
       nixpkcs,
       nixos-cosmic,
       deploy-rs,
@@ -229,6 +235,7 @@
             nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
               inherit nixpkgs nixos-pagefind;
             };
+            great-value-hydra = great-value-hydra.packages.${system};
           };
 
           packages = {

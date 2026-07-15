@@ -18,7 +18,13 @@
   };
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 3000 2222 ];
+    allowedTCPPorts = [
+      3000
+      2222
+    ];
   };
-  environment.systemPackages = [ pkgs.gitea pkgs.git ];
+  environment.systemPackages = [
+    pkgs.gitea
+    pkgs.git
+  ];
 }
