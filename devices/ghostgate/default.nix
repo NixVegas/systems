@@ -127,10 +127,10 @@ in
   };
 
   # Everything ghostgate substitutes from upstream flows through the mirror,
-  # populating the study dataset. Priorities do the routing: gvh mirrors pin
-  # 10/20 in their URLs, the mirror pins 35 here, and the direct
-  # https://cache.nixos.org/ that nixpkgs' nix module unconditionally appends
-  # sits at 40 — so it is only ever a fallback when the mirror itself is down.
+  # populating the study dataset. Priorities do the routing: the mirror pins
+  # 35 here, and the direct https://cache.nixos.org/ that nixpkgs' nix module
+  # unconditionally appends sits at 40 — so it is only ever a fallback when
+  # the mirror itself is down.
   nix.settings.substituters = lib.mkAfter [ "https://upstream.cache.nixos.lv?priority=35" ];
 
   services.nebula.networks.arena = {

@@ -153,11 +153,11 @@
               sets = [ "cnl" ];
             };
             client = {
-              # we want great-value-hydra and the mirror
-              sets = [
-                "gvh-a"
-                "gvh-b"
-              ];
+              # The gvh builders (saitama/bigzam) don't exist this year; an
+              # empty set list keeps their dead 10.6.9.x substituters out of
+              # ghostgate's nix.conf (they only time out). ghostgate pulls
+              # through its own nar mirror instead (see devices/ghostgate).
+              sets = [ ];
             };
           };
           ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGjq6aze6pZZwdyAqwALVuAIdjte1XgWv4+/94LDfgMS root@ghostgate";
