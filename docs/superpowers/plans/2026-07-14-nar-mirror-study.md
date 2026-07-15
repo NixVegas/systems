@@ -214,10 +214,19 @@ Immediately after the `networking.mesh = { ... };` top-level block, add:
 
 ```nix
   # Everything ghostgate substitutes from upstream flows through the mirror,
-  # populating the study dataset. gvh mirrors (from the mesh cache client)
-  # still win on priority (harmonia 30 < mirror 40).
-  nix.settings.substituters = lib.mkAfter [ "https://upstream.cache.nixos.lv" ];
+  # populating the study dataset. Priorities do the routing: gvh mirrors pin
+  # 10/20 in their URLs, the mirror pins 35 here, and the direct
+  # https://cache.nixos.org/ that nixpkgs' nix module unconditionally appends
+  # sits at 40 — so it is only ever a fallback when the mirror itself is down.
+  nix.settings.substituters = lib.mkAfter [ "https://upstream.cache.nixos.lv?priority=35" ];
 ```
+
+> **Deviation note (found during execution):** nixpkgs' `nixos/modules/config/nix.nix`
+> unconditionally appends `https://cache.nixos.org/` via `mkAfter`; MeshOS's
+> `mkForce` used to mask it. It cannot be removed without `mkForce`ing the
+> whole list, so instead the mirror pins `?priority=35` to outrank it (mirror
+> nix-cache-info is upstream's verbatim 40, which would tie and lose on list
+> order). Direct upstream remains as fallback only.
 
 - [ ] **Step 3: Verify by eval**
 
@@ -225,7 +234,7 @@ Immediately after the `networking.mesh = { ... };` top-level block, add:
 nix eval --json .#nixosConfigurations.ghostgate.config.nix.settings.substituters
 nix eval .#nixosConfigurations.ghostgate.config.services.ncps.enable
 ```
-Expected: JSON list **containing** `https://upstream.cache.nixos.lv`, **not containing** `https://cache.nixos.lv:443` or `https://cache.nixos.org?priority=10` (gvh `http://10.6.9.x:5000` URLs and cachix entries are fine); and `false`.
+Expected: JSON list **containing** `https://upstream.cache.nixos.lv?priority=35`, **not containing** `https://cache.nixos.lv:443` or `https://cache.nixos.org?priority=10`; a plain `https://cache.nixos.org/` entry is expected (nixpkgs default, outranked by the mirror's 35); gvh `http://10.6.9.x:5000` URLs and cachix entries are fine. ncps eval: `false`.
 
 - [ ] **Step 4: Commit**
 
