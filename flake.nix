@@ -226,24 +226,31 @@
             ];
           };
 
-          overlayAttrs = {
-            nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
-              inherit nixpkgs;
+          # let-bound: nix-vegas-site-onsite consumes the artifacts directly —
+          # `pkgs.` doesn't see overlayAttrs from inside overlayAttrs, and
+          # `rec` would shadow the nix-vegas-site flake input.
+          overlayAttrs =
+            let
+              onboardingArtifacts = pkgs.callPackage ./pkgs/onboarding {
+                inherit nixpkgs;
+              };
+            in
+            {
+              nixos-lv-onboarding-artifacts = onboardingArtifacts;
+              nix-vegas-site = nix-vegas-site.packages.${system}.default;
+              # The event flavor: same site with the onboarding artifacts baked
+              # in (ISOs/netboot/manual/search rendered on /2026/onsite) and
+              # base_url https://nixos.lv/. ghostgate serves this; crystal and
+              # Netlify keep the plain nix-vegas-site above.
+              nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
+                inherit onboardingArtifacts;
+              };
+              nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
+              nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
+                inherit nixpkgs nixos-pagefind;
+              };
+              great-value-hydra = great-value-hydra.packages.${system};
             };
-            nix-vegas-site = nix-vegas-site.packages.${system}.default;
-            # The event flavor: same site with the onboarding artifacts baked
-            # in (ISOs/netboot/manual/search rendered on /2026/onsite) and
-            # base_url https://nixos.lv/. ghostgate serves this; crystal and
-            # Netlify keep the plain nix-vegas-site above.
-            nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
-              onboardingArtifacts = pkgs.nixos-lv-onboarding-artifacts;
-            };
-            nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
-            nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
-              inherit nixpkgs nixos-pagefind;
-            };
-            great-value-hydra = great-value-hydra.packages.${system};
-          };
 
           packages = {
             onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
