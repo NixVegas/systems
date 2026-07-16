@@ -979,10 +979,16 @@ in
           addSSL = true;
           locations =
             let
-              public = "${pkgs.nix-vegas-site}/public";
+              # The onsite flavor: artifacts under public/nixos (which the
+              # netboot aliases below reach into) + /2026/onsite rendered.
+              public = "${pkgs.nix-vegas-site-onsite}/public";
               netboot = "${public}/nixos/systems/x86_64-linux/netboot";
             in
             {
+              # Land attendees straight on the onsite page; the rest of the
+              # site stays reachable at its usual paths.
+              "= /".return = "302 /2026/onsite";
+
               "= /boot/bzImage" = {
                 alias = "${netboot}/bzImage";
               };
