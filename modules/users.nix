@@ -65,6 +65,16 @@
           "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIGKDzVwo8Xe1dJk2hhIizPai/KfIPhWUYRs18gKv9JygAAAABHNzaDo= crertel"
         ];
       };
+      jasonodoom = {
+        isNormalUser = true;
+        extraGroups = [ "wheel" ];
+        openssh.authorizedKeys.keyFiles = [
+          (builtins.fetchurl {
+            url = "https://github.com/jasonodoom.keys";
+            hash = "sha256-Tq8Y5X/6ZWq64FQ3m4F3Gjd9uxfTHuqe4ycz1XuTMS4=";
+          })
+        ];
+      };
     };
   };
 
