@@ -231,6 +231,13 @@
               inherit nixpkgs;
             };
             nix-vegas-site = nix-vegas-site.packages.${system}.default;
+            # The event flavor: same site with the onboarding artifacts baked
+            # in (ISOs/netboot/manual/search rendered on /2026/onsite) and
+            # base_url https://nixos.lv/. ghostgate serves this; crystal and
+            # Netlify keep the plain nix-vegas-site above.
+            nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
+              onboardingArtifacts = pkgs.nixos-lv-onboarding-artifacts;
+            };
             nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
             nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
               inherit nixpkgs nixos-pagefind;
@@ -241,7 +248,7 @@
           packages = {
             onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
             inherit (pkgs) nixos-lv-onboarding-artifacts nixos-pagefind-build;
-            inherit (pkgs) nix-vegas-site;
+            inherit (pkgs) nix-vegas-site nix-vegas-site-onsite;
           };
 
           devShells.default = pkgs.mkShell {
