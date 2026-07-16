@@ -245,7 +245,17 @@
               nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
                 inherit onboardingArtifacts;
               };
-              nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
+              # 26.05 nixpkgs has packages whose meta.platforms mixes attrset
+              # (structured cross) entries with strings; upstream's guard only
+              # checks the first element and jinja's sort then dies comparing
+              # dict < str. Render just the string platforms.
+              nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen.overrideAttrs (prev: {
+                postPatch = (prev.postPatch or "") + ''
+                  substituteInPlace src/staticgen/templates/package.jinja \
+                    --replace-fail 'pkg.meta.platforms and pkg.meta.platforms[0] is string' 'pkg.meta.platforms | select("string") | list' \
+                    --replace-fail 'pkg.meta.platforms | sort' 'pkg.meta.platforms | select("string") | sort'
+                '';
+              });
               nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
                 inherit nixpkgs nixos-pagefind;
               };
