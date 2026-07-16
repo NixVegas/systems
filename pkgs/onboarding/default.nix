@@ -15,8 +15,9 @@ let
       outPath = nixpkgs;
       inherit (nixpkgs) shortRev;
       stableRelease = true;
-      # We don't have a rev count, but do have a lastModifiedDate
-      revCount = nixpkgs.revCount or nixpkgs.lastModifiedDate;
+      # We don't have a rev count, but do have a lastModifiedDate. It must be
+      # an integer: release.nix does arithmetic on it (revCount - 1004291).
+      revCount = nixpkgs.revCount or (lib.toInt nixpkgs.lastModifiedDate);
     };
     supportedSystems = systems;
     configuration = import ../../modules/onboarding/nix-vegas-defaults.nix;
