@@ -63,7 +63,12 @@ A bounded in-memory `Mutex<LruCache<StorePathHash, CachedNarInfo>>` where
 re-fetch. **Configurable max entries and TTL** (`miss_narinfo_cache_size`,
 `miss_narinfo_cache_ttl`); entries carry an insertion `Instant` and are
 treated as absent past the TTL (checked on read), evicted by LRU past the
-size. Populated by the narinfo-miss handler; consulted by the job. Purely an
+size. Populated by the narinfo-miss handler; consulted by the job.
+**Primary lifecycle: the job deletes its entry on completion** — once the
+path is valid in the store, harmonia serves the narinfo from the store and
+the cached upstream copy is dead weight; TTL and size are just backstops for
+entries whose NAR is never requested. So the cache normally holds only the
+narinfos of in-flight (fetched-but-not-yet-materialized) paths. Purely an
 optimization — a miss/expiry just costs one small re-fetch. No persistence
 (lost on restart, by design). Implementation: prefer a minimal dep (e.g. the
 `lru` crate + per-entry timestamp) over a heavyweight cache library; settle
@@ -94,8 +99,10 @@ even if every client disconnects):
    - **broadcast** — `tokio::sync::broadcast::Sender<Bytes>` (bounded ring);
      non-blocking send. Live client streams subscribe.
 5. On completion: `add_to_store_nar` returns, the daemon has verified the NAR
-   hash and made the path valid. Job marks done; late/parked arrivals now
-   serve from the local store via the normal harmonia path.
+   hash and made the path valid. Job marks done, **deletes its narinfo LRU
+   entry** (now redundant — served from the store), and drops from the
+   registry; late/parked arrivals now serve from the local store via the
+   normal harmonia path.
 
 The job's pace is gated only by the upstream read (uplink) and the store
 sink (disk) — never by a client.
@@ -127,9 +134,10 @@ Unchanged surface from v3:
   be `https://`).
 - `miss_daemon_socket = "/nix/var/nix/daemon-socket/socket"` (default; the
   `add_to_store_nar` target).
-- `miss_narinfo_cache_size` (max entries in the narinfo LRU; default e.g.
-  `8192`).
-- `miss_narinfo_cache_ttl` (entry TTL, seconds; default e.g. `3600`).
+- `miss_narinfo_cache_size` (max entries in the narinfo LRU; default `1024`).
+- `miss_narinfo_cache_ttl` (entry TTL, seconds; default `600`). Low on
+  purpose — entries are normally deleted the moment their NAR job completes,
+  so this only bounds narinfos whose NAR is never requested.
 
 ## Observability
 Extend the existing prometheus counters:
@@ -148,7 +156,7 @@ Extend the existing prometheus counters:
 - **Unit:** narinfo rewrite (URL/compression/filehash swapped; fingerprint
   fields + Sig byte-preserved); `ValidPathInfo` assembly from a canned
   narinfo (references/deriver/ca/sig parsed); narinfo LRU (size eviction, TTL
-  expiry-on-read, backfill).
+  expiry-on-read, backfill, and deletion on job completion).
 - **Integration** (scratch store + a fake HTTPS/HTTP upstream serving a known
   `.nar.xz`): N concurrent `GET /nar/<outhash>-<narhash>.nar` → exactly one
   upstream fetch (coalescing); every client body byte-identical to the known
