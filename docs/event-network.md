@@ -117,12 +117,14 @@ direct path); the public resolves them to brass.
   domain set manually. ghostgate isn't a DHCP client of itself, so these records
   are static (DDNS never creates them).
 - `cache.nixos.lv` is harmonia over ghostgate's dedup+zstd store — the study
-  winner — with pull-through semantics: nginx retries harmonia 404s directly
-  against cache.nixos.org (nothing persisted), while a patched harmonia
-  (`pkgs/harmonia/substitute-on-miss.patch`) asks the nix daemon to
-  substitute the missed path in the background, so the store converges on
-  what the event actually uses. A loopback-only nginx listener on `:8137`
-  resolves a missed hash to its full store path for the daemon. The
+  winner — behind a plain nginx `proxy_pass`. A patched harmonia
+  (`pkgs/harmonia/substitute-on-miss.patch`) makes misses non-blocking: on a
+  narinfo miss it **302-redirects the client to cache.nixos.org** (a catch-all
+  redirects the follow-up `nar/*.nar.xz` too), so the client never waits on
+  us, and in the background it fetches the upstream narinfo over its own HTTPS
+  to get the store path and asks the nix daemon to substitute it — so the next
+  request for that path is served locally and the store converges on what the
+  event actually uses. No nginx upstream proxy, no resolver listener. The
   `upstream.cache.nixos.lv` mirror and the `ghostgate-nar` pool are
   decommissioned (the study proved dedup+zstd ~10% smaller than storing
   upstream's xz NARs verbatim). See

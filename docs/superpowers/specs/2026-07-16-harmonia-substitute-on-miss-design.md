@@ -1,6 +1,6 @@
-# harmonia substitute-on-miss (async warm) + mirror decommission
+# harmonia substitute-on-miss (302 redirect + background warm) + mirror decommission
 
-**Date:** 2026-07-16 (v2 — direct-from-upstream, mirror teardown)
+**Date:** 2026-07-16 (v3 — non-blocking 302 redirect, harmonia HTTPS, no nginx upstream)
 **Status:** approved
 
 ## Purpose
@@ -9,34 +9,40 @@ The storage study is concluded: the dedup+zstd store beats storing upstream
 xz NARs (~10% net savings once overheads are counted), so the
 `upstream.cache.nixos.lv` pull-through mirror and its dataset are being
 decommissioned. `cache.nixos.lv` (harmonia over the store) becomes the one
-event cache, with pull-through semantics implemented as:
+event cache. A miss is handled entirely inside harmonia, non-blocking:
 
-1. **nginx fall-through (serve it now):** harmonia 404 → nginx retries the
-   request directly against `https://cache.nixos.org` (pure proxy, nothing
-   stored).
-2. **harmonia async warm (own it next time):** patched harmonia resolves the
-   missed hash part against `https://cache.nixos.org`, then asks the nix
-   daemon to `EnsurePath` the full path in the background. The daemon
-   substitutes from its configured chain (now just cache.nixos.org), the
-   path lands in the dedup store, and harmonia serves it locally thereafter.
+1. **302 redirect (serve it now, never block):** on a narinfo miss harmonia
+   returns `302 Found` → `https://cache.nixos.org/<hash>.narinfo`. nix follows
+   it; the follow-up NAR (in upstream's `nar/<filehash>.nar.xz` format, which
+   matches no harmonia route) is caught by a **catch-all default service** that
+   302s it to the same path upstream. The whole NAR transfer stays off
+   harmonia's request path.
+2. **background warm (own it next time):** in parallel with the redirect,
+   harmonia fetches `<hash>.narinfo` from `miss_upstream_url` over its **own
+   HTTPS** (tokio-rustls), reads `StorePath:`, and asks the nix daemon to
+   `EnsurePath` it. The path lands in the dedup store; the next request for it
+   is served locally (no redirect).
 
-Misses still return 404 from harmonia itself; nginx hides that from
-clients. Harmonia never proxies NAR bytes and never blocks on downloads.
+nginx is a plain `proxy_pass` to harmonia — no fall-through, no resolver
+listener. 302 (not 301) + `Cache-Control: no-store` so nothing caches the
+redirect once the path goes local.
 
 ## Component 1: harmonia patch (`substitute-on-miss`)
 
 Grounded in harmonia 3.1.0 source:
 
-- **Trigger:** `harmonia-cache/src/narinfo.rs` `get()` — the
-  `some_or_404!(query_path_info_by_hash_part(...))` at line ~208 is the sole
-  miss site. NAR requests need no handling (clients fetch narinfo first; a
-  warmed path's NAR is local by the time it's requested).
-- **Hash-part resolution:** `EnsurePath` needs a full store path; the client
-  sends only the 32-char hash part. On miss, HTTP GET
-  `<miss_resolver_url>/<hashpart>.narinfo` (ghostgate: cache.nixos.org) and
-  parse its `StorePath:` field. HTTP client: prefer a crate already in
-  harmonia's `Cargo.lock` (actix's `awc` is the likely zero-new-dep option);
-  a new dep is acceptable but the patch then carries the `Cargo.lock` delta.
+- **Trigger:** `harmonia-cache/src/narinfo.rs` `get()` — the sole narinfo
+  miss site. When `substitute_on_miss` is set, the miss returns 302 to
+  `<miss_upstream_url>/<hash>.narinfo` and kicks off the warm; otherwise it
+  keeps the stock 404.
+- **NAR redirect:** a `default_service` catch-all in `main.rs` 302s any
+  unmatched path (notably the post-narinfo `nar/<filehash>.nar.xz`) to the
+  same path on `miss_upstream_url`; 404 when the feature is off.
+- **Hash-part resolution (for the warm):** `EnsurePath` needs a full store
+  path; the client sends only the hash part. The warm HTTPS-GETs
+  `<miss_upstream_url>/<hash>.narinfo` (tokio-rustls, Mozilla roots via
+  webpki-roots — both vendored through `importCargoLock`, no cargoHash) and
+  parses `StorePath:`.
 - **Warm:** background task calling `ensure_path` via
   `harmonia-store-remote` (`client.rs:714`) against the **real nix-daemon
   socket** (`/nix/var/nix/daemon-socket/socket`) — not harmonia-daemon,
@@ -45,49 +51,46 @@ Grounded in harmonia 3.1.0 source:
 - **Herd control:** process-global in-flight set keyed by hash part; one
   warm per path regardless of concurrent misses; entries clear on task
   completion. Failures logged, not retried (the next miss retries).
-- **Config (harmonia TOML via `services.harmonia.settings`):**
-  - `substitute_on_miss = false` (default off = current behavior)
-  - `miss_resolver_url` (required when enabled)
+- **Config (harmonia TOML via `services.harmonia.cache.settings`):**
+  - `substitute_on_miss = false` (default off = stock 404 behavior)
+  - `miss_upstream_url = "https://cache.nixos.org"` (redirect target + warm
+    fetch source; must be `https://`)
   - `miss_daemon_socket = "/nix/var/nix/daemon-socket/socket"` (default)
 - **Observability:** counters in the existing `prometheus.rs` registry:
   `narinfo_misses_total`, `warms_started_total`, `warms_completed_total`,
   `warms_failed_total`.
 
 **Carrying the patch:** `pkgs/harmonia/substitute-on-miss.patch` in the
-systems repo, applied via `overrideAttrs` in the overlay (staticgen
-precedent); override `cargoDeps`/`cargoHash` if `Cargo.lock` changes.
-Intended for an upstream PR to nix-community/harmonia after the event.
+systems repo, applied via `applyPatches` on the source + `cargoDeps =
+rustPlatform.importCargoLock { lockFile = ...; }` (the default fetchCargoVendor
+path normalizes workspace path deps out of its lock consistency check;
+importCargoLock vendors from the lockfile directly, no cargoHash — and it
+vendors the new `tokio-rustls`/`webpki-roots` registry crates automatically
+from the patched `Cargo.lock`). Intended for an upstream PR to
+nix-community/harmonia after the event.
 
-## Component 2: ghostgate nginx — fall-through, direct to upstream
+## Component 2: ghostgate nginx — plain proxy
 
-In the `cache.nixos.lv` vhost:
+harmonia handles the miss itself (302 + catch-all), so nginx is just:
 
-- `locations."/"`: keep `proxyPass` to harmonia; add
-  `proxy_intercept_errors on; error_page 404 = @fallthrough;`
-- `locations."@fallthrough"`: direct proxy to `https://cache.nixos.org`,
-  reusing the hard-won mirror lessons but with **no proxy_store**:
-  - `resolver 127.0.0.1 ipv6=off valid=300s;` + variable proxy_pass
-    (`set $ft_upstream cache.nixos.org; proxy_pass
-    https://$ft_upstream$request_uri;`) — runtime re-resolution, v4-only
-    (nginx otherwise builds an all-AAAA list and 502s without a v6 route).
-  - `proxy_set_header Host cache.nixos.org; proxy_ssl_server_name on;
-    proxy_ssl_name cache.nixos.org; proxy_ssl_verify on;
-    proxy_ssl_verify_depth 4;` (LE 2026 chain exceeds the default depth of
-    1) `proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;`
+```nix
+"cache.nixos.lv".locations."/".proxyPass = "http://cache.dc.nixos.lv";
+```
 
-URL namespaces don't collide (harmonia `nar/<hash>.nar…` vs upstream
-`nar/<filehash>.nar.xz`); narinfo bytes stay correctly signed from either
-layer.
+No fall-through, no resolver listener, no `cacheUpstreamProxy` snippet — all
+removed. (The v4-only-resolver and verify-depth-4 lessons now live in
+harmonia's own HTTPS client instead.)
 
 ## Component 3: ghostgate harmonia settings
 
 ```nix
-services.harmonia.settings = {
+services.harmonia.cache.settings = {
   enable_compression = false;              # existing
   substitute_on_miss = true;
-  miss_resolver_url = "https://cache.nixos.org";
+  miss_upstream_url = "https://cache.nixos.org";
 };
 ```
+(`services.harmonia.package` carries the patch; see Component 1.)
 
 ## Component 4: mirror decommission (systems repo)
 
@@ -121,32 +124,37 @@ depends on the mirror once the vhost and substituter entry go.
 
 ## Error handling
 
-- Resolver 404 (path exists nowhere): no warm; the client's fall-through
-  404s too — correct.
-- Resolver unreachable / daemon error: log + `warms_failed_total`; request
-  path unaffected.
-- Duplicate misses during a long warm: coalesced by the in-flight set.
+- Redirect always succeeds (it's just a `Location` header) — the client is
+  served by upstream regardless of warm outcome, so a miss never fails the
+  client path.
+- Warm: upstream narinfo 404/unreachable, TLS failure, or daemon error → log
+  + `warms_failed_total`; no store change; the next miss retries.
+- Duplicate misses during a warm: coalesced by the in-flight set.
 - Daemon substitution failure (nothing has the path, sig rejected): logged;
   store unchanged.
 
 ## Testing
 
-- Rust: unit test the `StorePath:` parse; integration test with a scratch
-  store + canned-narinfo resolver asserting one `EnsurePath` per hash under
-  concurrent misses, and that the endpoint still 404s.
-- Build: overlay-patched `pkgs.harmonia` builds; ghostgate/citadel/brass
-  toplevels build.
-- Live: `curl https://cache.nixos.lv/<hash>.narinfo` for a store-absent,
-  upstream-present hash → 200 (via fall-through); `nix path-info` shows the
-  path arriving in the store shortly after; second request served by
-  harmonia; prometheus counters advance. `https://upstream.cache.nixos.lv`
-  no longer resolves onsite.
+- Rust: unit tests for the `StorePath:` parse and the `redirect_target` URL
+  builder; bin unit + chroot integration suites pass; clippy `-D warnings`
+  clean. (The `retry` integration test is flaky on a loaded box — proven
+  pre-existing on pristine v3.1.0, unrelated to these changes.)
+- Build: `applyPatches` + `importCargoLock` `pkgs.harmonia` builds;
+  ghostgate/citadel/brass toplevels build.
+- Live: `curl -sD- https://cache.nixos.lv/<hash>.narinfo` for a store-absent,
+  upstream-present hash → `302` with `Location: https://cache.nixos.org/...`;
+  `nix path-info` shows the path arriving in the store shortly after (warm);
+  a second request is served `200` by harmonia; prometheus `harmonia_warms_*`
+  counters advance. `https://upstream.cache.nixos.lv` no longer resolves
+  onsite. A real `nix copy --from https://cache.nixos.lv <store-absent path>`
+  succeeds (client follows the 302s to upstream).
 
 ## Out of scope
 
-- Blocking-mode substitution; NAR-endpoint warming; warm retry/backoff.
+- Blocking-mode / inline-download substitution; warm retry/backoff.
 
 ## Estimate
 
-5 points: patch 3 (5 if cargoHash surgery), nginx + decommission 1,
-wiring/verification 1.
+5 points: patch 3, nginx + decommission 1, wiring/verification 1. (The
+cargoHash risk resolved via importCargoLock; the redirect design removed the
+nginx-upstream complexity entirely.)

@@ -78,24 +78,6 @@ let
     ]
   );
 
-  # Direct proxy to cache.nixos.org, carrying the hard-won fastly lessons:
-  # runtime v4-only resolution (an all-AAAA upstream list 502s without a v6
-  # route) and verify depth 4 (LE 2026 chain leaf -> YR2 -> Root YR -> ISRG
-  # Root X1 exceeds the nginx default of 1). Used by cache.nixos.lv's
-  # @fallthrough (serve a harmonia miss now) and harmonia's substitute-on-miss
-  # resolver listener (expand a missed hash to a full store path). No
-  # proxy_store: the mirror experiment is over, nothing is persisted here.
-  cacheUpstreamProxy = ''
-    resolver 127.0.0.1 ipv6=off valid=300s;
-    set $cache_upstream cache.nixos.org;
-    proxy_pass https://$cache_upstream$request_uri;
-    proxy_set_header Host cache.nixos.org;
-    proxy_ssl_server_name on;
-    proxy_ssl_name cache.nixos.org;
-    proxy_ssl_verify on;
-    proxy_ssl_verify_depth 4;
-    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
-  '';
 in
 {
   imports = [
@@ -1010,35 +992,14 @@ in
             };
         };
 
+        # Plain proxy to harmonia. On a miss harmonia itself 302-redirects the
+        # client to cache.nixos.org (and warms the path in the background), so
+        # nginx needs no fall-through and no resolver listener.
         "cache.nixos.lv" = {
           http2 = true;
           enableACME = true;
           forceSSL = true;
-          locations."/" = {
-            proxyPass = "http://cache.dc.nixos.lv";
-            # A harmonia miss (404) falls through to upstream for THIS request;
-            # harmonia's substitute-on-miss warms the path in the background so
-            # the next request is served locally from the dedup'd store.
-            extraConfig = ''
-              proxy_intercept_errors on;
-              error_page 404 = @fallthrough;
-            '';
-          };
-          locations."@fallthrough".extraConfig = cacheUpstreamProxy;
-        };
-
-        # harmonia's substitute-on-miss resolver: expands a missed hash part by
-        # fetching <hash>.narinfo from upstream (harmonia reads StorePath: from
-        # it, then EnsurePaths via the nix daemon). Loopback-only, plain HTTP.
-        "harmonia-miss-resolver" = {
-          serverName = "harmonia-miss-resolver";
-          listen = [
-            {
-              addr = "127.0.0.1";
-              port = 8137;
-            }
-          ];
-          locations."/".extraConfig = cacheUpstreamProxy;
+          locations."/".proxyPass = "http://cache.dc.nixos.lv";
         };
 
         # ghostgate is now the passthrough backend for cache.nix.vegas too.
@@ -1095,11 +1056,11 @@ in
         # Serve raw NARs: harmonia 3.x otherwise zstd-encodes on the fly for
         # Accept-Encoding: zstd clients. Serve the dedup'd store as-is.
         enable_compression = false;
-        # Warm the store from upstream on miss. The resolver is a plain-HTTP
-        # localhost nginx listener that proxies cache.nixos.org (TLS is
-        # nginx's job); the warm itself substitutes via the nix daemon.
+        # On a miss, 302-redirect the client to cache.nixos.org (harmonia does
+        # this itself, over its own HTTPS) and warm the path into the store in
+        # the background via the nix daemon — never blocking the client.
         substitute_on_miss = true;
-        miss_resolver_url = "http://127.0.0.1:8137";
+        miss_upstream_url = "https://cache.nixos.org";
       };
     };
   };
