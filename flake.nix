@@ -8,6 +8,7 @@
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-prev.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixos-cosmic.url = "github:lilyinstarlight/nixos-cosmic?ref=pull/863/head";
     nixpkcs.url = "github:numinit/nixpkcs/v1.3";
     meshos.url = "github:numinit/MeshOS";
@@ -16,7 +17,11 @@
 
     great-value-hydra = {
       url = "github:NixVegas/great-value-hydra";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs = {
+        nixpkgs-prev.follows = "nixpkgs-prev";
+        nixpkgs.follows = "nixpkgs";
+        nixpkgs-unstable.follows = "nixpkgs-unstable";
+      };
     };
 
     nixos-mailserver = {
@@ -61,6 +66,7 @@
       flake-parts,
       nixpkgs,
       nixpkgs-unstable,
+      nixpkgs-prev,
       nixpkgs-lib,
       nixpkgs-gold,
       great-value-hydra,
