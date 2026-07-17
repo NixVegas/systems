@@ -1,0 +1,404 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 95f5526..2c77988 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -984,8 +984,10 @@ dependencies = [
+  "futures-core",
+  "futures-util",
+  "harmonia-nar",
++ "harmonia-protocol",
+  "harmonia-store-core",
+  "harmonia-store-db",
++ "harmonia-store-remote",
+  "harmonia-utils-hash",
+  "harmonia-utils-test",
+  "http-range",
+diff --git a/harmonia-cache/Cargo.toml b/harmonia-cache/Cargo.toml
+index 8483852..3e2db4f 100644
+--- a/harmonia-cache/Cargo.toml
++++ b/harmonia-cache/Cargo.toml
+@@ -43,8 +43,10 @@ bytes               = { workspace = true }
+ futures-core        = { workspace = true }
+ futures-util        = { workspace = true }
+ harmonia-nar        = { version = "3.0.0" }
++harmonia-protocol   = { version = "3.0.0" }
+ harmonia-store-core = { version = "0.0.0-alpha.0" }
+ harmonia-store-db   = { version = "3.0.0" }
++harmonia-store-remote = { version = "3.0.0" }
+ harmonia-utils-hash = { version = "0.0.0-alpha.0" }
+ nix                 = { workspace = true, features = [ "socket", "fs" ] }
+ prometheus          = { workspace = true }
+diff --git a/harmonia-cache/src/config.rs b/harmonia-cache/src/config.rs
+index 255040e..f4456f5 100644
+--- a/harmonia-cache/src/config.rs
++++ b/harmonia-cache/src/config.rs
+@@ -31,6 +31,10 @@ fn default_enable_compression() -> bool {
+     false
+ }
+ 
++fn default_miss_daemon_socket() -> PathBuf {
++    PathBuf::from("/nix/var/nix/daemon-socket/socket")
++}
++
+ /// zstd parameters applied to on-the-fly NAR encoding when the client sends
+ /// `Accept-Encoding: zstd`. Defaults are tuned for a substitution cache:
+ /// level 1 with long-distance matching beats the libzstd default (level 3)
+@@ -117,6 +121,20 @@ pub(crate) struct Config {
+     #[serde(default = "default_enable_compression")]
+     pub(crate) enable_compression: bool,
+ 
++    /// On a narinfo miss, ask the nix daemon to substitute the path in the
++    /// background so the next request is served locally. The request that
++    /// missed still gets its 404.
++    #[serde(default)]
++    pub(crate) substitute_on_miss: bool,
++    /// Plain-HTTP endpoint answering `<hash>.narinfo` for upstream paths
++    /// (typically a localhost reverse proxy of the upstream cache); used to
++    /// expand a hash part into a full store path for EnsurePath.
++    #[serde(default)]
++    pub(crate) miss_resolver_url: Option<String>,
++    /// The real nix-daemon socket (harmonia-daemon does not substitute).
++    #[serde(default = "default_miss_daemon_socket")]
++    pub(crate) miss_daemon_socket: PathBuf,
++
+     #[serde(default)]
+     pub(crate) zstd: ZstdConfig,
+ 
+@@ -250,3 +268,32 @@ pub(crate) fn load() -> Result<Config> {
+     );
+     Ok(settings)
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn test_substitute_on_miss_defaults() {
++        let c: Config = toml::from_str("").unwrap();
++        assert!(!c.substitute_on_miss);
++        assert!(c.miss_resolver_url.is_none());
++        assert_eq!(
++            c.miss_daemon_socket,
++            PathBuf::from("/nix/var/nix/daemon-socket/socket")
++        );
++    }
++
++    #[test]
++    fn test_substitute_on_miss_parses() {
++        let c: Config = toml::from_str(
++            "substitute_on_miss = true\nmiss_resolver_url = \"http://127.0.0.1:8137\"\n",
++        )
++        .unwrap();
++        assert!(c.substitute_on_miss);
++        assert_eq!(
++            c.miss_resolver_url.as_deref(),
++            Some("http://127.0.0.1:8137")
++        );
++    }
++}
+diff --git a/harmonia-cache/src/main.rs b/harmonia-cache/src/main.rs
+index 22ee8e8..d7fdd6a 100644
+--- a/harmonia-cache/src/main.rs
++++ b/harmonia-cache/src/main.rs
+@@ -31,6 +31,7 @@ mod cacheinfo;
+ mod config;
+ mod error;
+ mod health;
++mod miss_warm;
+ mod nar;
+ mod narinfo;
+ mod narlist;
+diff --git a/harmonia-cache/src/miss_warm.rs b/harmonia-cache/src/miss_warm.rs
+new file mode 100644
+index 0000000..e228209
+--- /dev/null
++++ b/harmonia-cache/src/miss_warm.rs
+@@ -0,0 +1,183 @@
++//! Async substitute-on-miss: when a narinfo lookup misses, resolve the hash
++//! part to a full store path via a (localhost) resolver endpoint, then ask
++//! the real nix daemon to EnsurePath it in the background. The request that
++//! missed still gets its 404; the next one is served locally.
++
++use std::collections::HashSet;
++use std::path::Path;
++use std::sync::{Arc, LazyLock, Mutex};
++use std::time::Duration;
++
++use actix_web::web;
++use harmonia_protocol::types::DaemonStore;
++use harmonia_store_core::store_path::StorePath;
++use harmonia_store_remote::DaemonClientBuilder;
++use tokio::io::{AsyncReadExt, AsyncWriteExt};
++use tokio::net::TcpStream;
++
++use crate::config::Config;
++use crate::prometheus::PrometheusMetrics;
++
++/// Hash parts with a warm currently in flight (herd control).
++static IN_FLIGHT: LazyLock<Mutex<HashSet<String>>> =
++    LazyLock::new(|| Mutex::new(HashSet::new()));
++
++const RESOLVER_TIMEOUT: Duration = Duration::from_secs(15);
++const STORE_PREFIX: &str = "/nix/store/";
++
++/// Fire-and-forget: never blocks the caller, never returns an error. Spawns a
++/// background warm unless the feature is off, the resolver is unset, or a warm
++/// for this hash is already running.
++pub(crate) fn maybe_warm(
++    config: &web::Data<Config>,
++    metrics: &web::Data<Arc<PrometheusMetrics>>,
++    hash: &str,
++) {
++    if !config.substitute_on_miss {
++        return;
++    }
++    metrics.narinfo_misses_total.inc();
++    let Some(resolver) = config.miss_resolver_url.clone() else {
++        tracing::warn!("substitute_on_miss enabled but miss_resolver_url unset");
++        return;
++    };
++    if !IN_FLIGHT.lock().unwrap().insert(hash.to_string()) {
++        return; // already warming
++    }
++    metrics.warms_started_total.inc();
++    let hash = hash.to_string();
++    let socket = config.miss_daemon_socket.clone();
++    let metrics = metrics.clone();
++    tokio::spawn(async move {
++        let res = warm(&resolver, &socket, &hash).await;
++        IN_FLIGHT.lock().unwrap().remove(&hash);
++        match res {
++            Ok(path) => {
++                tracing::info!("substitute-on-miss: {path} is now valid");
++                metrics.warms_completed_total.inc();
++            }
++            Err(e) => {
++                tracing::warn!("substitute-on-miss: {hash}: {e}");
++                metrics.warms_failed_total.inc();
++            }
++        }
++    });
++}
++
++async fn warm(resolver: &str, socket: &Path, hash: &str) -> Result<String, String> {
++    let store_path = resolve_store_path(resolver, hash).await?;
++    let basename = store_path
++        .strip_prefix(STORE_PREFIX)
++        .ok_or_else(|| format!("resolved path not under {STORE_PREFIX}: {store_path}"))?;
++    let path = StorePath::from_bytes(basename.as_bytes())
++        .map_err(|e| format!("bad store path {store_path}: {e}"))?;
++
++    // The real nix daemon (not harmonia-daemon) substitutes the path from its
++    // configured substituters. connect_unix / ensure_path both drive a log
++    // stream to completion when awaited.
++    let mut client = DaemonClientBuilder::new()
++        .connect_unix(socket)
++        .await
++        .map_err(|e| format!("daemon connect: {e}"))?;
++    client
++        .ensure_path(&path)
++        .await
++        .map_err(|e| format!("ensure_path: {e}"))?;
++    Ok(store_path)
++}
++
++/// Plain-HTTP GET of `<resolver>/<hash>.narinfo`; returns the `StorePath:`
++/// field. The resolver is expected to be a localhost reverse proxy — TLS to
++/// the real upstream is its problem, not ours.
++async fn resolve_store_path(resolver: &str, hash: &str) -> Result<String, String> {
++    let stripped = resolver
++        .strip_prefix("http://")
++        .ok_or_else(|| format!("miss_resolver_url must be http:// (got {resolver})"))?;
++    let (authority, base_path) = match stripped.split_once('/') {
++        Some((a, p)) => (a, format!("/{}", p.trim_end_matches('/'))),
++        None => (stripped, String::new()),
++    };
++    let addr = if authority.contains(':') {
++        authority.to_string()
++    } else {
++        format!("{authority}:80")
++    };
++
++    let body = tokio::time::timeout(RESOLVER_TIMEOUT, async {
++        let mut stream = TcpStream::connect(&addr)
++            .await
++            .map_err(|e| format!("resolver connect {addr}: {e}"))?;
++        let req = format!(
++            "GET {base_path}/{hash}.narinfo HTTP/1.1\r\nHost: {authority}\r\nConnection: close\r\nUser-Agent: harmonia-substitute-on-miss\r\n\r\n"
++        );
++        stream
++            .write_all(req.as_bytes())
++            .await
++            .map_err(|e| format!("resolver write: {e}"))?;
++        let mut buf = Vec::with_capacity(4096);
++        stream
++            .read_to_end(&mut buf)
++            .await
++            .map_err(|e| format!("resolver read: {e}"))?;
++        Ok::<Vec<u8>, String>(buf)
++    })
++    .await
++    .map_err(|_| "resolver timeout".to_string())??;
++
++    let text = String::from_utf8_lossy(&body);
++    let (head, rest) = text
++        .split_once("\r\n\r\n")
++        .ok_or_else(|| "resolver: malformed HTTP response".to_string())?;
++    let status = head.lines().next().unwrap_or_default();
++    if !status.contains(" 200 ") {
++        return Err(format!("resolver: {status}"));
++    }
++    parse_store_path(rest)
++}
++
++fn parse_store_path(narinfo: &str) -> Result<String, String> {
++    narinfo
++        .lines()
++        .find_map(|l| l.strip_prefix("StorePath: "))
++        .map(|s| s.trim().to_string())
++        .ok_or_else(|| "resolver: no StorePath field".to_string())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn test_parse_store_path() {
++        let ni = "StorePath: /nix/store/abc123-hello-2.12\nURL: nar/x.nar.xz\n";
++        assert_eq!(parse_store_path(ni).unwrap(), "/nix/store/abc123-hello-2.12");
++        assert!(parse_store_path("URL: nar/x.nar.xz\n").is_err());
++    }
++
++    #[tokio::test]
++    async fn test_resolver_roundtrip_and_404() {
++        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let addr = listener.local_addr().unwrap();
++        tokio::spawn(async move {
++            loop {
++                let (mut sock, _) = listener.accept().await.unwrap();
++                let mut buf = [0u8; 1024];
++                let n = sock.read(&mut buf).await.unwrap();
++                let req = String::from_utf8_lossy(&buf[..n]).to_string();
++                let resp = if req.contains("deadbeef") {
++                    "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n".to_string()
++                } else {
++                    "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nStorePath: /nix/store/abc123-x\n"
++                        .to_string()
++                };
++                sock.write_all(resp.as_bytes()).await.unwrap();
++            }
++        });
++        let url = format!("http://{addr}");
++        assert_eq!(
++            resolve_store_path(&url, "abc123").await.unwrap(),
++            "/nix/store/abc123-x"
++        );
++        assert!(resolve_store_path(&url, "deadbeef").await.is_err());
++    }
++}
+diff --git a/harmonia-cache/src/narinfo.rs b/harmonia-cache/src/narinfo.rs
+index f734d1d..8a60d21 100644
+--- a/harmonia-cache/src/narinfo.rs
++++ b/harmonia-cache/src/narinfo.rs
+@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
+ use std::collections::BTreeSet;
+ 
+ use crate::config::Config;
+-use crate::{cache_control_max_age_1d, some_or_404};
++use crate::cache_control_max_age_1d;
+ use harmonia_store_core::signature::{SecretKey, fingerprint_path};
+ 
+ #[derive(Debug, Deserialize)]
+@@ -192,6 +192,7 @@ pub(crate) async fn get(
+     hash: web::Path<String>,
+     param: web::Query<Param>,
+     settings: web::Data<Config>,
++    metrics: web::Data<std::sync::Arc<crate::prometheus::PrometheusMetrics>>,
+ ) -> crate::ServerResult {
+     let hash = hash.into_inner();
+     // Reject malformed hash parts up front so the `path >= ?` index scan in
+@@ -205,7 +206,17 @@ pub(crate) async fn get(
+         })?
+         .to_string();
+ 
+-    let info = some_or_404!(settings.store.query_path_info_by_hash_part(&hash)?);
++    let info = match settings.store.query_path_info_by_hash_part(&hash)? {
++        Some(info) => info,
++        None => {
++            // Warm the path in the background (no-op unless configured); the
++            // miss itself still returns 404 exactly as some_or_404! would.
++            crate::miss_warm::maybe_warm(&settings, &metrics, &hash);
++            return Ok(HttpResponse::NotFound()
++                .insert_header(crate::cache_control_no_store())
++                .body("missed hash"));
++        }
++    };
+     let narinfo = build_narinfo(
+         settings.store.store_dir(),
+         settings.store.virtual_store(),
+diff --git a/harmonia-cache/src/prometheus.rs b/harmonia-cache/src/prometheus.rs
+index 06e7ce0..4a00a94 100644
+--- a/harmonia-cache/src/prometheus.rs
++++ b/harmonia-cache/src/prometheus.rs
+@@ -5,7 +5,7 @@ use actix_web::{
+     web,
+ };
+ use prometheus::{
+-    Encoder, HistogramOpts, HistogramVec, IntCounterVec, Opts, Registry, TextEncoder,
++    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, Opts, Registry, TextEncoder,
+ };
+ use std::{
+     future::{Future, Ready, ready},
+@@ -20,6 +20,11 @@ pub struct PrometheusMetrics {
+     pub registry: Registry,
+     http_requests_total: IntCounterVec,
+     http_requests_duration: HistogramVec,
++    // substitute-on-miss (see miss_warm.rs)
++    pub narinfo_misses_total: IntCounter,
++    pub warms_started_total: IntCounter,
++    pub warms_completed_total: IntCounter,
++    pub warms_failed_total: IntCounter,
+ }
+ 
+ impl PrometheusMetrics {
+@@ -45,13 +50,38 @@ impl PrometheusMetrics {
+             &["method", "path", "status"],
+         )?;
+ 
++        let narinfo_misses_total = IntCounter::new(
++            "harmonia_narinfo_misses_total",
++            "narinfo requests for paths absent from the local store",
++        )?;
++        let warms_started_total = IntCounter::new(
++            "harmonia_warms_started_total",
++            "background substitute-on-miss warms started",
++        )?;
++        let warms_completed_total = IntCounter::new(
++            "harmonia_warms_completed_total",
++            "background warms that made the path valid",
++        )?;
++        let warms_failed_total = IntCounter::new(
++            "harmonia_warms_failed_total",
++            "background warms that failed (resolver, daemon, or substitution)",
++        )?;
++
+         registry.register(Box::new(http_requests_total.clone()))?;
+         registry.register(Box::new(http_requests_duration.clone()))?;
++        registry.register(Box::new(narinfo_misses_total.clone()))?;
++        registry.register(Box::new(warms_started_total.clone()))?;
++        registry.register(Box::new(warms_completed_total.clone()))?;
++        registry.register(Box::new(warms_failed_total.clone()))?;
+ 
+         Ok(PrometheusMetrics {
+             registry,
+             http_requests_total,
+             http_requests_duration,
++            narinfo_misses_total,
++            warms_started_total,
++            warms_completed_total,
++            warms_failed_total,
+         })
+     }
+ 

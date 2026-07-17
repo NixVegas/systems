@@ -281,6 +281,7 @@ in
 
     great-value-hydra.cachePkgs
     great-value-hydra.cacheUnstablePkgs
+    great-value-hydra.cachePrevPkgs
   ];
 
   networking = {
@@ -1099,12 +1100,46 @@ in
     unitConfig.RequiresMountsFor = [ "/var/cache/nar" ];
   };
 
-  services.harmonia.cache = {
-    enable = true;
-    settings = {
-      # Serve raw NARs: harmonia 3.x otherwise zstd-encodes on the fly for
-      # Accept-Encoding: zstd clients. The study serves the dedup'd store as-is.
-      enable_compression = false;
+  services.harmonia = {
+    # substitute-on-miss patch (pkgs/harmonia/substitute-on-miss.patch; spec:
+    # docs/superpowers/specs/2026-07-16-harmonia-substitute-on-miss-design.md).
+    # On a narinfo miss harmonia asks the nix daemon to substitute the path in
+    # the background so the next request is served locally. Upstream PR to
+    # nix-community/harmonia planned post-event.
+    package =
+      let
+        # Patch the source, then vendor from the patched Cargo.lock via
+        # cargoLock.lockFile (importCargoLock). The default cargoHash path
+        # (fetchCargoVendor) normalizes workspace-internal path deps out of the
+        # vendored Cargo.lock, so its consistency check can never match a lock
+        # that adds harmonia-store-remote/harmonia-protocol to harmonia-cache
+        # ("Cargo.lock is not the same in vendor"). importCargoLock vendors
+        # straight from the lockfile with no such diff — and needs no hash,
+        # since the patch adds only in-tree path deps, no new registry crates.
+        patchedSrc = pkgs.applyPatches {
+          name = "harmonia-substitute-on-miss-src";
+          inherit (pkgs.harmonia) src;
+          patches = [ ../../pkgs/harmonia/substitute-on-miss.patch ];
+        };
+      in
+      pkgs.harmonia.overrideAttrs (prev: {
+        src = patchedSrc;
+        cargoDeps = pkgs.rustPlatform.importCargoLock {
+          lockFile = "${patchedSrc}/Cargo.lock";
+        };
+      });
+    cache = {
+      enable = true;
+      settings = {
+        # Serve raw NARs: harmonia 3.x otherwise zstd-encodes on the fly for
+        # Accept-Encoding: zstd clients. Serve the dedup'd store as-is.
+        enable_compression = false;
+        # Warm the store from upstream on miss. The resolver is a plain-HTTP
+        # localhost nginx listener that proxies cache.nixos.org (TLS is
+        # nginx's job); the warm itself substitutes via the nix daemon.
+        substitute_on_miss = true;
+        miss_resolver_url = "http://127.0.0.1:8137";
+      };
     };
   };
 
