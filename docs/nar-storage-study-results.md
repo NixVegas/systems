@@ -61,10 +61,27 @@ ghostgate-nar  alloc 3.12T  cap 86%  dedup 1.03x
   cross-channel / cross-package file sharing xz can't see; the dedup ratio
   climbs as related channels accumulate (1.94× → 2.10× → 2.15×), so the
   store's advantage widens with scale.
-- Final result (three closely-related branches): the dedup+zstd store holds
-  the same corpus in **~0.76 TB (22%) less** than verbatim upstream xz.
-- The xz mirror hit 86% of a 4 TB drive at three channels; the dedup+zstd
-  store of the same corpus sat at 75% with headroom.
+- Final result (three closely-related branches), dataset-to-dataset physical:
+  store `5.95 TB ÷ 2.15 = 2.77 TB` vs mirror `3.53 TB ÷ 1.03 = 3.43 TB` — the
+  dedup+zstd store holds the same corpus in **~0.66 TB (~19%) less** than
+  verbatim upstream xz.
+
+### Two ways to read the size gap (they differ, on purpose)
+
+- **Dataset-to-dataset physical (~19%, the fair like-for-like):** store
+  2.77 TB (2.52 TiB) vs mirror 3.43 TB (3.12 TiB). On identical 3.62 TiB
+  drives that's 70% vs 86% full for the datasets alone. Both divide dataset
+  `used` by that dataset's own `dedupratio` (store 2.15×, mirror 1.03×).
+- **Whole-pool capacity (~12%, what `zpool list` shows):** `ghostgate` 75%
+  (2.74 TiB alloc) vs `ghostgate-nar` 86% (3.12 TiB alloc). This *under*-credits
+  the store, because the `ghostgate` pool also carries the OS/root closure
+  (~0.2 TiB) while `ghostgate-nar` is nothing but the mirror. Subtract that
+  overhead and the store dataset lands back at ~2.52 TiB.
+
+The ~19% figure is the apples-to-apples one; the ~12% pool-capacity view is
+skewed by the OS living on the store pool. (An earlier draft quoted ~22% by
+comparing the store's deduped physical against the mirror's *raw* `used`
+rather than the mirror's own deduped physical — corrected here.)
 
 ## Methodology notes
 
