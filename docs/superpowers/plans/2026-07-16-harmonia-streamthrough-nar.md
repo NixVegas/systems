@@ -189,23 +189,19 @@ pub(crate) fn parse_upstream_narinfo(
     let nar_size_str = nar_size.ok_or("upstream narinfo: no NarSize")?;
     let nar_size: u64 = nar_size_str.parse().map_err(|e| format!("bad NarSize: {e}"))?;
 
-    let basename = store_path
-        .strip_prefix("/nix/store/")
-        .ok_or("StorePath not under /nix/store/")?;
-    let store_path_hash = basename
-        .split_once('-')
-        .map(|(h, _)| h.to_string())
-        .ok_or("StorePath basename has no '-'")?;
+    // Parse against the *configured* store dir — handles chroot stores, no
+    // hardcoded "/nix/store" — and take the canonical hash from the parsed
+    // path (`StorePath::hash()` has a base32 Display), so no fragile
+    // `split_once('-')` and no reliance on a dash being present.
+    let sp: StorePath = store_dir
+        .parse(&store_path)
+        .map_err(|e| format!("parse StorePath: {e}"))?;
+    let store_path_hash = sp.hash().to_string();
 
     // NarHash may be "sha256:<base32>" or "sha256-<base64 SRI>"; harmonia's
     // client nar route expects bare base32. Normalize to bare base32 for the
     // rewritten URL. Reuse harmonia's Hash parser (Any<Hash>) to be exact.
     let nar_hash_bare = normalize_nar_hash_bare(&nar_hash_raw)?;
-
-    // Build ValidPathInfo for the daemon import.
-    let sp: StorePath = store_dir
-        .parse(&store_path)
-        .map_err(|e| format!("parse StorePath: {e}"))?;
     let info = build_valid_path_info(
         store_dir, sp, &nar_hash_raw, nar_size, &references, deriver.as_deref(),
         ca.as_deref(), &sigs,
