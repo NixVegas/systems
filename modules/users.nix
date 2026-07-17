@@ -71,7 +71,7 @@
         openssh.authorizedKeys.keyFiles = [
           (builtins.fetchurl {
             url = "https://github.com/jasonodoom.keys";
-            hash = "sha256-Tq8Y5X/6ZWq64FQ3m4F3Gjd9uxfTHuqe4ycz1XuTMS4=";
+            sha256 = "Tq8Y5X/6ZWq64FQ3m4F3Gjd9uxfTHuqe4ycz1XuTMS4=";
           })
         ];
       };
