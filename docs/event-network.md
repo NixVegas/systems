@@ -118,17 +118,21 @@ direct path); the public resolves them to brass.
   are static (DDNS never creates them).
 - `cache.nixos.lv` is harmonia over ghostgate's dedup+zstd store — the study
   winner — behind a plain nginx `proxy_pass`. A patched harmonia
-  (`pkgs/harmonia/substitute-on-miss.patch`) makes misses non-blocking: on a
-  narinfo miss it **302-redirects the client to cache.nixos.org** (a catch-all
-  redirects the follow-up `nar/*.nar.xz` too), so the client never waits on
-  us, and in the background it fetches the upstream narinfo over its own HTTPS
-  to get the store path and asks the nix daemon to substitute it — so the next
-  request for that path is served locally and the store converges on what the
-  event actually uses. No nginx upstream proxy, no resolver listener. The
+  (`pkgs/harmonia/substitute-on-miss.patch`) makes misses a **stream-through
+  cache**: on a narinfo miss it serves upstream's narinfo rewritten to point
+  at its own NAR endpoint (signature intact, `Compression: none`); on the NAR
+  request it fetches the upstream `.nar.xz` once over its own HTTPS, xz-decodes
+  it, and fans the bytes to the requesting client(s) AND into the store via
+  the nix daemon's `add_to_store_nar`. One uplink fetch serves both the client
+  and the store — no amplification, no client stall. Concurrent requests for
+  the same path coalesce onto a single job; the store import always completes
+  even if every client disconnects, so the store converges on what the event
+  actually uses. A small in-memory narinfo LRU bridges the narinfo and NAR
+  requests. No nginx upstream proxy, no resolver listener. The
   `upstream.cache.nixos.lv` mirror and the `ghostgate-nar` pool are
   decommissioned (the study proved dedup+zstd ~10% smaller than storing
   upstream's xz NARs verbatim). See
-  `docs/superpowers/specs/2026-07-16-harmonia-substitute-on-miss-design.md`.
+  `docs/superpowers/specs/2026-07-16-harmonia-streamthrough-nar-design.md`.
 - **brass's unbound** (`modules/unbound.nix`) is the Nebula-side split-horizon
   resolver; it deliberately does **not** answer the CTF names (onsite-only).
 

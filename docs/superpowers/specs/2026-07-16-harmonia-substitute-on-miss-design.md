@@ -1,7 +1,13 @@
 # harmonia substitute-on-miss (302 redirect + background warm) + mirror decommission
 
+> **Superseded by** `2026-07-16-harmonia-streamthrough-nar-design.md`. The
+> 302-redirect + background warm was replaced by an in-process stream-through
+> cache to eliminate fetch amplification (the redirect made the client and the
+> warm each pull the NAR once). The mirror-decommission portions of this spec
+> still stand and were implemented; only the harmonia miss mechanism changed.
+
 **Date:** 2026-07-16 (v3 — non-blocking 302 redirect, harmonia HTTPS, no nginx upstream)
-**Status:** approved
+**Status:** superseded
 
 ## Purpose
 
