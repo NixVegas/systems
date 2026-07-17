@@ -108,11 +108,28 @@ The job's pace is gated only by the upstream read (uplink) and the store
 sink (disk) — never by a client.
 
 ### Client response
-A `SizedStream` (content-length = `NarSize`, `Compression: none`) fed from a
-`broadcast::Receiver` mapped to `Stream<Item = Result<Bytes>>`. Live clients
-get bytes as the job produces them (no stall). A client slower than the
-uplink `Lagged`s past the ring capacity → its stream is dropped (it errors
-and retries against its own next substituter); **the job is unaffected**.
+Attachment depends on *when* the client arrives, because a
+`tokio::broadcast` receiver only sees chunks sent after it subscribes:
+
+- **Start-of-job cohort** (clients that subscribe before the first decoded
+  chunk is broadcast — a channel-bump burst arriving within the same window):
+  each gets a `SizedStream` (content-length = `NarSize`, `Compression:
+  none`) fed from a `broadcast::Receiver`, streaming bytes live as the job
+  produces them (no stall). A client slower than the uplink `Lagged`s past
+  the ring capacity → its stream is dropped (it errors and retries against
+  its own next substituter); **the job is unaffected**.
+- **Mid-stream arrival** (subscribes after streaming has begun — it missed
+  the head, which broadcast cannot replay): **parks** until the job
+  completes, then serves from the now-local store via the normal harmonia
+  path. Still one upstream fetch.
+
+**Accepted limitation:** a mid-stream arrival to a *large* NAR waits the
+remaining download with no bytes, so a NAR taking >300s from that client's
+arrival can trip nix's `stalled-download-timeout` for that client (it
+retries). Non-issue for channel-bump bursts (start-of-job cohort) and
+small/medium NARs; the tail case is rare. Eliminating it would require
+serving latecomers from a growing temp file (`proxy_cache`-style
+partial-file tailing) — deliberately out of scope (see below).
 
 ## Error handling
 
@@ -177,6 +194,11 @@ Same as v3: `pkgs/harmonia/substitute-on-miss.patch` via `applyPatches` +
 lock, no cargoHash). Upstream PR to nix-community/harmonia after the event.
 
 ## Out of scope
+- **Partial-file tailing for mid-stream arrivals** (`proxy_cache`-style: buffer
+  the in-flight NAR to a temp file, let latecomers `tail -f` it). Would remove
+  the late-arrival stall entirely, but adds serving-a-still-being-written-file
+  machinery (growth tracking, completion/failure signalling, temp cleanup).
+  Latecomers park-then-store-serve instead.
 - Serving the client zstd/xz-compressed (LAN is free; uncompressed is the
   natural tee point).
 - Persisting jobs across harmonia restarts (a restart mid-stream just errors
