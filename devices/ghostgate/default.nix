@@ -1195,6 +1195,23 @@ in
     };
   };
 
+  # Stock harmonia is serve-only (it only accepts on a socket-activated fd and
+  # talks to the nix daemon over AF_UNIX), so its unit is network-sandboxed:
+  # PrivateNetwork = true, RestrictAddressFamilies = [ "AF_UNIX" ],
+  # IPAddressDeny = "any". The stream-through substitute-on-miss makes outbound
+  # HTTPS to cache.nixos.org — reqwest can't even socket(AF_INET) under that
+  # sandbox, so every miss silently fell back to a stock 404. Open the unit up
+  # just enough to reach upstream. (The daemon socket stays AF_UNIX.)
+  systemd.services.harmonia.serviceConfig = {
+    PrivateNetwork = lib.mkForce false;
+    RestrictAddressFamilies = lib.mkForce [
+      "AF_UNIX"
+      "AF_INET"
+      "AF_INET6"
+    ];
+    IPAddressDeny = lib.mkForce "";
+  };
+
   systemd.services = {
     tftpd = {
       after = [ "nftables.service" ];
