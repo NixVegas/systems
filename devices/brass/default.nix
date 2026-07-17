@@ -33,6 +33,9 @@ let
   citadelCtf = "10.4.2.2"; # citadel's pinned ctf reservation
   publicBackends = {
     "nixos.lv" = ghostgateNebula;
+    # Forgejo on ghostgate (public nixpkgs mirror). SNI-passthrough to
+    # ghostgate:443, which terminates its own ACME cert.
+    "git.nixos.lv" = ghostgateNebula;
   };
   onsiteBackends = {
     "nixc.tf" = citadelCtf;

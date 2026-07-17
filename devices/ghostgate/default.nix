@@ -873,6 +873,7 @@ in
         ${baseDomain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
+        git.${baseDomain}. CNAME ghostgate.${domain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
         ; ghostgate on each of its LANs, so clients resolve it by its local
@@ -927,6 +928,7 @@ in
           "nixos.lv."
           "www.nixos.lv."
           "cache.nixos.lv."
+          "git.nixos.lv."
           "hydra.nixos.lv."
           # Split-horizon: hand ctf.nixos.lv to our knot (-> citadel) instead of
           # the public upstream (-> brass), so ghostgate's arena reaches the CTF
@@ -1010,9 +1012,122 @@ in
           globalRedirect = "cache.nixos.lv";
         };
 
+        # Forgejo (git.nixos.lv). Public via brass SNI-passthrough; ghostgate
+        # terminates TLS with its own ACME cert (brass forwards the HTTP-01
+        # token). Proxies to the loopback-bound forgejo on :3000.
+        "git.${baseDomain}" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:3000";
+            proxyWebsockets = true; # live UI / actions log streaming
+            # git http-backend pushes and LFS uploads dwarf the 1m nginx
+            # default; nixpkgs mirror syncs stream for a long time.
+            extraConfig = ''
+              client_max_body_size 0;
+              proxy_request_buffering off;
+              proxy_read_timeout 1800s;
+              proxy_send_timeout 1800s;
+            '';
+          };
+        };
+
+      };
+    };
+
+    # Local Postgres for Forgejo. The forgejo module creates the db/user
+    # (database.createDatabase, default true) over the unix socket; enable the
+    # server explicitly so it's unambiguous on a box that had no Postgres.
+    postgresql.enable = true;
+
+    forgejo = {
+      enable = true;
+      database.type = "postgres";
+      # Git LFS for large blobs (and nixpkgs-adjacent repos that use it).
+      lfs.enable = true;
+      settings = {
+        DEFAULT.APP_NAME = "Nix Vegas Git";
+
+        server = {
+          DOMAIN = "git.${baseDomain}";
+          ROOT_URL = "https://git.${baseDomain}/";
+          # Bind the web app to loopback only — nginx terminates TLS and
+          # proxies in (see the git.nixos.lv vhost). :3000 is never on an
+          # uplink, so it's not in the firewall either.
+          HTTP_ADDR = "127.0.0.1";
+          HTTP_PORT = 3000;
+          # Built-in SSH server for git push/pull. Reachable onsite and over
+          # Nebula, NOT publicly: brass only SNI-passes :443, so 2222 never
+          # crosses the public ingress. Public users clone read-only over
+          # HTTPS; SSH is for admins/mirrors.
+          START_SSH_SERVER = true;
+          SSH_LISTEN_PORT = 2222;
+          SSH_PORT = 2222; # advertised in clone URLs
+          SSH_DOMAIN = "git.${baseDomain}";
+        };
+
+        # Public read-only mirror: no open signups (create the admin once with
+        # `forgejo admin user create --admin ...`, then this stays true), but
+        # anonymous browse/clone is allowed.
+        service = {
+          DISABLE_REGISTRATION = true;
+          REQUIRE_SIGNIN_VIEW = false;
+        };
+        session.COOKIE_SECURE = true;
+
+        # Actions (CI), pulling action definitions from github by default.
+        actions = {
+          ENABLED = true;
+          DEFAULT_ACTIONS_URL = "github";
+        };
+
+        # nixpkgs is a very large repo (multi-GB, tens of thousands of refs):
+        # give migration/mirror/gc operations room so the initial import and
+        # periodic pull-mirror syncs don't time out.
+        "git.timeout" = {
+          MIGRATE = 1800;
+          MIRROR = 1800;
+          CLONE = 1800;
+          PULL = 1800;
+          GC = 1800;
+        };
+        # Pull-mirror refresh cadence and generous push/upload limits.
+        mirror.DEFAULT_INTERVAL = "8h";
+        "repository.upload" = {
+          FILE_MAX_SIZE = 2048; # MiB per file
+          MAX_FILES = 20;
+        };
+
+        # Sending emails is completely optional
+        # You can send a test email from the web UI at:
+        # Profile Picture > Site Administration > Configuration >  Mailer Configuration
+        mailer = {
+          ENABLED = true;
+          SMTP_ADDR = "mail.nix.vegas";
+          FROM = "noreply@nix.vegas";
+          USER = "noreply@nix.vegas";
+        };
+      };
+      secrets = {
+        mailer.PASSWD = "/var/lib/forgejo/data/mail.pass";
       };
     };
   };
+
+  # Forgejo git-over-SSH (built-in server on :2222) — admin/mirror pushes from
+  # the management LAN and over Nebula only. The WAN firewall
+  # (allowedTCPPorts above) deliberately omits 2222, so it's never public;
+  # public users clone read-only over HTTPS. Not opened on arena — attendees
+  # don't push.
+  networking.firewall.interfaces =
+    let
+      forgejoSsh = { allowedTCPPorts = [ 2222 ]; };
+    in
+    {
+      noc = forgejoSsh;
+      "nebula.arena" = forgejoSsh;
+    };
 
   users = {
     users.tftpd = {
