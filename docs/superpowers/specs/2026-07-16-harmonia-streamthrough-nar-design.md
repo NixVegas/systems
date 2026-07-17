@@ -41,9 +41,12 @@ the `narinfo`/`nar` handlers change.
    both the store-path hash and the NAR hash); `Compression: none`;
    `FileHash` = `NarHash`; `FileSize` = `NarSize`. Keep `StorePath`,
    `NarHash`, `NarSize`, `References`, `Deriver`, `Sig` verbatim.
-3. Serve `200`. Instant — only the small narinfo crossed the uplink. No job
+3. **Cache** the parsed upstream narinfo (store path, compressed upstream
+   `URL`, and the `ValidPathInfo` fields) in the narinfo LRU (below), keyed
+   by the store-path hash — so the NAR request that follows needn't re-fetch.
+4. Serve `200`. Instant — only the small narinfo crossed the uplink. No job
    is started here (started lazily on the NAR request).
-4. Upstream narinfo 404/error → fall back to the stock 404 (client uses its
+5. Upstream narinfo 404/error → fall back to the stock 404 (client uses its
    own next substituter).
 
 ### nar miss (`GET /nar/<outhash>-<narhash>.nar`, path not in store)
@@ -52,6 +55,19 @@ Look up or create a **per-path streaming job** keyed by the store path, then
 attach this client to it.
 
 ## Components
+
+### narinfo LRU cache
+A bounded in-memory `Mutex<LruCache<StorePathHash, CachedNarInfo>>` where
+`CachedNarInfo` holds the store path, the upstream compressed `URL`, and the
+`ValidPathInfo` fields — everything the job needs to skip its own narinfo
+re-fetch. **Configurable max entries and TTL** (`miss_narinfo_cache_size`,
+`miss_narinfo_cache_ttl`); entries carry an insertion `Instant` and are
+treated as absent past the TTL (checked on read), evicted by LRU past the
+size. Populated by the narinfo-miss handler; consulted by the job. Purely an
+optimization — a miss/expiry just costs one small re-fetch. No persistence
+(lost on restart, by design). Implementation: prefer a minimal dep (e.g. the
+`lru` crate + per-entry timestamp) over a heavyweight cache library; settle
+in the plan.
 
 ### Job registry
 `Mutex<HashMap<StorePath, Weak<Job>>>`. The first requester for a path
@@ -63,10 +79,12 @@ when the last `Arc` goes and the job has finished.
 Owns and runs to completion **regardless of client attach/detach** (converge
 even if every client disconnects):
 
-1. Re-fetch `<miss_upstream_url>/<outhash>.narinfo` (tiny) to get the full
-   `StorePath`, the upstream compressed `URL` (`nar/<filehash>.nar.xz`), and
-   the fields for `ValidPathInfo` (narHash, narSize, references, deriver, ca,
-   sigs). (Stateless; avoids threading state from the narinfo request.)
+1. Obtain the full `StorePath`, the upstream compressed `URL`
+   (`nar/<filehash>.nar.xz`), and the `ValidPathInfo` fields (narHash,
+   narSize, references, deriver, ca, sigs): **look them up in the narinfo LRU
+   first** (populated by the preceding narinfo request); on a cache miss or
+   expiry, re-fetch `<miss_upstream_url>/<outhash>.narinfo` (tiny) and
+   backfill the cache.
 2. HTTPS GET `<miss_upstream_url>/nar/<filehash>.nar.xz` (streaming).
 3. `async-compression` xz-decode the stream.
 4. Per decoded chunk, **fan-out**:
@@ -109,6 +127,9 @@ Unchanged surface from v3:
   be `https://`).
 - `miss_daemon_socket = "/nix/var/nix/daemon-socket/socket"` (default; the
   `add_to_store_nar` target).
+- `miss_narinfo_cache_size` (max entries in the narinfo LRU; default e.g.
+  `8192`).
+- `miss_narinfo_cache_ttl` (entry TTL, seconds; default e.g. `3600`).
 
 ## Observability
 Extend the existing prometheus counters:
@@ -126,7 +147,8 @@ Extend the existing prometheus counters:
 ## Testing
 - **Unit:** narinfo rewrite (URL/compression/filehash swapped; fingerprint
   fields + Sig byte-preserved); `ValidPathInfo` assembly from a canned
-  narinfo (references/deriver/ca/sig parsed).
+  narinfo (references/deriver/ca/sig parsed); narinfo LRU (size eviction, TTL
+  expiry-on-read, backfill).
 - **Integration** (scratch store + a fake HTTPS/HTTP upstream serving a known
   `.nar.xz`): N concurrent `GET /nar/<outhash>-<narhash>.nar` → exactly one
   upstream fetch (coalescing); every client body byte-identical to the known
