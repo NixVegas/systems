@@ -6,7 +6,7 @@
 
 **Architecture:** A narinfo LRU (populated on narinfo miss, keyed by store-path hash) feeds a per-path streaming Job (registry of `Weak<Job>`). The Job fetches+decodes the upstream NAR once and fans each chunk to a `tokio::sync::broadcast` (client streams) and to a daemon `add_to_store_nar` sink (the durable priority). The narinfo/nar handlers are the entry points; the redirect/warm module is deleted.
 
-**Tech Stack:** Rust (actix-web, tokio, tokio-rustls, async-compression/xz, harmonia-store-remote), the nix daemon.
+**Tech Stack:** Rust (actix-web, tokio, reqwest/rustls, async-compression/xz, harmonia-store-remote), the nix daemon.
 
 ## Global Constraints
 
@@ -75,35 +75,41 @@ git commit --no-gpg-sign -m "harmonia-cache: narinfo cache config knobs"
 
 ---
 
-### Task 2: Cargo deps — xz + lru
+### Task 2: Cargo deps — reqwest, xz, lru
 
 **Files:**
 - Modify: `harmonia-cache/Cargo.toml`
 
 **Interfaces:**
-- Produces: `async-compression` with the `xz` feature; the `lru` crate available.
+- Produces: `reqwest` (rustls, streaming) as the upstream HTTP client;
+  `async-compression` with the `xz` feature; the `lru` crate.
 
 - [ ] **Step 1: Edit deps**
 
-Change the `async-compression` line to add `xz`:
+Use a real HTTP client instead of hand-rolling HTTP over a TLS socket —
+reqwest handles TLS, redirects, chunked/keep-alive, and gives a streaming
+body. Change the `async-compression` line to add `xz`, and add reqwest + lru;
+**remove `tokio-rustls` and `webpki-roots`** (added during the redirect work,
+now unused — reqwest brings its own rustls + roots):
 ```toml
 async-compression = { version = "0.4.42", features = [ "tokio", "bzip2", "xz" ] }
-```
-Add under the general deps (near `url`):
-```toml
+reqwest = { version = "0.12", default-features = false, features = [ "rustls-tls", "stream" ] }
 lru = "0.12"
 ```
-(`tokio-rustls`/`webpki-roots` are already present from the redirect work.)
+Ensure `tokio-util` keeps its `io` feature (already present) — needed for
+`StreamReader`.
 
-- [ ] **Step 2: Compile check** (resolves the new crate into `Cargo.lock`)
+- [ ] **Step 2: Compile check** (resolves the new crates into `Cargo.lock`)
 
 Run: `nix develop -c cargo check -p harmonia-cache`
-Expected: compiles; `Cargo.lock` gains `lru` and the xz-decoder deps.
+Expected: compiles (or fails only on the not-yet-updated `miss_warm.rs`, which
+Task 5 replaces); `Cargo.lock` gains `reqwest`/`lru`/xz-decoder deps and drops
+`tokio-rustls`/`webpki-roots`.
 
 - [ ] **Step 3: Commit**
 ```bash
 git add harmonia-cache/Cargo.toml Cargo.lock
-git commit --no-gpg-sign -m "harmonia-cache: async-compression xz feature + lru dep"
+git commit --no-gpg-sign -m "harmonia-cache: reqwest + async-compression xz + lru; drop hand-rolled TLS deps"
 ```
 
 ---
@@ -399,53 +405,82 @@ git commit --no-gpg-sign -m "harmonia-cache: TTL'd LRU narinfo cache"
 
 ---
 
-### Task 5: Upstream HTTPS client — one-shot + streaming
+### Task 5: Upstream HTTP client (reqwest) — one-shot + streaming
 
 **Files:**
-- Rename/rewrite: `harmonia-cache/src/miss_warm.rs` → `harmonia-cache/src/upstream.rs` (keep the tokio-rustls setup; drop the redirect/warm/EnsurePath code — this plan replaces it).
-- Modify: `harmonia-cache/src/main.rs` (`mod upstream;`, remove `mod miss_warm;` and the `default_service(... redirect_or_404)` line + the narinfo redirect branch will be replaced in Task 6/7).
+- Create: `harmonia-cache/src/upstream.rs` (replaces the redirect era's `miss_warm.rs`; the hand-rolled TLS/HTTP code is dropped entirely in favour of reqwest).
+- Delete: `harmonia-cache/src/miss_warm.rs`.
+- Modify: `harmonia-cache/src/main.rs` (`mod upstream;`, remove `mod miss_warm;`, the `default_service(... redirect_or_404)` line, and the narinfo redirect branch — replaced in Tasks 6/7).
 
 **Interfaces:**
 - Produces:
-  - `async fn get_text(upstream: &str, path: &str) -> Result<String, String>` (the one-shot narinfo GET; the existing `https_get`, renamed).
-  - `async fn get_stream(upstream: &str, path: &str) -> Result<impl AsyncBufRead + Unpin + Send, String>` — opens the TLS connection, writes the GET, validates `200`, and returns an `AsyncBufRead` positioned at the response body (for the NAR `.nar.xz`). Implement by returning a `tokio::io::BufReader` over the TLS stream after consuming the header bytes (parse Content-Length/close-delimited; cache.nixos.org sends `Connection: close`, so read-to-close is fine).
-- Consumed by Tasks 6.
+  - `fn client() -> &'static reqwest::Client` — a shared, connection-pooling client (`LazyLock<reqwest::Client>`; built with `reqwest::Client::builder().build().unwrap()`).
+  - `async fn get_text(upstream: &str, path: &str) -> Result<String, String>` — `client().get(join(upstream, path)).send().await?.error_for_status()?.text().await?`, mapping errors to `String`.
+  - `async fn get_stream(upstream: &str, path: &str) -> Result<impl tokio::io::AsyncBufRead + Unpin + Send, String>` — send the GET, `error_for_status()`, then `resp.bytes_stream()` (an `impl Stream<Item = reqwest::Result<Bytes>>`) mapped to `io::Result<Bytes>` and wrapped in `tokio_util::io::StreamReader::new(...)` (which is `AsyncBufRead`). No manual request assembly, no header parsing — reqwest handles TLS, redirects, and chunked bodies.
+- Consumed by Task 6.
 
-- [ ] **Step 1: Extract the shared TLS setup** — keep `TLS_CONFIG` (LazyLock rustls ClientConfig w/ webpki-roots), the `https://`-parse, TCP connect, TLS connect from the current `miss_warm.rs`.
+- [ ] **Step 1: Write `upstream.rs`**
 
-- [ ] **Step 2: `get_text`** — the current `https_get` body verbatim, renamed. Returns the response body String on `200`.
-
-- [ ] **Step 3: `get_stream`** — connect + handshake + write request, then read and discard the response headers up to `\r\n\r\n`, returning a `BufReader` over the remaining TLS stream (body). Sketch:
 ```rust
+//! Upstream binary-cache HTTP client (reqwest, rustls). One-shot narinfo GET
+//! and a streaming NAR body reader for the stream-through cache.
+
+use std::sync::LazyLock;
+
+use bytes::Bytes;
+use tokio_util::io::StreamReader;
+
+static CLIENT: LazyLock<reqwest::Client> =
+    LazyLock::new(|| reqwest::Client::builder().build().expect("reqwest client"));
+
+fn url(upstream: &str, path: &str) -> String {
+    format!("{}/{}", upstream.trim_end_matches('/'), path.trim_start_matches('/'))
+}
+
+pub(crate) async fn get_text(upstream: &str, path: &str) -> Result<String, String> {
+    CLIENT
+        .get(url(upstream, path))
+        .send()
+        .await
+        .map_err(|e| format!("upstream GET: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("upstream status: {e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("upstream body: {e}"))
+}
+
 pub(crate) async fn get_stream(
     upstream: &str,
     path: &str,
-) -> Result<tokio::io::BufReader<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>, String> {
-    let (host, _) = split_host(upstream)?;                 // reuse from get_text
-    let mut tls = tls_connect(host).await?;                // TCP+TLS, shared helper
-    write_get(&mut tls, host, path).await?;                // GET line + Host + Connection: close
-    read_past_headers(&mut tls).await?;                    // read until CRLFCRLF, check "200"
-    Ok(tokio::io::BufReader::new(tls))
+) -> Result<impl tokio::io::AsyncBufRead + Unpin + Send, String> {
+    let resp = CLIENT
+        .get(url(upstream, path))
+        .send()
+        .await
+        .map_err(|e| format!("upstream GET: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("upstream status: {e}"))?;
+    let stream = resp
+        .bytes_stream()
+        .map(|r| r.map_err(|e| std::io::Error::other(e)));
+    Ok(StreamReader::new(stream))
 }
 ```
-`read_past_headers` reads byte-by-byte (or small chunks with a tiny leftover
-buffer) until `\r\n\r\n`, asserts the status line contains `" 200 "`, and
-leaves the stream at the first body byte. Any leftover already-read body bytes
-must be prepended — simplest correct approach: read into a growing `Vec`,
-find the `\r\n\r\n`, then return a reader that first yields the leftover body
-bytes then the live stream (`tokio::io::AsyncReadExt::chain` a `Cursor` of the
-leftover with the `BufReader`). Return that `chain` (adjust the return type to
-`impl AsyncBufRead + Unpin + Send` via `tokio::io::BufReader::new(cursor.chain(tls))`).
+(`use futures_util::StreamExt as _;` for `.map`. `futures-util` is already a
+dep.)
 
-- [ ] **Step 4: Compile check**
+- [ ] **Step 2: Compile check**
 Run: `nix develop -c cargo check -p harmonia-cache`
-Expected: compiles (handlers referencing the old `miss_warm` are updated in Tasks 6–7; temporarily this task may not compile standalone — fold Tasks 5–7 into one commit if the intermediate state doesn't build).
+Expected: compiles (or fails only where Tasks 6–7 still reference removed
+`miss_warm` items; those land in the same build cycle — combine the Task 5–7
+commits if an intermediate tree doesn't build).
 
-- [ ] **Step 5: Commit** (may be combined with Task 6/7 if intermediate build fails)
+- [ ] **Step 3: Commit** (may be combined with Task 6/7)
 ```bash
-git add harmonia-cache/src/upstream.rs harmonia-cache/src/main.rs
 git rm harmonia-cache/src/miss_warm.rs
-git commit --no-gpg-sign -m "harmonia-cache: upstream HTTPS client (one-shot + streaming)"
+git add harmonia-cache/src/upstream.rs harmonia-cache/src/main.rs
+git commit --no-gpg-sign -m "harmonia-cache: reqwest-based upstream client (one-shot + streaming)"
 ```
 
 ---
