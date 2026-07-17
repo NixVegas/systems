@@ -29,6 +29,7 @@ let
   grafanaIp = "192.168.104.2";
 
   gitSshPort = 2222;
+  grafanaHttpPort = 3000;
 
   nameservers = [
     "1.1.1.1"
@@ -328,7 +329,7 @@ in
       virtualHosts."grafana.nix.vegas" = letsEncryptEndpoint {
         http2 = true;
         locations."/" = {
-          proxyPass = "http://${grafanaIp}:3000";
+          proxyPass = "http://${grafanaIp}:${builtins.toString grafanaHttpPort}";
           proxyWebsockets = true;
         };
       };
@@ -481,22 +482,39 @@ in
 
     grafana = {
       config = {
-        services.grafana = {
-          enable = true;
+        networking = {
+          useHostResolvConf = false;
+          inherit nameservers;
 
-          settings = {
-            server = {
-              domain = "grafana.nix.vegas";
-              http_addr = "127.0.0.1";
-              http_port = 3000;
-              protocol = "http";
-              root_url = "https://%(domain)s/grafana/";
-              serve_from_sub_path = true;
+          firewall = {
+            enable = true;
+            allowPing = true;
+            allowedTCPPorts = [
+              grafanaHttpPort
+              mimirHttpPort
+            ];
+          };
+        };
+
+        services = {
+          grafana = {
+            enable = true;
+
+            settings = {
+              server = {
+                domain = "grafana.nix.vegas";
+                http_addr = "0.0.0.0";
+                http_port = 3000;
+                protocol = "http";
+                root_url = "https://%(domain)s/grafana/";
+                serve_from_sub_path = true;
+              };
+              security = {
+                secret_key = "$__file{/var/lib/grafana/secret_key}";
+                # bootstrap admin user pass
+                admin_password = "$__file{/var/lib/grafana/admin.pass}";
+              };
             };
-            security = {
-              secret_key = "$__file{/var/lib/grafana/secret_key}";
-              # bootstrap admin user pass
-              admin_password = "$__file{/var/lib/grafana/admin.pass}";
             };
           };
         };
