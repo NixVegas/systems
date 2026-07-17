@@ -75,8 +75,8 @@ per-name `:80` handling. Names split three ways (`devices/brass/default.nix`
    terminates its own TLS and runs its own HTTP-01 ACME (brass forwards :80
    to it). Fully public.
 2. **Onsite-only** (`onsiteBackends`: `nixc.tf`, `www.nixc.tf`, `ctf.nixos.lv`,
-   `ctf.nix.vegas`, `cache.nixos.lv`, `cache.nix.vegas`,
-   `upstream.cache.nixos.lv`): must **not** be publicly reachable. brass **terminates them with its own LE cert and
+   `ctf.nix.vegas`, `cache.nixos.lv`, `cache.nix.vegas`): must **not** be
+   publicly reachable. brass **terminates them with its own LE cert and
    302-redirects to `https://nix.vegas`** on both :80 and :443.
    `acmeFallbackHost = <backend>` forwards any ACME token brass doesn't own to
    the backend, so the backend's *onsite* cert keeps renewing. These are **not**
@@ -116,18 +116,17 @@ direct path); the public resolves them to brass.
   hands out; a statically-configured deploy box needs the FQDN or the search
   domain set manually. ghostgate isn't a DHCP client of itself, so these records
   are static (DDNS never creates them).
-- `upstream.cache.nixos.lv` (ghostgate's knot zone, CNAME → ghostgate) is the
-  nginx pull-through mirror of cache.nixos.org for the nixpkgs storage study:
-  `try_files` on the `ghostgate-nar/local/nar` dataset (mounted at
-  `/var/cache/nar`), miss → `proxy_store` from upstream, bytes verbatim, no
-  eviction. `cache.nixos.lv` stays harmonia over the dedup+zstd local store
-  (compression off). Only ghostgate substitutes through the mirror (pinned
-  `?priority=35`, ahead of the direct cache.nixos.org fallback at 40). On
-  ghostgate itself the name is pinned to `127.0.0.1` in `/etc/hosts` — public
-  DNS answers brass (a 302) and the knot CNAME answers the Nebula address,
-  which needs the tun up; loopback keeps ghostgate's own substitution
-  self-contained. See
-  `docs/superpowers/specs/2026-07-14-nar-mirror-study-design.md`.
+- `cache.nixos.lv` is harmonia over ghostgate's dedup+zstd store — the study
+  winner — with pull-through semantics: nginx retries harmonia 404s directly
+  against cache.nixos.org (nothing persisted), while a patched harmonia
+  (`pkgs/harmonia/substitute-on-miss.patch`) asks the nix daemon to
+  substitute the missed path in the background, so the store converges on
+  what the event actually uses. A loopback-only nginx listener on `:8137`
+  resolves a missed hash to its full store path for the daemon. The
+  `upstream.cache.nixos.lv` mirror and the `ghostgate-nar` pool are
+  decommissioned (the study proved dedup+zstd ~10% smaller than storing
+  upstream's xz NARs verbatim). See
+  `docs/superpowers/specs/2026-07-16-harmonia-substitute-on-miss-design.md`.
 - **brass's unbound** (`modules/unbound.nix`) is the Nebula-side split-horizon
   resolver; it deliberately does **not** answer the CTF names (onsite-only).
 
@@ -193,8 +192,7 @@ direct path); the public resolves them to brass.
 
 - **Public DNS → brass** (`185.193.48.248`) for `nixc.tf`, `www.nixc.tf`,
   `ctf.nixos.lv`, `ctf.nix.vegas`, `cache.nixos.lv`, `cache.nix.vegas`,
-  `upstream.cache.nixos.lv`, `nixos.lv`. (Onsite DNS is handled internally and
-  needs no external change.)
+  `nixos.lv`. (Onsite DNS is handled internally and needs no external change.)
 - **ghostgate's Nebula cert** must include the ctf net (`10.4.2.0/24`, or the
   broader `10.4.0.0/16`) in its `unsafeNetworks`, or peers drop ctf-routed
   traffic. The cert is TPM-backed via nixpkcs — re-signed on the host, not in

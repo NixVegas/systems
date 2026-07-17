@@ -149,19 +149,6 @@ in
     };
   };
 
-  # Everything ghostgate substitutes from upstream flows through the mirror,
-  # populating the study dataset. Priorities do the routing: the mirror pins
-  # 35 here, and the direct https://cache.nixos.org/ that nixpkgs' nix module
-  # unconditionally appends sits at 40 — so it is only ever a fallback when
-  # the mirror itself is down.
-  nix.settings.substituters = lib.mkAfter [ "https://upstream.cache.nixos.lv?priority=35" ];
-
-  # On ghostgate itself the mirror is pinned to loopback: public DNS points
-  # this name at brass (a 302), and even the knot CNAME answer (the Nebula
-  # address) needs the tun up. TLS stays valid — the cert matches the SNI
-  # name, not the address. LAN clients still get the knot CNAME -> ghostgate.
-  networking.hosts."127.0.0.1" = [ "upstream.cache.nixos.lv" ];
-
   services.nebula.networks.arena = {
     tun.device = lib.mkForce "nebula.arena";
     settings = {
@@ -904,7 +891,6 @@ in
         ${baseDomain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
-        upstream.cache.${baseDomain}. CNAME ghostgate.${domain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
         ; ghostgate on each of its LANs, so clients resolve it by its local
@@ -959,7 +945,6 @@ in
           "nixos.lv."
           "www.nixos.lv."
           "cache.nixos.lv."
-          "upstream.cache.nixos.lv."
           "hydra.nixos.lv."
           # Split-horizon: hand ctf.nixos.lv to our knot (-> citadel) instead of
           # the public upstream (-> brass), so ghostgate's arena reaches the CTF
@@ -1064,49 +1049,6 @@ in
           globalRedirect = "cache.nixos.lv";
         };
 
-        # Pull-through mirror of cache.nixos.org for the nixpkgs storage study:
-        # serve from the ghostgate-nar dataset if present, otherwise proxy
-        # upstream and proxy_store the response verbatim (URL path == file
-        # path, bytes == upstream bytes, signatures survive). No eviction by
-        # design. cache.nixos.lv (harmonia, the dedup'd local store) is the
-        # other half of the experiment.
-        "upstream.cache.nixos.lv" = {
-          http2 = true;
-          enableACME = true;
-          forceSSL = true;
-          root = "/var/cache/nar";
-          locations."/".tryFiles = "$uri @upstream";
-          locations."@upstream" = {
-            extraConfig = ''
-              # Variable proxy_pass + resolver: re-resolve fastly at request
-              # time instead of baking startup answers, and ipv6=off — with
-              # AAAA answers nginx builds an all-v6 upstream list and 502s
-              # when the WAN has no v6 route. kresd serves 127.0.0.1.
-              resolver 127.0.0.1 ipv6=off valid=300s;
-              set $mirror_upstream cache.nixos.org;
-              proxy_pass https://$mirror_upstream$request_uri;
-              proxy_set_header Host cache.nixos.org;
-              proxy_ssl_server_name on;
-              proxy_ssl_name cache.nixos.org;
-              proxy_ssl_verify on;
-              # LE's 2026 chain is leaf -> YR2 -> Root YR -> ISRG Root X1;
-              # the nginx default depth (1) fails it with "unable to get
-              # local issuer certificate". curl/openssl don't enforce depth.
-              proxy_ssl_verify_depth 4;
-              proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
-              # Upstream a HEAD as a GET so proxy_store never plants an
-              # empty file where a narinfo should be.
-              proxy_method GET;
-              proxy_store on;
-              proxy_store_access user:rw group:r all:r;
-              proxy_temp_path /var/cache/nar/tmp;
-              # Some nars exceed the 1024m default; a truncated temp file is
-              # discarded instead of stored. NB: size-typed nginx directives
-              # only take k/m suffixes ("g" fails config parse).
-              proxy_max_temp_file_size 32768m;
-            '';
-          };
-        };
       };
     };
   };
@@ -1117,30 +1059,6 @@ in
       group = "tftpd";
     };
     groups.tftpd = { };
-  };
-
-  # Storage-study mirror dataset (see
-  # docs/superpowers/specs/2026-07-14-nar-mirror-study-design.md): verbatim
-  # cache.nixos.org nar/narinfo files, written by nginx proxy_store. The pool
-  # and dataset (mountpoint=legacy) are created by hand.
-  fileSystems."/var/cache/nar" = {
-    device = "ghostgate-nar/local/nar";
-    fsType = "zfs";
-  };
-
-  systemd.tmpfiles.rules = [
-    "d /var/cache/nar 0755 nginx nginx -"
-    # proxy_temp_path: must be on the same filesystem as the store root so
-    # completed downloads move into place with an atomic rename.
-    "d /var/cache/nar/tmp 0700 nginx nginx -"
-  ];
-
-  systemd.services.nginx = {
-    # The NixOS nginx unit runs ProtectSystem=strict; proxy_store can't write
-    # outside /var/cache/nginx without this.
-    serviceConfig.ReadWritePaths = [ "/var/cache/nar" ];
-    # Don't let nginx start against the bare mountpoint directory.
-    unitConfig.RequiresMountsFor = [ "/var/cache/nar" ];
   };
 
   services.harmonia = {

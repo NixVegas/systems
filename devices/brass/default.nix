@@ -41,7 +41,6 @@ let
     "ctf.nix.vegas" = citadelCtf;
     "cache.nixos.lv" = ghostgateNebula;
     "cache.nix.vegas" = ghostgateNebula;
-    "upstream.cache.nixos.lv" = ghostgateNebula;
   };
 in
 {
