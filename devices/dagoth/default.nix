@@ -524,6 +524,17 @@ in
                 admin_password = "$__file{/var/lib/grafana/admin.pass}";
               };
             };
+            provision = {
+              enable = true;
+
+              datasources.settings.datasources = [{
+                name = "Mimir";
+                type = "prometheus";
+                access = "proxy";
+                url = "http://127.0.0.1:3200/prometheus";
+                isDefault = true;
+              }];
+            };
           };
           mimir = {
            enable = true;
