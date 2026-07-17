@@ -30,6 +30,7 @@ let
 
   gitSshPort = 2222;
   grafanaHttpPort = 3000;
+  mimirHttpPort = 3200;
 
   nameservers = [
     "1.1.1.1"
@@ -41,6 +42,7 @@ let
   mattermostPostgresZoneMount = "mattermost-postgres";
   freescoutPostgresZoneMount = "freescout-postgres";
   grafanaStateZoneMount = "grafana-state";
+  mimirStateZoneMount = "mimir-state";
 
   externalInterface = "ens3";
 in
@@ -95,6 +97,7 @@ in
       mattermostPostgresZoneMount
       freescoutPostgresZoneMount
       grafanaStateZoneMount
+      mimirStateZoneMount
     ];
     inherit externalInterface;
   };
@@ -175,6 +178,10 @@ in
         # Gitea ssh
         iptables -t nat -I PREROUTING -p tcp \
           --dport 22 -j DNAT --to-destination ${giteaIp}:${builtins.toString gitSshPort}
+
+        # Allow shipping metrics via alloy to mimir from nebula
+        iptables -t nat -I PREROUTING -p tcp -s ${nebulaSubnet} \
+          --dport ${builtins.toString mimirHttpPort} -j DNAT --to-destination ${grafanaIp}:${builtins.toString mimirHttpPort}
       '';
     };
 
@@ -496,6 +503,8 @@ in
           };
         };
 
+        systemd.services.mimir.serviceConfig.DynamicUser = lib.mkForce false;
+
         services = {
           grafana = {
             enable = true;
@@ -515,6 +524,48 @@ in
                 admin_password = "$__file{/var/lib/grafana/admin.pass}";
               };
             };
+          };
+          mimir = {
+           enable = true;
+
+           configuration = {
+             multitenancy_enabled = false;
+
+             server = {
+               grpc_listen_port = 9096;
+               http_listen_port = mimirHttpPort;
+             };
+
+             common = {
+               storage = {
+                 backend = "filesystem";
+                 filesystem = {
+                   dir = "/var/lib/mimir/data";
+                 };
+               };
+             };
+
+             blocks_storage = {
+               storage_prefix = "blocks";
+               tsdb = {
+                 dir = "/var/lib/mimir/tsdb";
+               };
+             };
+
+             compactor = {
+               data_dir = "/var/lib/mimir/compactor";
+               compaction_interval = "30m";
+             };
+
+             ingester = {
+               ring = {
+                 replication_factor = 1;
+
+                 kvstore = {
+                   store = "inmemory";
+                 };
+               };
+             };
             };
           };
         };
@@ -525,6 +576,10 @@ in
       bindMounts = {
         "/var/lib/grafana" = {
           hostPath = "${config.zones.zoneRoot}/${grafanaStateZoneMount}";
+          isReadOnly = false;
+        };
+        "/var/lib/mimir" = {
+          hostPath = "${config.zones.zoneRoot}/${mimirStateZoneMount}";
           isReadOnly = false;
         };
       };
