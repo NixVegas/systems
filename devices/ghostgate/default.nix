@@ -1056,11 +1056,17 @@ in
         # Serve raw NARs: harmonia 3.x otherwise zstd-encodes on the fly for
         # Accept-Encoding: zstd clients. Serve the dedup'd store as-is.
         enable_compression = false;
-        # On a miss, 302-redirect the client to cache.nixos.org (harmonia does
-        # this itself, over its own HTTPS) and warm the path into the store in
-        # the background via the nix daemon — never blocking the client.
+        # Stream-through cache: on a narinfo miss harmonia serves upstream's
+        # narinfo rewritten to point at its own NAR endpoint; on the NAR
+        # request it fetches the upstream .nar.xz once (over its own HTTPS),
+        # decodes it, and fans the bytes to the client(s) AND into the store
+        # via the nix daemon — one uplink fetch, no amplification, no stall.
         substitute_on_miss = true;
         miss_upstream_url = "https://cache.nixos.org";
+        # In-flight narinfo LRU (low + self-cleaning; entries drop when their
+        # NAR job completes).
+        miss_narinfo_cache_size = 1024;
+        miss_narinfo_cache_ttl = 600;
       };
     };
   };
