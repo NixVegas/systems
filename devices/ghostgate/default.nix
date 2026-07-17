@@ -1012,6 +1012,15 @@ in
           globalRedirect = "cache.nixos.lv";
         };
 
+        # git.nix.vegas -> the canonical git.nixos.lv (Forgejo's DOMAIN), same
+        # as cache.nix.vegas -> cache.nixos.lv. Public via brass passthrough.
+        "git.nix.vegas" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          globalRedirect = "git.${baseDomain}";
+        };
+
         # Forgejo (git.nixos.lv). Public via brass SNI-passthrough; ghostgate
         # terminates TLS with its own ACME cert (brass forwards the HTTP-01
         # token). Proxies to the loopback-bound forgejo on :3000.
