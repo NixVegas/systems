@@ -903,7 +903,7 @@ index 22ee8e8..2ad9d61 100644
              .route("/{hash}.ls", web::get().to(narlist::get))
              .route("/{hash}.ls", web::head().to(narlist::get))
 diff --git a/harmonia-cache/src/nar.rs b/harmonia-cache/src/nar.rs
-index 87c1b4a..2f73b45 100644
+index 87c1b4a..4a35899 100644
 --- a/harmonia-cache/src/nar.rs
 +++ b/harmonia-cache/src/nar.rs
 @@ -5,6 +5,7 @@ use actix_web::web::Bytes;
@@ -956,7 +956,7 @@ index 87c1b4a..2f73b45 100644
  ) -> crate::ServerResult {
      // Extract the narhash from the query parameter, and bail out if it's missing or invalid.
      let narhash = some_or_404!(Some(path.narhash.as_str()));
-@@ -94,6 +125,47 @@ pub(crate) async fn get(
+@@ -94,6 +125,51 @@ pub(crate) async fn get(
      {
          Some(info) => info,
          None => {
@@ -966,50 +966,54 @@ index 87c1b4a..2f73b45 100644
 +            // outhash stays 404 on miss (outhash is already validated above).
 +            if settings.substitute_on_miss {
 +                use crate::nar_job::{Attach, JobState};
-+                match registry
-+                    .attach(settings.clone(), metrics.clone(), &store_path_hash.to_string())
-+                    .await
-+                {
-+                    Attach::Live(body) => {
-+                        return Ok(HttpResponse::Ok()
-+                            .insert_header((
-+                                http::header::CONTENT_TYPE,
-+                                "application/x-nix-archive",
-+                            ))
-+                            .insert_header(crate::cache_control_no_store())
-+                            .body(actix_web::body::SizedStream::new(body.nar_size(), body)));
-+                    }
-+                    Attach::Parked(mut done) => {
-+                        // Mid-stream arrival: wait for the job to finish, then
-+                        // re-query the store and serve from there.
-+                        let _ = done
-+                            .wait_for(|s| !matches!(s, JobState::Running))
-+                            .await;
-+                        match settings
-+                            .store
-+                            .query_path_info_by_hash_part(&store_path_hash.to_string())?
-+                        {
-+                            Some(info) => {
++                // Bounded retries: a mid-stream arrival whose job served the NAR
++                // but didn't cache it (a dependency wasn't valid yet) re-fetches
++                // fresh rather than 404ing, so concurrent requestors of the same
++                // path still get their bytes.
++                for _ in 0..3u32 {
++                    match registry
++                        .attach(settings.clone(), metrics.clone(), &store_path_hash.to_string())
++                        .await
++                    {
++                        Attach::Live(body) => {
++                            return Ok(HttpResponse::Ok()
++                                .insert_header((
++                                    http::header::CONTENT_TYPE,
++                                    "application/x-nix-archive",
++                                ))
++                                .insert_header(crate::cache_control_no_store())
++                                .body(actix_web::body::SizedStream::new(body.nar_size(), body)));
++                        }
++                        Attach::Parked(mut done) => {
++                            // Mid-stream arrival: wait for the job to finish, then
++                            // serve from the store if it cached; otherwise loop to
++                            // re-fetch fresh.
++                            let _ = done
++                                .wait_for(|s| !matches!(s, JobState::Running))
++                                .await;
++                            if let Some(info) = settings
++                                .store
++                                .query_path_info_by_hash_part(&store_path_hash.to_string())?
++                            {
 +                                return Ok(serve_full_nar_from_store(&settings, &info, outhash)?);
 +                            }
-+                            None => {
-+                                return Ok(HttpResponse::NotFound()
-+                                    .insert_header(crate::cache_control_no_store())
-+                                    .body("store path not found"));
-+                            }
++                            // Not cached this round; retry.
 +                        }
 +                    }
 +                }
++                return Ok(HttpResponse::NotFound()
++                    .insert_header(crate::cache_control_no_store())
++                    .body("store path not found"));
 +            }
              return Ok(HttpResponse::NotFound()
                  .insert_header(crate::cache_control_no_store())
                  .body("store path not found"));
 diff --git a/harmonia-cache/src/nar_job.rs b/harmonia-cache/src/nar_job.rs
 new file mode 100644
-index 0000000..0f91761
+index 0000000..c43471b
 --- /dev/null
 +++ b/harmonia-cache/src/nar_job.rs
-@@ -0,0 +1,1588 @@
+@@ -0,0 +1,1640 @@
 +//! Per-path streaming NAR job + coalescing registry for substitute-on-miss.
 +//!
 +//! A `Job` fetches exactly one upstream `<filehash>.nar.<compression>`, decodes
@@ -1198,8 +1202,13 @@ index 0000000..0f91761
 +    // Publish the terminal state to parked waiters, then evict our registry +
 +    // narinfo-cache slots so the next request re-resolves cleanly.
 +    let state = match &result {
-+        Ok(()) => {
-+            metrics.nar_jobs_completed_total.inc();
++        // Ok(_) = the client was served the full NAR. `true` also imported it;
++        // `false` = served-but-not-cached (a dependency wasn't present yet;
++        // logged in run_fanout). Either way the client succeeds, so never Failed.
++        Ok(cached) => {
++            if *cached {
++                metrics.nar_jobs_completed_total.inc();
++            }
 +            JobState::Ok
 +        }
 +        Err(e) => {
@@ -1226,13 +1235,16 @@ index 0000000..0f91761
 +    drop(done_tx);
 +}
 +
-+/// Inner fan-out that can `?`-propagate errors. On success the daemon has
-+/// imported and validated the full NAR (nar-hash + trusted-keys enforced).
++/// Inner fan-out. `Ok(cached)` means the whole NAR was fetched, decoded, and
++/// broadcast to clients; `cached` says whether it was *also* imported into the
++/// local store (`false` when a dependency isn't valid here yet, so the path is
++/// served but not cached this round). `Err` means the NAR itself couldn't be
++/// produced (upstream/decode/corruption) and the client must not trust it.
 +async fn run_fanout(
 +    cfg: &Config,
 +    up: &UpstreamNarInfo,
 +    tx: &broadcast::Sender<Bytes>,
-+) -> Result<(), String> {
++) -> Result<bool, String> {
 +    // Open the daemon that actually holds the store. Pin the client's store dir
 +    // to our configured store so the ValidPathInfo's StorePath serializes with
 +    // the right prefix (the daemon rejects paths outside its store dir).
@@ -1279,6 +1291,7 @@ index 0000000..0f91761
 +            };
 +
 +        let mut buf = BytesMut::with_capacity(CHUNK_TARGET);
++        let mut store_open = true;
 +        loop {
 +            buf.reserve(CHUNK_TARGET);
 +            let n = dec
@@ -1289,19 +1302,21 @@ index 0000000..0f91761
 +                break;
 +            }
 +            let chunk = buf.split().freeze();
-+            // The gate: every byte must reach the store sink. If the daemon
-+            // hangs up (import failed), this errors and we stop.
-+            store_w
-+                .write_all(&chunk)
-+                .await
-+                .map_err(|e| format!("store sink write: {e}"))?;
++            // Feed the store sink best-effort. If the daemon hangs up (e.g. it
++            // rejected the path because a reference isn't valid here yet), stop
++            // feeding the store but KEEP broadcasting, so clients still receive
++            // the full NAR. They verify its hash against the signed narinfo, so
++            // an un-imported NAR is safe to serve; it just isn't cached this
++            // round (it caches on a later request, once its deps have landed).
++            if store_open && store_w.write_all(&chunk).await.is_err() {
++                store_open = false;
++            }
 +            // Best-effort broadcast; zero receivers is fine.
 +            let _ = tx.send(chunk);
 +        }
-+        store_w
-+            .shutdown()
-+            .await
-+            .map_err(|e| format!("store sink shutdown: {e}"))?;
++        if store_open {
++            let _ = store_w.shutdown().await;
++        }
 +        Ok::<(), String>(())
 +    };
 +
@@ -1310,9 +1325,32 @@ index 0000000..0f91761
 +    // an incomplete NAR, which the daemon rejects — so `import` also errors and
 +    // the path is not made valid.
 +    let (produce_res, import_res) = tokio::join!(produce, import);
++    // A produce failure means we couldn't fetch/decode the NAR at all — the
++    // client can't be served, so surface it.
 +    produce_res?;
-+    import_res?;
-+    Ok(())
++    let cached = classify_import(import_res)?;
++    if !cached {
++        tracing::warn!(
++            "nar {} served but not cached (a dependency isn't in the store yet); \
++             it caches on a later request once its deps land",
++            up.store_path,
++        );
++    }
++    Ok(cached)
++}
++
++/// Classify a store-import result into a client-facing outcome. `Ok(true)` =
++/// imported and cached; `Ok(false)` = the daemon refused the path because a
++/// reference isn't valid here yet ("path '...' is not valid") — the NAR itself
++/// is fine (the client verifies its hash against the signed narinfo), so serve
++/// it and cache on a later request once its deps land; `Err` = a genuine
++/// failure (nar-hash mismatch, daemon gone) the client must not trust.
++fn classify_import(import_res: Result<(), String>) -> Result<bool, String> {
++    match import_res {
++        Ok(()) => Ok(true),
++        Err(e) if e.contains("is not valid") => Ok(false),
++        Err(e) => Err(e),
++    }
 +}
 +
 +/// How a client attaches to a path's job.
@@ -2105,6 +2143,24 @@ index 0000000..0f91761
 +            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 +        }
 +        assert!(path_is_valid(&fx), "path did not become valid after zstd job");
++    }
++
++    #[test]
++    fn classify_import_serves_on_missing_reference() {
++        // A successful import means the path is cached.
++        assert_eq!(super::classify_import(Ok(())), Ok(true));
++        // A missing-reference rejection ("path '...' is not valid") means the
++        // NAR is fine but can't be registered yet: serve it, don't cache
++        // (this is the exact daemon error that used to 502 clients).
++        assert_eq!(
++            super::classify_import(Err("add_to_store_nar: AddToStoreNar: remote error: \
++                 path '/nix/store/n35z8vvlr7c5k1406n5bwd0f8h2hgj1j-gcc-15.2.0-lib' is not valid"
++                .to_string())),
++            Ok(false)
++        );
++        // Any other failure (corruption, daemon gone) must fail the client.
++        assert!(super::classify_import(Err("nar hash mismatch".to_string())).is_err());
++        assert!(super::classify_import(Err("daemon connect: broken pipe".to_string())).is_err());
 +    }
 +
 +    #[tokio::test]
