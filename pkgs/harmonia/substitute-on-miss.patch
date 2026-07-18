@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index 95f5526..25a55d2 100644
+index 95f5526..5d1ef36 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -61,7 +61,7 @@ dependencies = [
@@ -76,15 +76,17 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "ciborium"
  version = "0.2.2"
-@@ -480,6 +509,7 @@ checksum = "ce2548391e9c1929c21bf6aa2680af86fe4c1b33e6cea9ac1cfeec0bd11218cf"
+@@ -480,6 +509,9 @@ checksum = "ce2548391e9c1929c21bf6aa2680af86fe4c1b33e6cea9ac1cfeec0bd11218cf"
  dependencies = [
   "bzip2",
   "compression-core",
 + "liblzma",
++ "zstd",
++ "zstd-safe",
  ]
  
  [[package]]
-@@ -831,12 +861,27 @@ dependencies = [
+@@ -831,12 +863,27 @@ dependencies = [
   "percent-encoding",
  ]
  
@@ -112,7 +114,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "futures-macro"
  version = "0.3.32"
-@@ -873,9 +918,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -873,9 +920,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
  dependencies = [
   "futures-core",
@@ -124,7 +126,7 @@ index 95f5526..25a55d2 100644
   "pin-project-lite",
   "slab",
  ]
-@@ -897,8 +944,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -897,8 +946,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
  dependencies = [
   "cfg-if",
@@ -135,7 +137,7 @@ index 95f5526..25a55d2 100644
  ]
  
  [[package]]
-@@ -920,10 +969,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -920,10 +971,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555"
  dependencies = [
   "cfg-if",
@@ -149,7 +151,7 @@ index 95f5526..25a55d2 100644
  ]
  
  [[package]]
-@@ -943,7 +995,7 @@ dependencies = [
+@@ -943,7 +997,7 @@ dependencies = [
   "futures-core",
   "futures-sink",
   "futures-util",
@@ -158,7 +160,7 @@ index 95f5526..25a55d2 100644
   "indexmap",
   "slab",
   "tokio",
-@@ -984,15 +1036,19 @@ dependencies = [
+@@ -984,15 +1038,19 @@ dependencies = [
   "futures-core",
   "futures-util",
   "harmonia-nar",
@@ -178,7 +180,7 @@ index 95f5526..25a55d2 100644
   "rustls",
   "rustls-pki-types",
   "serde",
-@@ -1235,6 +1291,8 @@ version = "0.15.5"
+@@ -1235,6 +1293,8 @@ version = "0.15.5"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
  dependencies = [
@@ -187,7 +189,7 @@ index 95f5526..25a55d2 100644
   "foldhash 0.1.5",
  ]
  
-@@ -1285,6 +1343,39 @@ dependencies = [
+@@ -1285,6 +1345,39 @@ dependencies = [
   "itoa",
  ]
  
@@ -227,7 +229,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "http-range"
  version = "0.1.5"
-@@ -1312,6 +1403,65 @@ dependencies = [
+@@ -1312,6 +1405,65 @@ dependencies = [
   "typenum",
  ]
  
@@ -293,7 +295,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "icu_collections"
  version = "2.2.0"
-@@ -1439,6 +1589,12 @@ dependencies = [
+@@ -1439,6 +1591,12 @@ dependencies = [
   "serde_core",
  ]
  
@@ -306,7 +308,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "itertools"
  version = "0.13.0"
-@@ -1470,6 +1626,8 @@ version = "0.3.95"
+@@ -1470,6 +1628,8 @@ version = "0.3.95"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "2964e92d1d9dc3364cae4d718d93f227e3abb088e747d92e0395bfdedf1c12ca"
  dependencies = [
@@ -315,7 +317,7 @@ index 95f5526..25a55d2 100644
   "once_cell",
   "wasm-bindgen",
  ]
-@@ -1504,6 +1662,26 @@ version = "0.2.186"
+@@ -1504,6 +1664,26 @@ version = "0.2.186"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
  
@@ -342,7 +344,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "libsqlite3-sys"
  version = "0.37.0"
-@@ -1548,6 +1726,21 @@ version = "0.4.29"
+@@ -1548,6 +1728,21 @@ version = "0.4.29"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
  
@@ -364,7 +366,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "matchers"
  version = "0.2.0"
-@@ -1842,7 +2035,7 @@ dependencies = [
+@@ -1842,7 +2037,7 @@ dependencies = [
   "bit-vec",
   "bitflags",
   "num-traits",
@@ -373,7 +375,7 @@ index 95f5526..25a55d2 100644
   "rand_chacha",
   "rand_xorshift",
   "regex-syntax",
-@@ -1868,6 +2061,62 @@ version = "1.2.3"
+@@ -1868,6 +2063,62 @@ version = "1.2.3"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
  
@@ -436,7 +438,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "quote"
  version = "1.0.45"
-@@ -1899,6 +2148,17 @@ dependencies = [
+@@ -1899,6 +2150,17 @@ dependencies = [
   "rand_core 0.9.5",
  ]
  
@@ -454,7 +456,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "rand_chacha"
  version = "0.9.0"
-@@ -1927,6 +2187,21 @@ dependencies = [
+@@ -1927,6 +2189,21 @@ dependencies = [
   "getrandom 0.3.4",
  ]
  
@@ -476,7 +478,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "rand_xorshift"
  version = "0.4.0"
-@@ -2006,6 +2281,47 @@ version = "1.9.3"
+@@ -2006,6 +2283,47 @@ version = "1.9.3"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
  
@@ -524,7 +526,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "ring"
  version = "0.17.14"
-@@ -2074,6 +2390,12 @@ dependencies = [
+@@ -2074,6 +2392,12 @@ dependencies = [
   "sqlite-wasm-rs",
  ]
  
@@ -537,7 +539,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "rustc_version"
  version = "0.4.1"
-@@ -2117,6 +2439,7 @@ version = "1.14.0"
+@@ -2117,6 +2441,7 @@ version = "1.14.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "be040f8b0a225e40375822a563fa9524378b9d63112f53e19ffff34df5d33fdd"
  dependencies = [
@@ -545,7 +547,7 @@ index 95f5526..25a55d2 100644
   "zeroize",
  ]
  
-@@ -2384,6 +2707,15 @@ dependencies = [
+@@ -2384,6 +2709,15 @@ dependencies = [
   "unicode-ident",
  ]
  
@@ -561,7 +563,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "synstructure"
  version = "0.13.2"
-@@ -2488,6 +2820,21 @@ dependencies = [
+@@ -2488,6 +2822,21 @@ dependencies = [
   "serde_json",
  ]
  
@@ -583,7 +585,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "tokio"
  version = "1.52.1"
-@@ -2612,6 +2959,51 @@ version = "1.1.1+spec-1.1.0"
+@@ -2612,6 +2961,51 @@ version = "1.1.1+spec-1.1.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "756daf9b1013ebe47a8776667b466417e2d4c5679d441c26230efd9ef78692db"
  
@@ -635,7 +637,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "tracing"
  version = "0.1.44"
-@@ -2674,6 +3066,12 @@ dependencies = [
+@@ -2674,6 +3068,12 @@ dependencies = [
   "tracing-log",
  ]
  
@@ -648,7 +650,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "typenum"
  version = "1.20.0"
-@@ -2777,6 +3175,15 @@ dependencies = [
+@@ -2777,6 +3177,15 @@ dependencies = [
   "winapi-util",
  ]
  
@@ -664,7 +666,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "wasi"
  version = "0.11.1+wasi-snapshot-preview1"
-@@ -2814,6 +3221,16 @@ dependencies = [
+@@ -2814,6 +3223,16 @@ dependencies = [
   "wasm-bindgen-shared",
  ]
  
@@ -681,7 +683,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "wasm-bindgen-macro"
  version = "0.2.118"
-@@ -2868,6 +3285,19 @@ dependencies = [
+@@ -2868,6 +3287,19 @@ dependencies = [
   "wasmparser",
  ]
  
@@ -701,7 +703,7 @@ index 95f5526..25a55d2 100644
  [[package]]
  name = "wasmparser"
  version = "0.244.0"
-@@ -2890,6 +3320,25 @@ dependencies = [
+@@ -2890,6 +3322,25 @@ dependencies = [
   "wasm-bindgen",
  ]
  
@@ -728,7 +730,7 @@ index 95f5526..25a55d2 100644
  name = "winapi"
  version = "0.3.9"
 diff --git a/harmonia-cache/Cargo.toml b/harmonia-cache/Cargo.toml
-index 8483852..d025805 100644
+index 8483852..0032fc0 100644
 --- a/harmonia-cache/Cargo.toml
 +++ b/harmonia-cache/Cargo.toml
 @@ -16,10 +16,12 @@ path = "src/main.rs"
@@ -736,7 +738,7 @@ index 8483852..d025805 100644
  actix-web = { version = "4", default-features = false, features = [ "macros", "rustls-0_23" ] }
  askama_escape = "0.15.6"
 -async-compression = { version = "0.4.42", features = [ "tokio", "bzip2" ] }
-+async-compression = { version = "0.4.42", features = [ "tokio", "bzip2", "xz" ] }
++async-compression = { version = "0.4.42", features = [ "tokio", "bzip2", "xz", "zstd" ] }
  http-range = "0.1"
 +lru = "0.12"
  mime = "0.3"
@@ -1004,13 +1006,14 @@ index 87c1b4a..2f73b45 100644
                  .body("store path not found"));
 diff --git a/harmonia-cache/src/nar_job.rs b/harmonia-cache/src/nar_job.rs
 new file mode 100644
-index 0000000..34cb5c0
+index 0000000..f63621c
 --- /dev/null
 +++ b/harmonia-cache/src/nar_job.rs
-@@ -0,0 +1,1524 @@
+@@ -0,0 +1,1583 @@
 +//! Per-path streaming NAR job + coalescing registry for substitute-on-miss.
 +//!
-+//! A `Job` fetches exactly one upstream `<filehash>.nar.xz`, xz-decodes it, and
++//! A `Job` fetches exactly one upstream `<filehash>.nar.<compression>`, decodes
++//! it per the upstream narinfo's `Compression` (zstd/xz/bzip2/none), and
 +//! fans the decoded NAR bytes to (a) live client streams via a `broadcast` and
 +//! (b) the local nix store via `add_to_store_nar` on the miss daemon socket.
 +//!
@@ -1254,7 +1257,21 @@ index 0000000..34cb5c0
 +        let body = upstream::get_stream(&cfg.miss_upstream_url, &nar_path)
 +            .await
 +            .map_err(|e| format!("upstream nar GET: {e}"))?;
-+        let mut dec = async_compression::tokio::bufread::XzDecoder::new(body);
++        // Decode per the UPSTREAM narinfo's Compression. cache.nixos.org serves
++        // zstd today and xz historically; a hard-coded xz decoder fails
++        // "stream/file format not recognized" on a .nar.zst. Box the decoder so
++        // every method yields one `AsyncRead` the loop below can drive.
++        use async_compression::tokio::bufread;
++        let mut dec: Box<dyn tokio::io::AsyncRead + Unpin + Send> =
++            match up.upstream_compression.as_str() {
++                "none" => Box::new(body),
++                "xz" => Box::new(bufread::XzDecoder::new(body)),
++                "zstd" => Box::new(bufread::ZstdDecoder::new(body)),
++                "bzip2" => Box::new(bufread::BzDecoder::new(body)),
++                other => {
++                    return Err(format!("unsupported upstream compression: {other:?}"));
++                }
++            };
 +
 +        let mut buf = BytesMut::with_capacity(CHUNK_TARGET);
 +        loop {
@@ -1262,7 +1279,7 @@ index 0000000..34cb5c0
 +            let n = dec
 +                .read_buf(&mut buf)
 +                .await
-+                .map_err(|e| format!("xz decode: {e}"))?;
++                .map_err(|e| format!("nar decode: {e}"))?;
 +            if n == 0 {
 +                break;
 +            }
@@ -1704,6 +1721,13 @@ index 0000000..34cb5c0
 +    /// Same as [`make_fixture`] but with a caller-chosen payload, so distinct
 +    /// payloads yield distinct store-path hashes (for concurrency tests).
 +    async fn make_fixture_with_payload(payload: &str) -> Fixture {
++        make_fixture_with_compression(payload, "xz").await
++    }
++
++    /// Same as [`make_fixture_with_payload`] but also chooses the upstream NAR
++    /// compression, so tests can exercise each decoder path (xz historically,
++    /// zstd as cache.nixos.org serves today).
++    async fn make_fixture_with_compression(payload: &str, compression: &str) -> Fixture {
 +        let tmp = tempfile::Builder::new()
 +            .prefix("streamthrough")
 +            .tempdir()
@@ -1757,7 +1781,7 @@ index 0000000..34cb5c0
 +            out.stdout
 +        };
 +
-+        // Produce a signed, xz-compressed binary cache via `nix copy`.
++        // Produce a signed, compressed binary cache via `nix copy`.
 +        let key_file = root.join("cache.sk");
 +        std::fs::write(&key_file, SIGNING_KEY.trim()).unwrap();
 +        let bc = root.join("bc");
@@ -1768,7 +1792,7 @@ index 0000000..34cb5c0
 +                "nix-command",
 +                "copy",
 +                "--to",
-+                &format!("file://{}?compression=xz", bc.display()),
++                &format!("file://{}?compression={compression}", bc.display()),
 +                "--secret-key-files",
 +                key_file.to_str().unwrap(),
 +                &store_path,
@@ -2039,6 +2063,43 @@ index 0000000..34cb5c0
 +            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 +        }
 +        assert!(path_is_valid(&fx), "path did not become valid after job");
++    }
++
++    #[tokio::test]
++    async fn zstd_upstream_decodes_and_stores() {
++        // cache.nixos.org serves zstd NARs today; the job must decode a
++        // `.nar.zst` (not assume xz) and both stream it to the client and import
++        // it into the store. Before the compression-aware decoder this failed
++        // with "xz decode: stream/file format not recognized".
++        let fx = make_fixture_with_compression("zstd upstream decode test payload\n", "zstd").await;
++        assert!(
++            fx.narinfo_text.contains("Compression: zstd"),
++            "fixture narinfo is not zstd:\n{}",
++            fx.narinfo_text
++        );
++        let nar_url = nar_url_from(&fx.narinfo_text);
++        let (upstream_url, counter) =
++            spawn_upstream(fx.narinfo_text.clone(), nar_url, fx.nar_xz.clone(), false, 0).await;
++        let cfg = make_config(&fx, upstream_url);
++        let metrics = web::Data::new(crate::prometheus::initialize_metrics().unwrap());
++        let cache = Arc::new(NarInfoCache::new(16, std::time::Duration::from_secs(60)));
++        let registry = Arc::new(JobRegistry::new(cache));
++
++        let body = match registry.attach(cfg, metrics, &fx.store_path_hash).await {
++            Attach::Live(body) => drain(body).await.expect("client body errored"),
++            Attach::Parked(_) => panic!("unexpected Parked"),
++        };
++        // The client received the fully decoded NAR, not zstd bytes.
++        assert_eq!(body, fx.golden_nar, "client body != golden decoded NAR");
++        assert_eq!(counter.load(Ordering::SeqCst), 1, "expected one upstream GET");
++
++        for _ in 0..100 {
++            if path_is_valid(&fx) {
++                break;
++            }
++            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
++        }
++        assert!(path_is_valid(&fx), "path did not become valid after zstd job");
 +    }
 +
 +    #[tokio::test]
@@ -2833,10 +2894,10 @@ index 0000000..3a34006
 +}
 diff --git a/harmonia-cache/src/upstream_narinfo.rs b/harmonia-cache/src/upstream_narinfo.rs
 new file mode 100644
-index 0000000..76d0db6
+index 0000000..68e5058
 --- /dev/null
 +++ b/harmonia-cache/src/upstream_narinfo.rs
-@@ -0,0 +1,282 @@
+@@ -0,0 +1,340 @@
 +//! Parse an upstream (cache.nixos.org) narinfo and produce (a) the client-
 +//! facing narinfo rewritten to point at harmonia's own NAR endpoint with
 +//! Compression: none, and (b) a ValidPathInfo for add_to_store_nar. The
@@ -2857,9 +2918,29 @@ index 0000000..76d0db6
 +    pub store_path: String,      // "/nix/store/<hash>-<name>"
 +    pub store_path_hash: String, // "<outhash>" (32 base32)
 +    pub nar_hash_bare: String,   // NAR hash, bare base32 (no "sha256:")
-+    pub nar_url: String,         // upstream "nar/<filehash>.nar.xz"
++    pub nar_url: String,         // upstream "nar/<filehash>.nar.{xz,zst,...}"
++    pub upstream_compression: String, // how the upstream NAR is compressed
 +    pub client_narinfo: String,  // rewritten text served to clients
 +    pub info: ValidPathInfo,     // for add_to_store_nar
++}
++
++/// Infer the compression method from an upstream NAR URL's extension. Only used
++/// as a fallback when the narinfo omits the `Compression:` field (cache.nixos.org
++/// always sets it, but other substituters may not).
++fn infer_compression_from_url(url: &str) -> String {
++    if url.ends_with(".nar.zst") {
++        "zstd"
++    } else if url.ends_with(".nar.xz") {
++        "xz"
++    } else if url.ends_with(".nar.bz2") {
++        "bzip2"
++    } else if url.ends_with(".nar") {
++        "none"
++    } else {
++        // Unknown extension: assume xz, the historical cache.nixos.org default.
++        "xz"
++    }
++    .to_string()
 +}
 +
 +pub(crate) fn parse_upstream_narinfo(
@@ -2868,6 +2949,7 @@ index 0000000..76d0db6
 +) -> Result<UpstreamNarInfo, String> {
 +    let mut store_path = None;
 +    let mut url = None;
++    let mut compression = None;
 +    let mut nar_hash = None; // e.g. "sha256:<base32>" or "sha256-..." — keep as-is for parse
 +    let mut nar_size = None;
 +    let mut references: Vec<&str> = Vec::new();
@@ -2882,6 +2964,7 @@ index 0000000..76d0db6
 +        match k {
 +            "StorePath" => store_path = Some(v.trim().to_string()),
 +            "URL" => url = Some(v.trim().to_string()),
++            "Compression" => compression = Some(v.trim().to_string()),
 +            "NarHash" => nar_hash = Some(v.trim().to_string()),
 +            "NarSize" => nar_size = Some(v.trim().to_string()),
 +            "References" => {
@@ -2915,6 +2998,14 @@ index 0000000..76d0db6
 +    // client nar route expects bare base32. Normalize to bare base32 for the
 +    // rewritten URL. Reuse harmonia's Hash parser (Any<Hash>) to be exact.
 +    let nar_hash_bare = normalize_nar_hash_bare(&nar_hash_raw)?;
++
++    // How the upstream NAR is compressed, so the job decodes it correctly.
++    // cache.nixos.org serves zstd today, xz historically; honor the field and
++    // fall back to the URL extension only if it is absent or empty.
++    let upstream_compression = match compression.as_deref().map(str::trim) {
++        Some(c) if !c.is_empty() => c.to_string(),
++        _ => infer_compression_from_url(&url),
++    };
 +    let info = build_valid_path_info(
 +        store_dir,
 +        sp,
@@ -2956,6 +3047,7 @@ index 0000000..76d0db6
 +        store_path_hash,
 +        nar_hash_bare,
 +        nar_url: url,
++        upstream_compression,
 +        client_narinfo: out,
 +        info,
 +    })
@@ -3109,6 +3201,9 @@ index 0000000..76d0db6
 +        // nar_url must be the original upstream URL (not rewritten)
 +        assert_eq!(up.nar_url, "nar/1abc.nar.xz");
 +
++        // upstream compression must be captured from the Compression: field
++        assert_eq!(up.upstream_compression, "xz");
++
 +        // store_path_hash must equal the hash from the parsed StorePath
 +        assert_eq!(up.store_path_hash, STORE_HASH);
 +
@@ -3117,6 +3212,30 @@ index 0000000..76d0db6
 +
 +        // ValidPathInfo must have correct nar_size
 +        assert_eq!(up.info.info.nar_size, 20);
++    }
++
++    #[test]
++    fn captures_zstd_compression() {
++        // cache.nixos.org serves zstd today: the field must be honored so the
++        // NAR job picks the zstd decoder rather than the hard-coded xz one.
++        let text = sample()
++            .replace("URL: nar/1abc.nar.xz", "URL: nar/1abc.nar.zst")
++            .replace("Compression: xz", "Compression: zstd");
++        let up = parse_upstream_narinfo(&sd(), &text).unwrap();
++        assert_eq!(up.upstream_compression, "zstd");
++        assert_eq!(up.nar_url, "nar/1abc.nar.zst");
++        // Client still gets Compression: none (harmonia serves the raw NAR).
++        assert!(up.client_narinfo.contains("Compression: none"));
++    }
++
++    #[test]
++    fn infers_compression_from_url_when_field_absent() {
++        // A narinfo without a Compression: line falls back to the URL extension.
++        let text = sample()
++            .replace("URL: nar/1abc.nar.xz", "URL: nar/1abc.nar.zst")
++            .replace("Compression: xz\n", "");
++        let up = parse_upstream_narinfo(&sd(), &text).unwrap();
++        assert_eq!(up.upstream_compression, "zstd");
 +    }
 +}
 diff --git a/harmonia-cache/tests/streamthrough.rs b/harmonia-cache/tests/streamthrough.rs
