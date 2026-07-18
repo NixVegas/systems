@@ -10,14 +10,40 @@ let
   systems = [
     system
   ];
+
+  # release.nix builds the version suffix as `revCount - <offset>`, where
+  # <offset> is the absolute revCount at the point this release branched off
+  # (a magic constant that gets bumped every release, so the suffix counts
+  # "commits since the branch"). A GitHub flake input carries no revCount, so
+  # we have no real commit count to feed it. Rather than hand it a bare
+  # lastModifiedDate (which then gets `- <offset>` applied and turns into a
+  # nonsensical near-timestamp), scrape the exact offset back out of release.nix
+  # and pre-add it, so the subtraction cancels and the suffix ends up as the
+  # honest lastModifiedDate. Gross, but self-correcting: if nixpkgs changes the
+  # constant the regex follows it, and it falls back to 0 (today's behaviour)
+  # if the line ever stops matching.
+  releaseNixText = builtins.readFile "${nixpkgs}/nixos/release.nix";
+  revCountOffset =
+    let
+      line = lib.findFirst (l: lib.hasInfix "revCount - " l) "" (
+        lib.splitString "\n" releaseNixText
+      );
+      m = builtins.match ".*revCount - ([0-9]+).*" line;
+    in
+    if m == null then 0 else lib.toInt (builtins.head m);
+
   release = import "${nixpkgs}/nixos/release.nix" {
+    # A released channel: gives a "26.05.<n>" suffix, not "26.05beta<n>". This
+    # is the top-level arg release.nix actually reads (a `stableRelease` inside
+    # the `nixpkgs` set below was silently ignored).
+    stableBranch = true;
     nixpkgs = {
       outPath = nixpkgs;
       inherit (nixpkgs) shortRev;
-      stableRelease = true;
-      # We don't have a rev count, but do have a lastModifiedDate. It must be
-      # an integer: release.nix does arithmetic on it (revCount - 1004291).
-      revCount = nixpkgs.revCount or (lib.toInt nixpkgs.lastModifiedDate);
+      # No revCount from a GitHub flake input; feed lastModifiedDate plus the
+      # offset release.nix will subtract, so the suffix lands on the raw
+      # lastModifiedDate (see revCountOffset above).
+      revCount = nixpkgs.revCount or (lib.toInt nixpkgs.lastModifiedDate + revCountOffset);
     };
     supportedSystems = systems;
     configuration = import ../../modules/onboarding/nix-vegas-defaults.nix;
