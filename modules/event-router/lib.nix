@@ -41,6 +41,25 @@ rec {
       inherit domain;
     };
 
+  # The system user Nebula runs a network under. The nixpkgs nebula module sets
+  # `User = "nebula-<networkName>"` per network, so this is the owner of that
+  # network's underlay sockets.
+  #
+  # GOTCHA — matching this owner in nftables (e.g. to keep Nebula's own underlay
+  # off a policy-routed "everything over the tunnel" table, so it doesn't loop):
+  # match by NUMERIC uid, not by name. The build-time `nft --check` runs in a
+  # sandbox with no user database, so `meta skuid nebula-<net>` fails to build
+  # ("User does not exist"). The uid is dynamically allocated (isSystemUser), so
+  # pin it and match the number:
+  #
+  #   users.users.${erlib.nebulaServiceUser "arena"}.uid = 200;         # pin
+  #   # ... in the nftables ruleset:
+  #   meta skuid ${toString config.users.users.${erlib.nebulaServiceUser "arena"}.uid} return
+  #
+  # See devices/ghostgate (full-tunnel host egress, chain `nebula_egress`) for
+  # the reference implementation.
+  nebulaServiceUser = networkName: "nebula-${networkName}";
+
   # Every *other* router's arena: { name; cidr; via; } where `via` is that
   # router's Nebula address (pulled from the mesh plan).
   arenaPeers =

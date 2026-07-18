@@ -91,11 +91,12 @@ let
     ) [ "adamantia" "brass" "crystal" "dagoth" ]
   );
 
-  # The Nebula service user's uid, pinned below (users.users."nebula-arena").
-  # The full-tunnel rules match Nebula's own underlay by owner, but must do so
-  # numerically: the build-time `nft --check` runs in a sandbox with no user
-  # database, so it cannot resolve the name `nebula-arena`.
-  nebulaUserUid = config.users.users."nebula-arena".uid;
+  # The Nebula service user's uid, pinned below. The full-tunnel rules match
+  # Nebula's own underlay by owner, but must do so numerically: the build-time
+  # `nft --check` runs in a sandbox with no user database, so it cannot resolve
+  # the name. See erlib.nebulaServiceUser for the full write-up of this gotcha.
+  nebulaServiceUser = erlib.nebulaServiceUser "arena";
+  nebulaUserUid = config.users.users.${nebulaServiceUser}.uid;
 
 in
 {
@@ -216,7 +217,7 @@ in
   # match Nebula's own underlay traffic by a fixed number (see nebulaUserUid).
   # 200 is free on this host (checked against the assigned uid set); the NixOS
   # uid-uniqueness assertion guards against future collisions.
-  users.users."nebula-arena".uid = 200;
+  users.users.${nebulaServiceUser}.uid = 200;
 
   systemd.services."nebula@arena".postStart = ''
     ${erlib.arenaPostStartPreamble {
