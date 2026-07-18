@@ -1006,10 +1006,10 @@ index 87c1b4a..2f73b45 100644
                  .body("store path not found"));
 diff --git a/harmonia-cache/src/nar_job.rs b/harmonia-cache/src/nar_job.rs
 new file mode 100644
-index 0000000..f63621c
+index 0000000..0f91761
 --- /dev/null
 +++ b/harmonia-cache/src/nar_job.rs
-@@ -0,0 +1,1583 @@
+@@ -0,0 +1,1588 @@
 +//! Per-path streaming NAR job + coalescing registry for substitute-on-miss.
 +//!
 +//! A `Job` fetches exactly one upstream `<filehash>.nar.<compression>`, decodes
@@ -1163,7 +1163,12 @@ index 0000000..f63621c
 +    if let Some(up) = cache.get(hash) {
 +        return Ok(up);
 +    }
-+    let text = upstream::get_text(&cfg.miss_upstream_url, &format!("/{hash}.narinfo")).await?;
++    // A 404 here means the narinfo vanished upstream between the client's
++    // narinfo request (which populated the LRU) and this fetch — treat the
++    // clean miss as an error so the job fails rather than parsing an empty body.
++    let text = upstream::get_text(&cfg.miss_upstream_url, &format!("/{hash}.narinfo"))
++        .await?
++        .ok_or_else(|| "upstream narinfo 404 (vanished mid-flight)".to_string())?;
 +    let up = parse_upstream_narinfo(cfg.store.store_dir(), &text)?;
 +    // Use the hash extracted from the upstream narinfo (authoritative), keying on
 +    // `store_path_hash` so a normalised base32 form is always used.
@@ -2594,7 +2599,7 @@ index 0000000..f63621c
 +    }
 +}
 diff --git a/harmonia-cache/src/narinfo.rs b/harmonia-cache/src/narinfo.rs
-index f734d1d..4711062 100644
+index f734d1d..203595f 100644
 --- a/harmonia-cache/src/narinfo.rs
 +++ b/harmonia-cache/src/narinfo.rs
 @@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
@@ -2625,7 +2630,7 @@ index f734d1d..4711062 100644
  ) -> crate::ServerResult {
      let hash = hash.into_inner();
      // Reject malformed hash parts up front so the `path >= ?` index scan in
-@@ -205,7 +213,43 @@ pub(crate) async fn get(
+@@ -205,7 +213,69 @@ pub(crate) async fn get(
          })?
          .to_string();
  
@@ -2642,7 +2647,7 @@ index f734d1d..4711062 100644
 +                    )
 +                    .await
 +                    {
-+                        Ok(text) => {
++                        Ok(Some(text)) => {
 +                            match crate::upstream_narinfo::parse_upstream_narinfo(
 +                                settings.store.store_dir(),
 +                                &text,
@@ -2652,10 +2657,36 @@ index f734d1d..4711062 100644
 +                                    cache.insert(hash.clone(), a.clone());
 +                                    a
 +                                }
-+                                Err(_) => return Ok(not_found_missed_hash()),
++                                Err(e) => {
++                                    // Upstream served a narinfo we couldn't
++                                    // parse — a real problem, not a normal miss.
++                                    tracing::warn!(
++                                        hash = %hash,
++                                        "substitute-on-miss: upstream narinfo parse failed: {e}"
++                                    );
++                                    return Ok(not_found_missed_hash());
++                                }
 +                            }
 +                        }
-+                        Err(_) => return Ok(not_found_missed_hash()),
++                        // Clean upstream miss: the path isn't on the upstream
++                        // either. Expected; keep it quiet (debug only).
++                        Ok(None) => {
++                            tracing::debug!(
++                                hash = %hash,
++                                "substitute-on-miss: upstream has no narinfo (404)"
++                            );
++                            return Ok(not_found_missed_hash());
++                        }
++                        // Real fetch failure (connection/TLS/5xx). This is the
++                        // line that would have named the network-sandbox block
++                        // outright instead of a silent 404.
++                        Err(e) => {
++                            tracing::warn!(
++                                hash = %hash,
++                                "substitute-on-miss: upstream narinfo fetch failed: {e}"
++                            );
++                            return Ok(not_found_missed_hash());
++                        }
 +                    },
 +                };
 +                metrics.narinfo_misses_total.inc();
@@ -2844,10 +2875,10 @@ index 06e7ce0..57aedec 100644
  
 diff --git a/harmonia-cache/src/upstream.rs b/harmonia-cache/src/upstream.rs
 new file mode 100644
-index 0000000..3a34006
+index 0000000..a5b524b
 --- /dev/null
 +++ b/harmonia-cache/src/upstream.rs
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,53 @@
 +//! Upstream binary-cache HTTP client (reqwest, rustls). One-shot narinfo GET
 +//! and a streaming NAR body reader for the stream-through cache.
 +
@@ -2863,16 +2894,25 @@ index 0000000..3a34006
 +    format!("{}/{}", upstream.trim_end_matches('/'), path.trim_start_matches('/'))
 +}
 +
-+pub(crate) async fn get_text(upstream: &str, path: &str) -> Result<String, String> {
-+    CLIENT
++/// Fetch an upstream narinfo. `Ok(Some(body))` on 200; `Ok(None)` on 404 (a
++/// clean upstream miss — the upstream simply doesn't have this path, which is
++/// normal and not an error); `Err` on any real failure (connection, TLS, 5xx,
++/// malformed body), so callers can log those loudly without flooding the log
++/// on every ordinary miss.
++pub(crate) async fn get_text(upstream: &str, path: &str) -> Result<Option<String>, String> {
++    let resp = CLIENT
 +        .get(url(upstream, path))
 +        .send()
 +        .await
-+        .map_err(|e| format!("upstream GET: {e}"))?
-+        .error_for_status()
++        .map_err(|e| format!("upstream GET: {e}"))?;
++    if resp.status() == reqwest::StatusCode::NOT_FOUND {
++        return Ok(None);
++    }
++    resp.error_for_status()
 +        .map_err(|e| format!("upstream status: {e}"))?
 +        .text()
 +        .await
++        .map(Some)
 +        .map_err(|e| format!("upstream body: {e}"))
 +}
 +

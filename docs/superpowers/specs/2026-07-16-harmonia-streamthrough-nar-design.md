@@ -30,7 +30,8 @@ the `narinfo`/`nar` handlers change.
   enforces trusted-keys. This is the cache-write sink.
 - harmonia already streams NARs out with `NarByteStream` + actix
   `SizedStream` (`harmonia-cache/src/nar.rs`); `async-compression` is a dep
-  (needs the `xz` feature alongside `bzip2`).
+  (needs the `xz` and `zstd` features alongside `bzip2` — see below; the NAR
+  job decodes per the upstream narinfo's `Compression`, not a fixed method).
 
 ## Behaviour
 
@@ -85,13 +86,16 @@ Owns and runs to completion **regardless of client attach/detach** (converge
 even if every client disconnects):
 
 1. Obtain the full `StorePath`, the upstream compressed `URL`
-   (`nar/<filehash>.nar.xz`), and the `ValidPathInfo` fields (narHash,
-   narSize, references, deriver, ca, sigs): **look them up in the narinfo LRU
-   first** (populated by the preceding narinfo request); on a cache miss or
-   expiry, re-fetch `<miss_upstream_url>/<outhash>.narinfo` (tiny) and
-   backfill the cache.
-2. HTTPS GET `<miss_upstream_url>/nar/<filehash>.nar.xz` (streaming).
-3. `async-compression` xz-decode the stream.
+   (`nar/<filehash>.nar.<compression>` — `.zst` on cache.nixos.org today, `.xz`
+   historically), the upstream `Compression` method, and the `ValidPathInfo`
+   fields (narHash, narSize, references, deriver, ca, sigs): **look them up in
+   the narinfo LRU first** (populated by the preceding narinfo request); on a
+   cache miss or expiry, re-fetch `<miss_upstream_url>/<outhash>.narinfo` (tiny)
+   and backfill the cache.
+2. HTTPS GET `<miss_upstream_url>/<upstream URL>` (streaming).
+3. `async-compression`-decode the stream **per the upstream `Compression`**
+   (`none`/`xz`/`zstd`/`bzip2`), NOT a fixed method — cache.nixos.org serves
+   zstd, so a hard-coded xz decoder fails "stream/file format not recognized".
 4. Per decoded chunk, **fan-out**:
    - **store sink** — write to the `add_to_store_nar` daemon reader
      (awaited; gates the job at disk speed). This is the priority; it must
@@ -175,8 +179,10 @@ Extend the existing prometheus counters:
   narinfo (references/deriver/ca/sig parsed); narinfo LRU (size eviction, TTL
   expiry-on-read, backfill, and deletion on job completion).
 - **Integration** (scratch store + a fake HTTPS/HTTP upstream serving a known
-  `.nar.xz`): N concurrent `GET /nar/<outhash>-<narhash>.nar` → exactly one
-  upstream fetch (coalescing); every client body byte-identical to the known
+  compressed NAR — both `.nar.xz` and `.nar.zst`, the latter proving the
+  compression-aware decoder): N concurrent `GET /nar/<outhash>-<narhash>.nar`
+  → exactly one upstream fetch (coalescing); every client body byte-identical
+  to the known
   NAR; `nix path-info` shows the path valid afterward; a lead-client
   disconnect still leaves the path valid; a truncated-upstream case leaves
   the store unchanged and errors clients.
