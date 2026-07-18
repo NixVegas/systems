@@ -78,6 +78,25 @@ let
     ]
   );
 
+  # Public IPv4 underlay endpoints of the cloud Nebula nodes (same hosts as
+  # lighthousePorts). ghostgate's full-tunnel egress (below) must NEVER route
+  # traffic to these into the Nebula table, or it would tunnel the underlay
+  # through itself. Derived from the plan so it can't drift.
+  nebulaUnderlayV4 = lib.unique (
+    lib.concatMap (
+      n:
+      builtins.filter (
+        a: lib.strings.hasInfix "." a
+      ) config.networking.mesh.plan.hosts.${n}.nebula.entryAddresses
+    ) [ "adamantia" "brass" "crystal" "dagoth" ]
+  );
+
+  # The Nebula service user's uid, pinned below (users.users."nebula-arena").
+  # The full-tunnel rules match Nebula's own underlay by owner, but must do so
+  # numerically: the build-time `nft --check` runs in a sandbox with no user
+  # database, so it cannot resolve the name `nebula-arena`.
+  nebulaUserUid = config.users.users."nebula-arena".uid;
+
 in
 {
   imports = [
@@ -193,6 +212,12 @@ in
     };
   };
 
+  # Pin the Nebula service user's uid so the full-tunnel nftables rules can
+  # match Nebula's own underlay traffic by a fixed number (see nebulaUserUid).
+  # 200 is free on this host (checked against the assigned uid set); the NixOS
+  # uid-uniqueness assertion guards against future collisions.
+  users.users."nebula-arena".uid = 200;
+
   systemd.services."nebula@arena".postStart = ''
     ${erlib.arenaPostStartPreamble {
       ip = lib.getExe' pkgs.iproute2 "ip";
@@ -227,6 +252,14 @@ in
     ${erlib.arenaTableRoutes { }}
     ${erlib.arenaTableRoutes { table = "main"; }}
     _ip route replace default dev nebula.arena table arena
+
+    # Full-tunnel egress: ghostgate's own marked traffic (fwmark 0x1, set by the
+    # nebula_egress nftables chain) uses table arena, so it exits over Nebula via
+    # brass. Priority 300: after the lighthouse main-table carve-out (100), well
+    # ahead of main (32766). Marked packets never include the underlay itself
+    # (the chain returns on skuid arena + the underlay IPs), so no loop.
+    _ip rule del fwmark 0x1 lookup arena priority 300 2>/dev/null
+    _ip rule add fwmark 0x1 lookup arena priority 300
   '';
 
   # List packages installed in system profile. To search, run:
@@ -413,6 +446,49 @@ in
           content = ''
             chain output {
               type filter hook output priority 100; policy accept;
+
+              # IPv6 leak guard: the Nebula overlay is IPv4-only, so ghostgate
+              # has no tunnelled path for IPv6. Reject its own NEW global v6
+              # egress out the physical WAN so nothing bypasses the tunnel over
+              # v6 (a rejected v6 makes clients fall straight back to the
+              # tunnelled v4). Exempt Nebula's own v6 underlay (user `arena`),
+              # established replies (incl. inbound management sessions), and
+              # loopback/link-local/ULA/multicast so ND, DHCPv6, RA survive.
+              meta nfproto ipv6 meta skuid ${toString nebulaUserUid} accept
+              meta nfproto ipv6 ct state { established, related } accept
+              meta nfproto ipv6 ip6 daddr { ::1, fe80::/10, fc00::/7, ff00::/8 } accept
+              oifname { "wan1", "${wwan1}", "wwan2" } meta nfproto ipv6 ct state new counter reject with icmpv6 type admin-prohibited
+            }
+
+            # Full-tunnel egress for ghostgate's OWN traffic: default-deny
+            # toward the event WAN. Everything ghostgate originates is marked
+            # for the `arena` routing table (default dev nebula.arena -> brass),
+            # so it exits from brass's VPS and nothing leaks onto the DEF CON
+            # WAN. `type route` so the kernel re-routes after the mark is set.
+            # LAN/forwarded traffic is already Nebula-only (forward chain), so
+            # this only governs host-originated packets.
+            chain nebula_egress {
+              type route hook output priority mangle; policy accept;
+
+              # Replies to inbound connections must leave the way they arrived
+              # (remote SSH deploys land on wan1) — redirecting them would go
+              # asymmetric and drop the session. This keeps management alive.
+              ct direction reply return
+
+              # Local delivery, loopback, broadcast/multicast: main table.
+              fib daddr type { local, broadcast, multicast, anycast } return
+
+              # Loop guard: never send the Nebula underlay endpoints into the
+              # tunnel, whoever originates the packet.
+              ip daddr { ${lib.concatStringsSep ", " nebulaUnderlayV4} } return
+
+              # Nebula's own underlay (owned by the nebula-arena service user),
+              # including hole-punched peers, stays on the real WAN. Matched by
+              # numeric uid so the sandboxed build-time nft check can resolve it.
+              meta skuid ${toString nebulaUserUid} return
+
+              # Everything else ghostgate originates over IPv4 -> Nebula.
+              meta nfproto ipv4 meta mark set 0x1
             }
 
             chain input {
