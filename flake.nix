@@ -9,11 +9,19 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-prev.url = "github:NixOS/nixpkgs/nixos-25.11";
-    nixos-cosmic.url = "github:lilyinstarlight/nixos-cosmic?ref=pull/863/head";
     nixpkcs.url = "github:numinit/nixpkcs/v1.3";
     meshos.url = "github:numinit/MeshOS";
 
     nixpkgs-gold.url = "github:Jaculabilis/nixpkgs-gold";
+
+    hydra = {
+      url = "github:NixOS/hydra/hydra.nixos.org";
+      inputs = {
+        foreman.follows = "";
+        treefmt-nix.follows = "";
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
 
     great-value-hydra = {
       url = "github:NixVegas/great-value-hydra";
@@ -69,9 +77,9 @@
       nixpkgs-prev,
       nixpkgs-lib,
       nixpkgs-gold,
+      hydra,
       great-value-hydra,
       nixpkcs,
-      nixos-cosmic,
       deploy-rs,
       nixos-pagefind,
       nix-vegas-site,
@@ -200,10 +208,10 @@
                   nixpkgs-gold.overlays.gold
                 ];
               }
-              nixos-cosmic.nixosModules.default
               meshos.nixosModules.default
               tenstorrent-nix.nixosModules.default
               nix-vegas-ctf.nixosModules.default
+              hydra.nixosModules.hydra
             ];
             nixpkgs.config.gold = {
               acceptEula = true;

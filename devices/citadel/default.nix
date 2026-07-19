@@ -34,6 +34,10 @@ let
   };
 in
 {
+  imports = [
+    ../../modules/hydra-builder.nix
+  ];
+
   boot = {
     initrd.availableKernelModules = [
       "nvme"

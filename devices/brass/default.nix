@@ -49,6 +49,12 @@ let
     # The onboarding site itself, which serves the (big) ISOs, netboot images,
     # and channel tarball. brass still forwards ACME so ghostgate's certs renew.
     "nixos.lv" = ghostgateNebula;
+    # Hydra CI: the web UI and the gRPC runner endpoint. Builders live onsite
+    # (build net / nebula) and reach these via split-horizon straight to
+    # ghostgate; public visitors get the 302 and brass forwards ACME so
+    # ghostgate's hydra certs renew.
+    "hydra.nixos.lv" = ghostgateNebula;
+    "runner.hydra.nixos.lv" = ghostgateNebula;
   };
   # The binary cache is like onsiteBackends (onsite -> ghostgate's harmonia via
   # split-horizon; brass terminates TLS + forwards ACME; no :443 passthrough),

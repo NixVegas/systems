@@ -102,6 +102,7 @@ in
 {
   imports = [
     ../../modules/event-router/common.nix
+    ../../modules/hydra.nix
     ./hardware-configuration.nix
   ];
 
@@ -679,12 +680,11 @@ in
     };
     tpm2.enable = true;
     keypairs = {
-      nixos-lv-core = {
+      nixos-lv-arena-core = {
         enable = true;
         inherit (pkgs.yubico-piv-tool) pkcs11Module;
         token = "YubiKey PIV #6460026";
         id = 13; # Retired Key Management #8a
-        debug = true;
         keyOptions = {
           algorithm = "EC";
           type = "secp256r1";
@@ -695,7 +695,7 @@ in
         };
         certOptions = {
           digest = "SHA256";
-          subject = "C=US/ST=California/L=Carlsbad/O=nixos.lv/OU=Arena/CN=Core";
+          subject = "C=US/ST=California/L=Carlsbad/O=Nix Vegas/OU=Arena/CN=Core";
           validityDays = 365 * 3;
           extensions = [
             "v3_ca"
@@ -703,15 +703,14 @@ in
             "crlDistributionPoints=URI:http://keymaster.nixos.lv/ca.crl"
           ];
           pinFile = "/etc/nixpkcs/yubikeys/6460026/user.pin";
-          writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-core-ca.crt";
+          writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-arena-core-ca.crt";
         };
       };
-      nixos-lv-aux = {
+      nixos-lv-arena-aux = {
         enable = true;
         inherit (pkgs.yubico-piv-tool) pkcs11Module;
         token = "YubiKey PIV #6460026";
         id = 14; # Retired Key Management #8b
-        debug = true;
         keyOptions = {
           algorithm = "EC";
           type = "secp256r1";
@@ -722,7 +721,7 @@ in
         };
         certOptions = {
           digest = "SHA256";
-          subject = "C=US/ST=California/L=Carlsbad/O=nixos.lv/OU=Arena/CN=Aux";
+          subject = "C=US/ST=California/L=Carlsbad/O=Nix Vegas/OU=Arena/CN=Aux";
           validityDays = 365 * 3;
           extensions = [
             "v3_ca"
@@ -730,7 +729,34 @@ in
             "crlDistributionPoints=URI:http://keymaster.nixos.lv/ca.crl"
           ];
           pinFile = "/etc/nixpkcs/yubikeys/6460026/user.pin";
-          writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-aux-ca.crt";
+          writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-arena-aux-ca.crt";
+        };
+      };
+      nixos-lv-ca = {
+        enable = true;
+        inherit (pkgs.yubico-piv-tool) pkcs11Module;
+        token = "YubiKey PIV #6460026";
+        id = 15; # Retired Key Management #8c
+        debug = true;
+        keyOptions = {
+          algorithm = "EC";
+          type = "secp384r1";
+          usage = [ "sign" ];
+          soPinFile = "/etc/nixpkcs/yubikeys/6460026/so.pin";
+          loginAsUser = false;
+          softFail = true;
+        };
+        certOptions = {
+          digest = "SHA384";
+          subject = "C=US/ST=California/L=Carlsbad/O=Nix Vegas/OU=Keymaster/CN=Nix Vegas Root CA";
+          validityDays = 365 * 10;
+          extensions = [
+            "v3_ca"
+            "keyUsage=critical,nonRepudiation,keyCertSign,digitalSignature,cRLSign"
+            "crlDistributionPoints=URI:http://keymaster.nixos.lv/ca.crl"
+          ];
+          pinFile = "/etc/nixpkcs/yubikeys/6460026/user.pin";
+          writeTo = "/etc/nixpkcs/yubikeys/6460026/nixos-lv-ca.crt";
         };
       };
     };
@@ -950,6 +976,8 @@ in
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         git.${baseDomain}. CNAME ghostgate.${domain}.
+        hydra.${baseDomain}. CNAME ghostgate.${domain}.
+        runner.hydra.${baseDomain}. CNAME ghostgate.${domain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
         ; ghostgate on each of its LANs, so clients resolve it by its local
@@ -1006,6 +1034,7 @@ in
           "cache.nixos.lv."
           "git.nixos.lv."
           "hydra.nixos.lv."
+          "runner.hydra.nixos.lv."
           # Split-horizon: hand ctf.nixos.lv to our knot (-> citadel) instead of
           # the public upstream (-> brass), so ghostgate's arena reaches the CTF
           # directly.
