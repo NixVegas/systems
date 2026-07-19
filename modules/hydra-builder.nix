@@ -7,7 +7,7 @@ let
   domainName = "runner.hydra.nixos.lv";
 in
 {
-  systemd.services.hydra-queue-builder.dev = {
+  systemd.services.hydra-queue-builder-dev = {
     serviceConfig.LimitNOFILE = lib.mkForce 1048576;
   };
 
