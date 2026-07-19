@@ -311,11 +311,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1782281967,
-        "narHash": "sha256-RJV40N7jSf0qT9VxGomEeLb4WXjQeU/19IJ1jQzjkRI=",
+        "lastModified": 1784460146,
+        "narHash": "sha256-QcWRCpExijVLfHOK387Yi3yJDLRHoOBTyOZFBMOvoZE=",
         "owner": "NixVegas",
         "repo": "freescout-nix-flake",
-        "rev": "4729bb966855b4d5334997c7fa5ea5f8cc9acc0e",
+        "rev": "9afe15986d85bc2e741f7c3aa3ea7908655deb98",
         "type": "github"
       },
       "original": {
