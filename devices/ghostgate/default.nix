@@ -1152,12 +1152,16 @@ in
           SSH_DOMAIN = "git.${baseDomain}";
         };
 
-        # Public read-only mirror: no open signups (create the admin once with
-        # `forgejo admin user create --admin ...`, then this stays true), but
-        # anonymous browse/clone is allowed.
+        # Open registration so attendees can make accounts. git.nixos.lv is
+        # public (brass passthrough), so signups are reachable from the whole
+        # internet — guard against bots with the built-in image captcha, which
+        # works offline (no external captcha/reCAPTCHA dependency). Anonymous
+        # browse/clone stays allowed (REQUIRE_SIGNIN_VIEW = false).
         service = {
-          DISABLE_REGISTRATION = true;
+          DISABLE_REGISTRATION = false;
           REQUIRE_SIGNIN_VIEW = false;
+          ENABLE_CAPTCHA = true;
+          CAPTCHA_TYPE = "image";
         };
         session.COOKIE_SECURE = true;
 
