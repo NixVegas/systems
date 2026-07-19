@@ -31,17 +31,40 @@ let
   #                    non-challenge :80) are refused here.
   ghostgateNebula = config.networking.mesh.plan.hosts.ghostgate.nebula.address;
   citadelCtf = "10.4.2.2"; # citadel's pinned ctf reservation
-  publicBackends = {
-    "nixos.lv" = ghostgateNebula;
-  };
+  # Nothing is SNI-passed through to the public any more. Every heavy onsite
+  # service — binary cache, git mirror, and the onboarding site with its ISOs /
+  # netboot / channel tarball — is onsite-only, to keep multi-GB payloads off
+  # brass's public egress. Public visitors get a clean 302 to nix.vegas;
+  # attendees reach everything via split-horizon straight to ghostgate. (The
+  # livestream stays public — it's brass's own owncast vhost, not a backend.)
+  publicBackends = { };
   onsiteBackends = {
     "nixc.tf" = citadelCtf;
     "www.nixc.tf" = citadelCtf;
     "ctf.nixos.lv" = citadelCtf;
     "ctf.nix.vegas" = citadelCtf;
+    # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
+    "git.nixos.lv" = ghostgateNebula;
+    "git.nix.vegas" = ghostgateNebula;
+    # The onboarding site itself, which serves the (big) ISOs, netboot images,
+    # and channel tarball. brass still forwards ACME so ghostgate's certs renew.
+    "nixos.lv" = ghostgateNebula;
+    # Hydra CI: the web UI and the gRPC runner endpoint. Builders live onsite
+    # (build net / nebula) and reach these via split-horizon straight to
+    # ghostgate; public visitors get the 302 and brass forwards ACME so
+    # ghostgate's hydra certs renew.
+    "hydra.nixos.lv" = ghostgateNebula;
+    "runner.hydra.nixos.lv" = ghostgateNebula;
+  };
+  # The binary cache is like onsiteBackends (onsite -> ghostgate's harmonia via
+  # split-horizon; brass terminates TLS + forwards ACME; no :443 passthrough),
+  # but public visitors get a path-preserving 302 to the real cache.nixos.org
+  # instead of a 302 to nix.vegas — so cache.nixos.lv stays a drop-in substituter
+  # off-site (a public `nix` fetch of cache.nixos.lv/<hash>.narinfo lands on
+  # cache.nixos.org/<hash>.narinfo).
+  cacheBackends = {
     "cache.nixos.lv" = ghostgateNebula;
     "cache.nix.vegas" = ghostgateNebula;
-    "upstream.cache.nixos.lv" = ghostgateNebula;
   };
 in
 {
@@ -268,7 +291,17 @@ in
         addSSL = true;
         acmeFallbackHost = be;
         locations."/".return = "302 https://nix.vegas";
-      }) onsiteBackends;
+      }) onsiteBackends
+      # Cache names: same TLS-terminate + ACME-forward as onsiteBackends, but
+      # redirect public clients to cache.nixos.org preserving the path, so
+      # cache.nixos.lv is drop-in off-site. $request_uri carries the full
+      # /<hash>.narinfo (or /nar/...) path + query through the 302.
+      // lib.mapAttrs (_: be: {
+        enableACME = true;
+        addSSL = true;
+        acmeFallbackHost = be;
+        locations."/".return = "302 https://cache.nixos.org$request_uri";
+      }) cacheBackends;
 
       # L4 SNI router on :443: only public names are passed through to their
       # backend. Onsite-only names and brass's own vhosts (owncast/live) fall to

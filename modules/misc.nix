@@ -22,13 +22,9 @@
       "nix-command"
       "flakes"
     ];
-    substituters = lib.mkAfter [ "https://cosmic.cachix.org/" ];
-    trusted-public-keys = lib.mkAfter [
-      "cosmic.cachix.org-1:Dya9IyXD4xdBehWjrkPv6rtxpmMdRel02smYzA85dPE="
-    ];
   };
 
   time.timeZone = "America/Los_Angeles";
 
-  system.stateVersion = "25.11";
+  system.stateVersion = "26.05";
 }

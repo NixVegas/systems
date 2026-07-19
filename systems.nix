@@ -27,7 +27,7 @@ in
       ./devices/citadel
     ]
     ++ commonModules;
-    address = "citadel";
+    address = "citadel.noc.dc.nixos.lv";
   };
 
   ayem = {
@@ -36,7 +36,7 @@ in
       ./devices/ayem
     ]
     ++ commonModules;
-    address = "ayem";
+    address = "ayem.noc.dc.nixos.lv";
   };
 
   seht = {
@@ -45,7 +45,7 @@ in
       ./devices/seht
     ]
     ++ commonModules;
-    address = "seht";
+    address = "seht.noc.dc.nixos.lv";
   };
 
   vehk = {
@@ -54,7 +54,7 @@ in
       ./devices/vehk
     ]
     ++ commonModules;
-    address = "vehk";
+    address = "vehk.noc.dc.nixos.lv";
   };
 
   adamantia = {
@@ -91,12 +91,5 @@ in
     ]
     ++ commonModules;
     address = "dagoth.arena.nixos.lv";
-    profile = {
-      # 22 is gitea
-      sshOpts = [
-        "-t"
-        "-p42070"
-      ];
-    };
   };
 }

@@ -8,15 +8,28 @@
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixos-cosmic.url = "github:lilyinstarlight/nixos-cosmic?ref=pull/863/head";
+    nixpkgs-prev.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkcs.url = "github:numinit/nixpkcs/v1.3";
     meshos.url = "github:numinit/MeshOS";
 
     nixpkgs-gold.url = "github:Jaculabilis/nixpkgs-gold";
 
+    hydra = {
+      url = "github:NixOS/hydra/hydra.nixos.org";
+      inputs = {
+        foreman.follows = "";
+        treefmt-nix.follows = "";
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
     great-value-hydra = {
       url = "github:NixVegas/great-value-hydra";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs = {
+        nixpkgs-prev.follows = "nixpkgs-prev";
+        nixpkgs.follows = "nixpkgs";
+        nixpkgs-unstable.follows = "nixpkgs-unstable";
+      };
     };
 
     nixos-mailserver = {
@@ -61,11 +74,12 @@
       flake-parts,
       nixpkgs,
       nixpkgs-unstable,
+      nixpkgs-prev,
       nixpkgs-lib,
       nixpkgs-gold,
+      hydra,
       great-value-hydra,
       nixpkcs,
-      nixos-cosmic,
       deploy-rs,
       nixos-pagefind,
       nix-vegas-site,
@@ -194,10 +208,10 @@
                   nixpkgs-gold.overlays.gold
                 ];
               }
-              nixos-cosmic.nixosModules.default
               meshos.nixosModules.default
               tenstorrent-nix.nixosModules.default
               nix-vegas-ctf.nixosModules.default
+              hydra.nixosModules.hydra
             ];
             nixpkgs.config.gold = {
               acceptEula = true;
@@ -226,27 +240,54 @@
             ];
           };
 
-          overlayAttrs = {
-            nixos-lv-onboarding-artifacts = pkgs.callPackage ./pkgs/onboarding {
-              inherit nixpkgs;
+          # let-bound: nix-vegas-site-onsite consumes the artifacts directly —
+          # `pkgs.` doesn't see overlayAttrs from inside overlayAttrs, and
+          # `rec` would shadow the nix-vegas-site flake input.
+          overlayAttrs =
+            let
+              onboardingArtifacts = pkgs.callPackage ./pkgs/onboarding {
+                inherit nixpkgs;
+              };
+            in
+            {
+              nixos-lv-onboarding-artifacts = onboardingArtifacts;
+              nix-vegas-site = nix-vegas-site.packages.${system}.default;
+              # The event flavor: same site with the onboarding artifacts baked
+              # in (ISOs/netboot/manual/search rendered on /2026/onsite) and
+              # base_url https://nixos.lv/. ghostgate serves this; crystal and
+              # Netlify keep the plain nix-vegas-site above.
+              nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
+                inherit onboardingArtifacts;
+              };
+              # 26.05 nixpkgs has packages whose meta.platforms mixes attrset
+              # (structured cross) entries with strings; upstream's guard only
+              # checks the first element and jinja's sort then dies comparing
+              # dict < str. Render just the string platforms.
+              nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen.overrideAttrs (prev: {
+                postPatch = (prev.postPatch or "") + ''
+                  substituteInPlace src/staticgen/templates/package.jinja \
+                    --replace-fail 'pkg.meta.platforms and pkg.meta.platforms[0] is string' 'pkg.meta.platforms | select("string") | list' \
+                    --replace-fail 'pkg.meta.platforms | sort' 'pkg.meta.platforms | select("string") | sort'
+                '';
+              });
+              nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
+                inherit nixpkgs nixos-pagefind;
+              };
+              nixos-lv-root-ca = pkgs.callPackage ./pkgs/nixos-lv-root-ca { };
+              great-value-hydra = great-value-hydra.packages.${system};
             };
-            nix-vegas-site = nix-vegas-site.packages.${system}.default;
-            nixos-pagefind-staticgen = nixos-pagefind.packages.${system}.staticgen;
-            nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
-              inherit nixpkgs nixos-pagefind;
-            };
-            great-value-hydra = great-value-hydra.packages.${system};
-          };
 
           packages = {
             onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
             inherit (pkgs) nixos-lv-onboarding-artifacts nixos-pagefind-build;
-            inherit (pkgs) nix-vegas-site;
+            inherit (pkgs) nix-vegas-site nix-vegas-site-onsite;
+            inherit (pkgs) nixos-lv-root-ca;
           };
 
           devShells.default = pkgs.mkShell {
             buildInputs = [
               deploy-rs.packages.${system}.default
+              pkgs.nixfmt
             ];
           };
         };
