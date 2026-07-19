@@ -29,6 +29,8 @@ let
   grafanaIp = "192.168.104.2";
 
   gitSshPort = 2222;
+  grafanaHttpPort = 3000;
+  mimirHttpPort = 3200;
 
   nameservers = [
     "1.1.1.1"
@@ -40,6 +42,7 @@ let
   mattermostPostgresZoneMount = "mattermost-postgres";
   freescoutPostgresZoneMount = "freescout-postgres";
   grafanaStateZoneMount = "grafana-state";
+  mimirStateZoneMount = "mimir-state";
 
   externalInterface = "ens3";
 in
@@ -94,6 +97,7 @@ in
       mattermostPostgresZoneMount
       freescoutPostgresZoneMount
       grafanaStateZoneMount
+      mimirStateZoneMount
     ];
     inherit externalInterface;
   };
@@ -174,6 +178,10 @@ in
         # Gitea ssh
         iptables -t nat -I PREROUTING -p tcp \
           --dport 22 -j DNAT --to-destination ${giteaIp}:${builtins.toString gitSshPort}
+
+        # Allow shipping metrics via alloy to mimir from nebula
+        iptables -t nat -I PREROUTING -p tcp -s ${nebulaSubnet} \
+          --dport ${builtins.toString mimirHttpPort} -j DNAT --to-destination ${grafanaIp}:${builtins.toString mimirHttpPort}
       '';
     };
 
@@ -189,8 +197,31 @@ in
   ];
 
   services.prometheus = {
-    enable = true;
+    enable = false;
     port = 9001;
+  };
+
+  services.alloy = {
+    enable = true;
+    configPath = pkgs.writeText "config.alloy" ''
+      // Prometheus exporter for host metrics (CPU, memory, disk, network, systemd)
+      prometheus.exporter.unix "local" { }
+
+      // Scrape the local unix exporter
+      prometheus.scrape "local" {
+        targets = prometheus.exporter.unix.local.targets
+        forward_to = [prometheus.remote_write.mimir.receiver]
+        scrape_interval = "15s"
+      }
+
+      // Remote write to Mimir
+      prometheus.remote_write "mimir" {
+	endpoint {
+          // we'll use the grafanaIp instead of the nebulaIp since were local
+	  url = "http://${grafanaIp}:${builtins.toString mimirHttpPort}/api/v1/push"
+        }
+      }
+    '';
   };
 
   services.prometheus.scrapeConfigs = [
@@ -328,7 +359,7 @@ in
       virtualHosts."grafana.nix.vegas" = letsEncryptEndpoint {
         http2 = true;
         locations."/" = {
-          proxyPass = "http://${grafanaIp}:3000";
+          proxyPass = "http://${grafanaIp}:${builtins.toString grafanaHttpPort}";
           proxyWebsockets = true;
         };
       };
@@ -481,22 +512,94 @@ in
 
     grafana = {
       config = {
-        services.grafana = {
-          enable = true;
+        networking = {
+          useHostResolvConf = false;
+          inherit nameservers;
 
-          settings = {
-            server = {
-              domain = "grafana.nix.vegas";
-              http_addr = "127.0.0.1";
-              http_port = 3000;
-              protocol = "http";
-              root_url = "https://%(domain)s/grafana/";
-              serve_from_sub_path = true;
+          firewall = {
+            enable = true;
+            allowPing = true;
+            allowedTCPPorts = [
+              grafanaHttpPort
+              mimirHttpPort
+            ];
+          };
+        };
+
+        systemd.services.mimir.serviceConfig.DynamicUser = lib.mkForce false;
+
+        services = {
+          grafana = {
+            enable = true;
+
+            settings = {
+              server = {
+                domain = "grafana.nix.vegas";
+                http_addr = "0.0.0.0";
+                http_port = 3000;
+                protocol = "http";
+                root_url = "https://%(domain)s/grafana/";
+                serve_from_sub_path = true;
+              };
+              security = {
+                secret_key = "$__file{/var/lib/grafana/secret_key}";
+                # bootstrap admin user pass
+                admin_password = "$__file{/var/lib/grafana/admin.pass}";
+              };
             };
-            security = {
-              secret_key = "$__file{/var/lib/grafana/secret_key}";
-              # bootstrap admin user pass
-              admin_password = "$__file{/var/lib/grafana/admin.pass}";
+            provision = {
+              enable = true;
+
+              datasources.settings.datasources = [{
+                name = "Mimir";
+                type = "prometheus";
+                access = "proxy";
+                url = "http://127.0.0.1:3200/prometheus";
+                isDefault = true;
+              }];
+            };
+          };
+          mimir = {
+           enable = true;
+
+           configuration = {
+             multitenancy_enabled = false;
+
+             server = {
+               grpc_listen_port = 9096;
+               http_listen_port = mimirHttpPort;
+             };
+
+             common = {
+               storage = {
+                 backend = "filesystem";
+                 filesystem = {
+                   dir = "/var/lib/mimir/data";
+                 };
+               };
+             };
+
+             blocks_storage = {
+               storage_prefix = "blocks";
+               tsdb = {
+                 dir = "/var/lib/mimir/tsdb";
+               };
+             };
+
+             compactor = {
+               data_dir = "/var/lib/mimir/compactor";
+               compaction_interval = "30m";
+             };
+
+             ingester = {
+               ring = {
+                 replication_factor = 1;
+
+                 kvstore = {
+                   store = "inmemory";
+                 };
+               };
+             };
             };
           };
         };
@@ -507,6 +610,10 @@ in
       bindMounts = {
         "/var/lib/grafana" = {
           hostPath = "${config.zones.zoneRoot}/${grafanaStateZoneMount}";
+          isReadOnly = false;
+        };
+        "/var/lib/mimir" = {
+          hostPath = "${config.zones.zoneRoot}/${mimirStateZoneMount}";
           isReadOnly = false;
         };
       };
