@@ -21,9 +21,17 @@
           '';
         };
 
-        inherit (config.networking.mesh.plan.hosts) adamantia brass ghostgate;
+        inherit (config.networking.mesh.plan.hosts)
+          adamantia
+          brass
+          ghostgate
+          crystal
+          ;
         coreNebulaIp = brass.nebula.address;
         onsiteNebulaIp = ghostgate.nebula.address;
+        # nix.vegas is served by crystal, not brass (brass holds no cert for it,
+        # so pointing there fails the TLS handshake with UNRECOGNIZED_NAME).
+        siteNebulaIp = crystal.nebula.address;
         mailIpv4 = lib.findFirst (lib.strings.hasInfix ".") null adamantia.nebula.entryAddresses;
         mailIpv6 = lib.findFirst (lib.strings.hasInfix ":") null adamantia.nebula.entryAddresses;
       in
@@ -81,7 +89,7 @@
             "ntp.arena.nixos.lv. IN A ${coreNebulaIp}"
             "cache.nixos.lv. IN CNAME cache.dc.nixos.lv."
             "cache.dc.nixos.lv. IN A ${onsiteNebulaIp}"
-            "nix.vegas. IN A ${coreNebulaIp}"
+            "nix.vegas. IN A ${siteNebulaIp}"
             "live.nix.vegas. IN A ${coreNebulaIp}"
             "cache.nix.vegas. IN CNAME cache.dc.nixos.lv."
             "mail.nix.vegas. IN A ${mailIpv4}"
