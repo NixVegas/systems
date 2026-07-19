@@ -1,5 +1,5 @@
 {
-  lib,
+  pkgs,
   ...
 }:
 
@@ -48,7 +48,7 @@ in
           grpc_set_header X-Client-Cert $ssl_client_escaped_cert;
         '';
         extraConfig = ''
-          ssl_client_certificate ${../ca.crt};
+          ssl_client_certificate ${pkgs.nixos-lv-root-ca};
           ssl_verify_depth 2;
           ssl_verify_client on;
         '';

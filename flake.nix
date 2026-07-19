@@ -274,6 +274,7 @@
               nixos-pagefind-build = pkgs.callPackage ./pkgs/pagefind {
                 inherit nixpkgs nixos-pagefind;
               };
+              nixos-lv-root-ca = pkgs.callPackage ./pkgs/nixos-lv-root-ca { };
               great-value-hydra = great-value-hydra.packages.${system};
             };
 
@@ -281,11 +282,13 @@
             onboarding-artifacts = pkgs.nixos-lv-onboarding-artifacts;
             inherit (pkgs) nixos-lv-onboarding-artifacts nixos-pagefind-build;
             inherit (pkgs) nix-vegas-site nix-vegas-site-onsite;
+            inherit (pkgs) nixos-lv-root-ca;
           };
 
           devShells.default = pkgs.mkShell {
             buildInputs = [
               deploy-rs.packages.${system}.default
+              pkgs.nixfmt
             ];
           };
         };

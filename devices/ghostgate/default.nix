@@ -295,7 +295,9 @@ in
     pv
     mbuffer
     lzop
+
     nebula
+    (openssl.withPkcs11Module { pkcs11Module = yubico-piv-tool.pkcs11Module; })
 
     ipxe
     tftp-hpa
@@ -737,7 +739,6 @@ in
         inherit (pkgs.yubico-piv-tool) pkcs11Module;
         token = "YubiKey PIV #6460026";
         id = 15; # Retired Key Management #8c
-        debug = true;
         keyOptions = {
           algorithm = "EC";
           type = "secp384r1";

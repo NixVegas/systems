@@ -1,4 +1,5 @@
 {
+  pkgs,
   lib,
   ...
 }:
@@ -17,9 +18,10 @@ in
     maxJobs = lib.mkDefault 2;
 
     mtls = {
-      serverRootCaCertPath = ../ca.crt;
-      clientCertPath = "/etc/keys/hydra-runner-cert.pem";
-      clientKeyPath = "/etc/keys/hydra-runner-privkey.pem";
+      # Signed with Let's Encrypt, which is in here.
+      serverRootCaCertPath = "/etc/ssl/certs/ca-certificates.crt";
+      clientCertPath = "/etc/keys/hydra-builder-cert.pem";
+      clientKeyPath = "/etc/keys/hydra-builder-privkey.pem";
       inherit domainName;
     };
   };

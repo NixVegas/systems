@@ -1,6 +1,7 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }:
 {
@@ -11,6 +12,8 @@
     );
     networkmanager.enable = lib.mkForce false;
   };
+
+  security.pki.certificateFiles = [ pkgs.nixos-lv-root-ca ];
 
   services = {
     openssh = {
