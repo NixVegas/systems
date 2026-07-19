@@ -17,18 +17,15 @@ let
 
   publicIpv4 = nebulaIngress;
   publicIpv6 = nebula6Ingress;
-  nebulaEgress = publicIpv4;
 
   nebulaSubnet = config.networking.mesh.plan.constants.nebula.subnet;
 
-  # IP addresses of the Mattermost and Gitea containers.
+  # IP addresses of some containers.
   mattermostIp = "192.168.100.2";
-  giteaIp = "192.168.101.2";
   freescoutIp = "192.168.102.2";
   vaultwardenIp = "192.168.103.2";
   grafanaIp = "192.168.104.2";
 
-  gitSshPort = 2222;
   grafanaHttpPort = 3000;
   mimirHttpPort = 3200;
 
@@ -150,8 +147,7 @@ in
         enable = true;
         allowPing = true;
         allowedTCPPorts = [
-          22 # gitea ssh
-          sshPort # normal ssh
+          22
           80
           443
         ];
@@ -174,10 +170,6 @@ in
         # Redirect Nebula DNS and NTP queries
         iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 53 -j REDIRECT
         iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 123 -j REDIRECT
-
-        # Gitea ssh
-        iptables -t nat -I PREROUTING -p tcp \
-          --dport 22 -j DNAT --to-destination ${giteaIp}:${builtins.toString gitSshPort}
 
         # Allow shipping metrics via alloy to mimir from nebula
         iptables -t nat -I PREROUTING -p tcp -s ${nebulaSubnet} \
@@ -317,14 +309,6 @@ in
       enable = true;
       clientMaxBodySize = "256m";
 
-      virtualHosts."git.nix.vegas" = letsEncryptEndpoint {
-        http2 = true;
-        locations."/" = {
-          proxyPass = "http://${giteaIp}:3000";
-          proxyWebsockets = true;
-        };
-      };
-
       virtualHosts."chat.nix.vegas" = letsEncryptEndpoint {
         http2 = true;
         locations."/" = {
@@ -413,26 +397,6 @@ in
   };
 
   zones.zones = {
-    gitea = {
-      config = {
-        imports = [ ../../containers/gitea.nix ];
-        services.gitea =
-          let
-            domain = "git.nix.vegas";
-            rootUrl = "https://${domain}";
-          in
-          {
-            appName = "Nix Vegas Git";
-            settings.server = {
-              ROOT_URL = rootUrl;
-              DOMAIN = domain;
-            };
-          };
-        system.stateVersion = "25.11";
-      };
-      localAddress = giteaIp;
-    };
-
     mattermost = {
       config = {
         imports = [ ../../containers/mattermost.nix ];
@@ -444,7 +408,7 @@ in
           useHostResolvConf = false;
           inherit nameservers;
         };
-        system.stateVersion = "25.11";
+        system.stateVersion = "26.05";
       };
       privateNetwork = false;
       localAddress = mattermostIp;
@@ -469,7 +433,7 @@ in
         services.freescout = {
           domain = "webmail.nix.vegas";
         };
-        system.stateVersion = "25.11";
+        system.stateVersion = "26.05";
       };
       privateNetwork = false;
       localAddress = freescoutIp;
@@ -504,7 +468,7 @@ in
             SSO_CLIENT_ID = "vaultwarden";
           };
         };
-        system.stateVersion = "25.11";
+        system.stateVersion = "26.05";
       };
       privateNetwork = false;
       localAddress = vaultwardenIp;
@@ -603,7 +567,7 @@ in
             };
           };
         };
-        system.stateVersion = "25.11";
+        system.stateVersion = "26.05";
       };
       privateNetwork = false;
       localAddress = grafanaIp;
@@ -621,10 +585,4 @@ in
   };
 
   nixpkgs.system = "x86_64-linux";
-
-  # This value determines the NixOS release with which your system is to be
-  # compatible, in order to avoid breaking some software such as database
-  # servers. You should change this only after NixOS release notes say you
-  # should.
-  system.stateVersion = "25.11"; # Did you read the comment?
 }

@@ -91,12 +91,5 @@ in
     ]
     ++ commonModules;
     address = "dagoth.arena.nixos.lv";
-    profile = {
-      # 22 is gitea
-      sshOpts = [
-        "-t"
-        "-p42070"
-      ];
-    };
   };
 }
