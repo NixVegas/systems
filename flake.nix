@@ -206,7 +206,6 @@
                   self.overlays.default
                   nixpkcs.overlays.default
                   nixpkgs-gold.overlays.gold
-                  (import ./overlays/python-backports.nix)
                 ];
               }
               meshos.nixosModules.default
