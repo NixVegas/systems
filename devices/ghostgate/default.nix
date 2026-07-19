@@ -1177,6 +1177,22 @@ in
           PULL = 1800;
           GC = 1800;
         };
+        # Global git config Forgejo applies to its git operations. Tuned for
+        # serving a repo as large as nixpkgs to many clients without pegging
+        # ghostgate (which is also the router + binary cache):
+        #   - writeBitmaps: reachability bitmaps so `git upload-pack` reuses a
+        #     precomputed pack instead of recomputing the whole graph per clone
+        #     (bare repos default this on, but set it explicitly so every gc
+        #     keeps it). The initial mirror still needs one `repack -adb`.
+        #   - allowFilter: let clients do cheap partial clones
+        #     (`--filter=blob:none` / `tree:0`).
+        #   - allowAnySHA1InWant: let clients fetch an arbitrary commit by SHA,
+        #     e.g. a flake input pinned with `?rev=`.
+        "git.config" = {
+          "repack.writeBitmaps" = true;
+          "uploadpack.allowFilter" = true;
+          "uploadpack.allowAnySHA1InWant" = true;
+        };
         # Pull-mirror refresh cadence and generous push/upload limits.
         mirror.DEFAULT_INTERVAL = "8h";
         "repository.upload" = {
