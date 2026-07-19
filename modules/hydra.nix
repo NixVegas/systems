@@ -27,26 +27,26 @@ in
         forceSSL = true;
         enableACME = true;
         locations."/".extraConfig =
-        let
-          timeout = "${toString (24 * 60 * 60)}s";
-        in
-        ''
-          # https://stackoverflow.com/a/67805465
-          client_body_timeout ${timeout};
-          client_max_body_size 0;
+          let
+            timeout = "${toString (24 * 60 * 60)}s";
+          in
+          ''
+            # https://stackoverflow.com/a/67805465
+            client_body_timeout ${timeout};
+            client_max_body_size 0;
 
-          grpc_pass grpc://[::1]:50051;
-          grpc_read_timeout ${timeout};
-          grpc_send_timeout ${timeout};
-          grpc_socket_keepalive on;
+            grpc_pass grpc://[::1]:50051;
+            grpc_read_timeout ${timeout};
+            grpc_send_timeout ${timeout};
+            grpc_socket_keepalive on;
 
-          grpc_set_header Host $host;
-          grpc_set_header X-Real-IP $remote_addr;
-          grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          grpc_set_header X-Forwarded-Proto $scheme;
-          grpc_set_header X-Client-DN $ssl_client_s_dn;
-          grpc_set_header X-Client-Cert $ssl_client_escaped_cert;
-        '';
+            grpc_set_header Host $host;
+            grpc_set_header X-Real-IP $remote_addr;
+            grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            grpc_set_header X-Forwarded-Proto $scheme;
+            grpc_set_header X-Client-DN $ssl_client_s_dn;
+            grpc_set_header X-Client-Cert $ssl_client_escaped_cert;
+          '';
         extraConfig = ''
           ssl_client_certificate ${pkgs.nixos-lv-root-ca};
           ssl_verify_depth 2;

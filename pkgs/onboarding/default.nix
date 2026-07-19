@@ -25,9 +25,7 @@ let
   releaseNixText = builtins.readFile "${nixpkgs}/nixos/release.nix";
   revCountOffset =
     let
-      line = lib.findFirst (l: lib.hasInfix "revCount - " l) "" (
-        lib.splitString "\n" releaseNixText
-      );
+      line = lib.findFirst (l: lib.hasInfix "revCount - " l) "" (lib.splitString "\n" releaseNixText);
       m = builtins.match ".*revCount - ([0-9]+).*" line;
     in
     if m == null then 0 else lib.toInt (builtins.head m);

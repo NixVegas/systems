@@ -206,9 +206,9 @@ in
 
       // Remote write to Mimir
       prometheus.remote_write "mimir" {
-	endpoint {
+        endpoint {
           // we'll use the grafanaIp instead of the nebulaIp since were local
-	  url = "http://${grafanaIp}:${builtins.toString mimirHttpPort}/api/v1/push"
+          url = "http://${grafanaIp}:${builtins.toString mimirHttpPort}/api/v1/push"
         }
       }
     '';
@@ -511,56 +511,58 @@ in
             provision = {
               enable = true;
 
-              datasources.settings.datasources = [{
-                name = "Mimir";
-                type = "prometheus";
-                access = "proxy";
-                url = "http://127.0.0.1:3200/prometheus";
-                isDefault = true;
-              }];
+              datasources.settings.datasources = [
+                {
+                  name = "Mimir";
+                  type = "prometheus";
+                  access = "proxy";
+                  url = "http://127.0.0.1:3200/prometheus";
+                  isDefault = true;
+                }
+              ];
             };
           };
           mimir = {
-           enable = true;
+            enable = true;
 
-           configuration = {
-             multitenancy_enabled = false;
+            configuration = {
+              multitenancy_enabled = false;
 
-             server = {
-               grpc_listen_port = 9096;
-               http_listen_port = mimirHttpPort;
-             };
+              server = {
+                grpc_listen_port = 9096;
+                http_listen_port = mimirHttpPort;
+              };
 
-             common = {
-               storage = {
-                 backend = "filesystem";
-                 filesystem = {
-                   dir = "/var/lib/mimir/data";
-                 };
-               };
-             };
+              common = {
+                storage = {
+                  backend = "filesystem";
+                  filesystem = {
+                    dir = "/var/lib/mimir/data";
+                  };
+                };
+              };
 
-             blocks_storage = {
-               storage_prefix = "blocks";
-               tsdb = {
-                 dir = "/var/lib/mimir/tsdb";
-               };
-             };
+              blocks_storage = {
+                storage_prefix = "blocks";
+                tsdb = {
+                  dir = "/var/lib/mimir/tsdb";
+                };
+              };
 
-             compactor = {
-               data_dir = "/var/lib/mimir/compactor";
-               compaction_interval = "30m";
-             };
+              compactor = {
+                data_dir = "/var/lib/mimir/compactor";
+                compaction_interval = "30m";
+              };
 
-             ingester = {
-               ring = {
-                 replication_factor = 1;
+              ingester = {
+                ring = {
+                  replication_factor = 1;
 
-                 kvstore = {
-                   store = "inmemory";
-                 };
-               };
-             };
+                  kvstore = {
+                    store = "inmemory";
+                  };
+                };
+              };
             };
           };
         };

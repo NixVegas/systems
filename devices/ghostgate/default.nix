@@ -83,12 +83,19 @@ let
   # traffic to these into the Nebula table, or it would tunnel the underlay
   # through itself. Derived from the plan so it can't drift.
   nebulaUnderlayV4 = lib.unique (
-    lib.concatMap (
-      n:
-      builtins.filter (
-        a: lib.strings.hasInfix "." a
-      ) config.networking.mesh.plan.hosts.${n}.nebula.entryAddresses
-    ) [ "adamantia" "brass" "crystal" "dagoth" ]
+    lib.concatMap
+      (
+        n:
+        builtins.filter (
+          a: lib.strings.hasInfix "." a
+        ) config.networking.mesh.plan.hosts.${n}.nebula.entryAddresses
+      )
+      [
+        "adamantia"
+        "brass"
+        "crystal"
+        "dagoth"
+      ]
   );
 
   # The Nebula service user's uid, pinned below. The full-tunnel rules match
@@ -1256,7 +1263,9 @@ in
   # don't push.
   networking.firewall.interfaces =
     let
-      forgejoSsh = { allowedTCPPorts = [ 2222 ]; };
+      forgejoSsh = {
+        allowedTCPPorts = [ 2222 ];
+      };
     in
     {
       noc = forgejoSsh;
