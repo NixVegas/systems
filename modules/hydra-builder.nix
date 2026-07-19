@@ -17,7 +17,7 @@ in
     maxJobs = lib.mkDefault 2;
 
     mtls = {
-      serverRootCaCertPath = "/etc/keys/hydra-ca.crt";
+      serverRootCaCertPath = ../ca.crt;
       clientCertPath = "/etc/keys/hydra-runner-cert.pem";
       clientKeyPath = "/etc/keys/hydra-runner-privkey.pem";
       inherit domainName;

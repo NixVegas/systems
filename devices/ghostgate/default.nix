@@ -976,8 +976,8 @@ in
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         git.${baseDomain}. CNAME ghostgate.${domain}.
-        hydra.${baseDomain}. CNAME ghostgate.${domain}.
-        runner.hydra.${baseDomain}. CNAME ghostgate.${domain}.
+        hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
+        runner.hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
 
         ; ghostgate on each of its LANs, so clients resolve it by its local
