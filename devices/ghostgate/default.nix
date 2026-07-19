@@ -1097,9 +1097,11 @@ in
           globalRedirect = "git.${baseDomain}";
         };
 
-        # Forgejo (git.nixos.lv). Public via brass SNI-passthrough; ghostgate
-        # terminates TLS with its own ACME cert (brass forwards the HTTP-01
-        # token). Proxies to the loopback-bound forgejo on :3000.
+        # Forgejo (git.nixos.lv). Onsite-only: brass 302s public clients to
+        # nix.vegas (a public nixpkgs clone endpoint is a bandwidth sink), so
+        # this vhost only ever serves onsite traffic. ghostgate still terminates
+        # TLS with its own ACME cert (brass forwards the HTTP-01 token). Proxies
+        # to the loopback-bound forgejo on :3000.
         "git.${baseDomain}" = {
           http2 = true;
           enableACME = true;
@@ -1152,16 +1154,13 @@ in
           SSH_DOMAIN = "git.${baseDomain}";
         };
 
-        # Open registration so attendees can make accounts. git.nixos.lv is
-        # public (brass passthrough), so signups are reachable from the whole
-        # internet — guard against bots with the built-in image captcha, which
-        # works offline (no external captcha/reCAPTCHA dependency). Anonymous
-        # browse/clone stays allowed (REQUIRE_SIGNIN_VIEW = false).
+        # Registration is enabled so attendees can make accounts. It's
+        # inherently onsite-only: the whole of git.nixos.lv is onsite-only
+        # (brass 302s public clients away; see devices/brass and the vhost
+        # above), so signups aren't reachable from the public internet.
         service = {
           DISABLE_REGISTRATION = false;
           REQUIRE_SIGNIN_VIEW = false;
-          ENABLE_CAPTCHA = true;
-          CAPTCHA_TYPE = "image";
         };
         session.COOKIE_SECURE = true;
 

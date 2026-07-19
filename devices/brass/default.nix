@@ -31,14 +31,13 @@ let
   #                    non-challenge :80) are refused here.
   ghostgateNebula = config.networking.mesh.plan.hosts.ghostgate.nebula.address;
   citadelCtf = "10.4.2.2"; # citadel's pinned ctf reservation
-  publicBackends = {
-    "nixos.lv" = ghostgateNebula;
-    # Forgejo on ghostgate (public nixpkgs mirror). Both names SNI-passthrough
-    # to ghostgate:443, which terminates its own ACME cert; git.nix.vegas
-    # redirects to the canonical git.nixos.lv there.
-    "git.nixos.lv" = ghostgateNebula;
-    "git.nix.vegas" = ghostgateNebula;
-  };
+  # Nothing is SNI-passed through to the public any more. Every heavy onsite
+  # service — binary cache, git mirror, and the onboarding site with its ISOs /
+  # netboot / channel tarball — is onsite-only, to keep multi-GB payloads off
+  # brass's public egress. Public visitors get a clean 302 to nix.vegas;
+  # attendees reach everything via split-horizon straight to ghostgate. (The
+  # livestream stays public — it's brass's own owncast vhost, not a backend.)
+  publicBackends = { };
   onsiteBackends = {
     "nixc.tf" = citadelCtf;
     "www.nixc.tf" = citadelCtf;
@@ -46,6 +45,12 @@ let
     "ctf.nix.vegas" = citadelCtf;
     "cache.nixos.lv" = ghostgateNebula;
     "cache.nix.vegas" = ghostgateNebula;
+    # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
+    "git.nixos.lv" = ghostgateNebula;
+    "git.nix.vegas" = ghostgateNebula;
+    # The onboarding site itself, which serves the (big) ISOs, netboot images,
+    # and channel tarball. brass still forwards ACME so ghostgate's certs renew.
+    "nixos.lv" = ghostgateNebula;
   };
 in
 {
