@@ -8,8 +8,6 @@
 }:
 
 let
-  sshPort = 42070;
-
   myHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
   nebulaIp = myHost.nebula.address;
   nebulaIngress = lib.findFirst (lib.strings.hasInfix ".") null myHost.nebula.entryAddresses;
@@ -265,7 +263,6 @@ in
 
   services.openssh = {
     enable = true;
-    ports = [ sshPort ];
     settings = {
       PasswordAuthentication = false;
       PermitRootLogin = "prohibit-password";
