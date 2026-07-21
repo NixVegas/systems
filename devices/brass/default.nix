@@ -31,12 +31,25 @@ let
   #                    non-challenge :80) are refused here.
   ghostgateNebula = config.networking.mesh.plan.hosts.ghostgate.nebula.address;
   citadelCtf = "10.4.2.2"; # citadel's pinned ctf reservation
-  # Nothing is SNI-passed through to the public any more. Every heavy onsite
-  # service — binary cache, git mirror, and the onboarding site with its ISOs /
-  # netboot / channel tarball — is onsite-only, to keep multi-GB payloads off
-  # brass's public egress. Public visitors get a clean 302 to nix.vegas;
-  # attendees reach everything via split-horizon straight to ghostgate. (The
-  # livestream stays public — it's brass's own owncast vhost, not a backend.)
+  # The VP2420 edge caches (harmonia on <host>.cache.nixos.lv). Folded into
+  # cacheBackends below: brass terminates TLS, forwards the :80 ACME challenge
+  # over Nebula so each 2420 mints its own LE cert, 302s public visitors to
+  # cache.nixos.org, and does NOT :443-passthrough — so a 2420's uplink never
+  # serves the public, but the name stays drop-in off-site. Onsite, the box's
+  # own client reaches its harmonia locally and never traverses brass. The 2420s
+  # are the mesh-client hosts (wifi 10.5.1.x); ghostgate (10.5.0.1) is excluded.
+  vp2420CacheBackends = lib.mapAttrs' (
+    name: h: lib.nameValuePair "${name}.cache.nixos.lv" h.nebula.address
+  ) (
+    lib.filterAttrs (
+      _: h:
+      (h.wifi.address or null) != null
+      && lib.hasPrefix "10.5.1." (lib.head (lib.splitString "/" h.wifi.address))
+    ) config.networking.mesh.plan.hosts
+  );
+  # Nothing is SNI-passed through to the public. Every heavy onsite service is
+  # onsite-only (302'd); attendees reach everything via split-horizon straight
+  # to ghostgate. (The livestream stays public — brass's own owncast vhost.)
   publicBackends = { };
   onsiteBackends = {
     "nixc.tf" = citadelCtf;
@@ -65,7 +78,8 @@ let
   cacheBackends = {
     "cache.nixos.lv" = ghostgateNebula;
     "cache.nix.vegas" = ghostgateNebula;
-  };
+  }
+  // vp2420CacheBackends;
 in
 {
   imports = [

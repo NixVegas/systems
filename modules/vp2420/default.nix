@@ -46,6 +46,8 @@ in
 {
   imports = [
     ../event-router/common.nix
+    ../harmonia-cache.nix
+    ../citadel-builder.nix
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
@@ -71,11 +73,6 @@ in
 
   fileSystems."/home" = lib.mkForce {
     device = "${config.networking.hostName}/user/home";
-    fsType = "zfs";
-  };
-
-  fileSystems."/var/lib/ncps" = {
-    device = "${config.networking.hostName}/local/cache";
     fsType = "zfs";
   };
 
@@ -112,6 +109,33 @@ in
     "${ghostgateMesh}" = [ "cache.nixos.lv" ];
   };
 
+  # Patched stream-through harmonia edge cache (shared module:
+  # modules/harmonia-cache.nix). Upstream is cache.nixos.lv, which resolves to
+  # ghostgate via the /etc/hosts entry above — so a miss hops this box ->
+  # ghostgate (dedup'd store) -> internet, and never loops back on itself.
+  nixVegas.harmoniaCache = {
+    enable = true;
+    upstreamUrl = "https://cache.nixos.lv";
+  };
+
+  # This box's own nix client substitutes from ghostgate (cache.nixos.lv), NOT
+  # from its own local harmonia. harmonia serves *this box's* /nix/store and
+  # add_to_store_nar's fetched paths back into it; if the local client also
+  # substituted from it, the client's import and harmonia's store-write race for
+  # the same store-path lock and deadlock. Point the client at ghostgate's
+  # harmonia (a *different* store), which pulls through to cache.nixos.org there.
+  # mkForce past MeshOS to keep it explicit.
+  nix.settings.substituters = lib.mkForce [
+    "https://cache.nixos.lv"
+  ];
+
+  # harmonia's HTTPS vhost gets a real Let's Encrypt cert; brass forwards the
+  # HTTP-01 challenge for ${hostName}.cache.nixos.lv over Nebula (devices/brass).
+  security.acme = {
+    acceptTerms = true;
+    defaults.email = "noc@nix.vegas";
+  };
+
   networking.mesh = {
     wifi = {
       enable = true;
@@ -129,12 +153,21 @@ in
       tpm2Key = true;
     };
     cache = {
+      # ncps retired in favor of the patched stream-through harmonia
+      # (nixVegas.harmoniaCache below). server.enable = false so MeshOS stops
+      # running ncps and stops force-pointing our client at localhost:8501; we
+      # front harmonia ourselves and point this box's own client at it (see
+      # nix.settings.substituters).
       server = {
-        enable = true;
+        enable = false;
       };
       client = {
         enable = true;
         useHydra = false;
+        # harmonia stream-through preserves the upstream (cache.nixos.org)
+        # signature on pass-through NARs, so keep that key trusted rather than
+        # letting MeshOS mkForce trusted-public-keys to [].
+        trustHydra = true;
         useRecommendedCacheSettings = true;
       };
     };
@@ -156,7 +189,10 @@ in
       planHosts = config.networking.mesh.plan.hosts;
     }
     # Reach the CTF backbone (behind ghostgate) so attendees can hit challenge VMs.
-    ++ [ (erlib.ctfUnsafeRoute { planHosts = config.networking.mesh.plan.hosts; }) ];
+    ++ [ (erlib.ctfUnsafeRoute { planHosts = config.networking.mesh.plan.hosts; }) ]
+    # Reach the build net (citadel, the remote builder) behind ghostgate the same
+    # way, so this box — and its attendee arena — can offload builds.
+    ++ [ (erlib.buildUnsafeRoute { planHosts = config.networking.mesh.plan.hosts; }) ];
 
     # Relays are driven by mesh.nix: brass is the sole lighthouse+relay, so
     # every node gets `relays = [brass]` automatically. A single relay removes
@@ -223,6 +259,10 @@ in
     # clients, main table so the router itself can reach it.
     ${erlib.ctfTableRoutes { }}
     ${erlib.ctfTableRoutes { table = "main"; }}
+    # Reach the build net (citadel) over Nebula too — arena table for LAN
+    # clients, main table so the router itself can offload builds.
+    ${erlib.buildTableRoutes { }}
+    ${erlib.buildTableRoutes { table = "main"; }}
     # Attendee internet exits at the normal Nebula endpoint (brass): `dev
     # nebula.arena`, and Nebula's 0.0.0.0/0 unsafe_route tunnels it to brass.
     # This is underlay-agnostic — it works near ghostgate (Nebula rides the
@@ -777,24 +817,20 @@ in
     nginx = {
       enable = true;
 
-      upstreams = {
-        "${config.networking.hostName}.cache.${baseDomain}" = {
-          servers = {
-            "localhost:8501" = { };
-          };
-        };
-      };
-
+      # Front the local stream-through harmonia edge cache. addSSL (not
+      # forceSSL): a plugged-in client can hit http:// directly — it's a local
+      # link and NARs are signed — while https:// also works. The cert comes
+      # from ACME, with brass forwarding the HTTP-01 challenge for this name
+      # (see devices/brass: the SNI-passthrough cacheBackends entry).
       virtualHosts = {
         "${config.networking.hostName}.cache.${baseDomain}" = {
           http2 = true;
-          locations."/".proxyPass = "http://${config.networking.hostName}.cache.${baseDomain}";
+          enableACME = true;
+          addSSL = true;
+          locations."/".proxyPass = "http://[::1]:5000";
         };
       };
     };
-
-    # We have ~2 TB of storage, use 3/4 of it for local cache
-    ncps.cache.maxSize = "1500G";
   };
 
   systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];

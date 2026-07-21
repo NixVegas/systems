@@ -36,7 +36,8 @@ in
       ./devices/ayem
     ]
     ++ commonModules;
-    address = "ayem.noc.dc.nixos.lv";
+    #address = "ayem.noc.dc.nixos.lv";
+    address = "10.5.1.1";
   };
 
   seht = {
@@ -45,7 +46,8 @@ in
       ./devices/seht
     ]
     ++ commonModules;
-    address = "seht.noc.dc.nixos.lv";
+    #address = "seht.noc.dc.nixos.lv";
+    address = "10.5.1.2";
   };
 
   vehk = {
@@ -54,7 +56,8 @@ in
       ./devices/vehk
     ]
     ++ commonModules;
-    address = "vehk.noc.dc.nixos.lv";
+    #address = "vehk.noc.dc.nixos.lv";
+    address = "10.5.1.3";
   };
 
   adamantia = {
