@@ -205,6 +205,7 @@ in
     enable = true;
     configPath = pkgs.writeText "config.alloy" ''
       // Prometheus exporter for host metrics (CPU, memory, disk, network, systemd)
+      // Includes: zfs by default
       prometheus.exporter.unix "local" { }
 
       // Scrape the local unix exporter
