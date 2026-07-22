@@ -1325,6 +1325,17 @@ in
     };
   };
 
+  nixVegas.alloy = {
+    extraAlloyConfig = ''
+      prometheus.scrape "harmonia" {
+        targets = [{"__address__" = "127.0.0.1:5000", "instance" = constants.hostname}]
+        forward_to = [prometheus.remote_write.mimir.receiver]
+        scrape_interval = "15s"
+        job_name = "harmonia"
+      }
+    '';
+  };
+
   security.acme = {
     acceptTerms = true;
     defaults.email = "noc@nix.vegas";
