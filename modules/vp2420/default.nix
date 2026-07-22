@@ -27,14 +27,14 @@ let
   # by nebula, so we trust it like the LAN/mesh.
   nebulaTun = config.services.nebula.networks.arena.tun.device;
 
-  # WWAN
+  # WWAN (internal modem)
   wwan = "wlp0s20f0u3";
-
-  # WLAN
-  wlan = "wlp0s20f0u9";
-
-  # Monitor
-  mon = "wlp0s20f0u2";
+  # mt76x0u on external USB-A (lower)
+  wlan = "wlp0s20f0u2";
+  # mt76x2u on internal M.2
+  internalM2Wifi = "wlp0s20f0u4";
+  # mt76x2u on external USB-A (upper)
+  mon = "wlp0s20f0u7";
 
   # Attendee network. Base/id come from the fleet arena map (arena-hosts.nix),
   # keyed by this host's name.
@@ -140,12 +140,13 @@ in
     wifi = {
       enable = true;
       countryCode = "US";
-      dedicatedWifiDevices = lib.mkDefault [ "wlp0s20f0u4" ];
+      dedicatedWifiDevices = lib.mkDefault [ internalM2Wifi ];
       useForFallbackInternetAccess = true;
       # 20/30 under ideal conditions over 4G, hotel wifi limited to
       # 50, let's just call it 50 for BATMAN throughput estimation purposes
-      advertisedUploadMbps = 50;
-      advertisedDownloadMbps = 50;
+      # Usually these will be close, so go 100
+      advertisedUploadMbps = 100;
+      advertisedDownloadMbps = 100;
     };
     nebula = {
       enable = true;
@@ -685,8 +686,8 @@ in
       enable = true;
       radios.${wlan} = {
         countryCode = "US";
-        band = "2g";
-        channel = 8;
+        band = "5g";
+        channel = 40;
         wifi6.enable = true;
         networks.${wlan} = {
           ssid = "NixVegas_${config.networking.hostName}";

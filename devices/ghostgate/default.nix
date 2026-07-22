@@ -16,9 +16,14 @@ let
   baseDomain = "nixos.lv";
   domain = "dc.${baseDomain}";
 
+  # ath10k on pciex4
   onboardWifi = "wlp7s0";
   wwan1 = onboardWifi;
+  # mt76x2u on internal M.2
   internalM2Wifi = "wlp0s13f0u1";
+  # mt76x0u on external USB-A
+  externalUSBWifi = "wlp0s13f0u2";
+  # rt2800usb on internal USB-A
   internalUSBWifi = "wlp0s20f0u4";
 
   wanInterface = "enp3s0";
@@ -808,28 +813,26 @@ in
 
   services.hostapd = {
     enable = true;
-    /*
-      radios.${internalM2Wifi} = {
-        countryCode = "US";
-        band = "2g";
-        channel = 4;
-        wifi6.enable = true;
-        networks = {
-          ${internalM2Wifi} = {
-            ssid = "NixVegas";
-            authentication = {
-              mode = "wpa3-sae-transition";
-              saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
-              wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
-              enableRecommendedPairwiseCiphers = true;
-            };
-            settings = {
-              bridge = "arena";
-            };
+    radios.${externalUSBWifi} = {
+      countryCode = "US";
+      band = "2g";
+      channel = 4;
+      wifi6.enable = true;
+      networks = {
+        ${externalUSBWifi} = {
+          ssid = "NixVegas_2.4";
+          authentication = {
+            mode = "wpa3-sae-transition";
+            saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
+            wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
+            enableRecommendedPairwiseCiphers = true;
+          };
+          settings = {
+            bridge = "arena";
           };
         };
       };
-    */
+    };
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
@@ -837,7 +840,7 @@ in
       wifi6.enable = true;
       networks = {
         ${internalUSBWifi} = {
-          ssid = "NixVegas_5";
+          ssid = "NixVegas";
           authentication = {
             mode = "wpa3-sae-transition";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
