@@ -110,6 +110,8 @@ in
   imports = [
     ../../modules/event-router/common.nix
     ../../modules/hydra.nix
+    ../../modules/harmonia-cache.nix
+    ../../modules/citadel-builder.nix
     ./hardware-configuration.nix
   ];
 
@@ -549,6 +551,14 @@ in
               iifname "nebula.arena" oifname "ctf" counter accept comment "nebula -> ctf (remote arena)"
               iifname "ctf" oifname { "arena", "nebula.arena" } counter accept comment "ctf -> arena (replies)"
 
+              # Build net (citadel = the shared remote builder): the attendee
+              # arenas and the 2420s reach it over Nebula via ghostgate, exactly
+              # like ctf. Egress to `build` is masqueraded (postrouting above),
+              # so citadel replies to ghostgate's build IP and rpf stays happy.
+              iifname "arena" oifname "build" counter accept comment "arena -> build"
+              iifname "nebula.arena" oifname "build" counter accept comment "nebula -> build (remote arena)"
+              iifname "build" oifname { "arena", "nebula.arena" } counter accept comment "build -> arena (replies)"
+
               # Allow only localhost WAN access
               iifname {
                 "lo"
@@ -570,9 +580,9 @@ in
               } } counter accept comment "mesh -> lighthouse (clear bootstrap)"
               iifname "wan1" oifname "mesh2" ct state established,related counter accept comment "lighthouse reply -> mesh"
 
-              # Let NOC get to build and ctf.
-              iifname { "noc" } oifname { "build", "ctf" } counter accept
-              iifname { "build", "ctf" } oifname { "noc" } ct state established,related counter accept
+              # Let NOC get to build, ctf, and the WiFi mesh (10.5 via mesh2).
+              iifname { "noc" } oifname { "build", "ctf", "mesh2" } counter accept
+              iifname { "build", "ctf", "mesh2" } oifname { "noc" } ct state established,related counter accept
 
               # Allow established WAN to return
               iifname {
@@ -933,6 +943,12 @@ in
             })
             (erlib.mkDhcp4Subnet {
               net = build;
+              # Pin citadel (the shared remote builder) to a stable build address
+              # so citadel.build.dc.nixos.lv resolves consistently. The MAC is
+              # pinned on citadel's build bridge; .2 sits just outside the pool.
+              reservations = [
+                (mkReservation build "02:ca:fe:c7:f0:01" 2 "citadel")
+              ];
             })
             (erlib.mkDhcp4Subnet {
               net = ctf;
@@ -1280,70 +1296,12 @@ in
     groups.tftpd = { };
   };
 
-  services.harmonia = {
-    # substitute-on-miss patch (pkgs/harmonia/substitute-on-miss.patch; spec:
-    # docs/superpowers/specs/2026-07-16-harmonia-substitute-on-miss-design.md).
-    # On a narinfo miss harmonia asks the nix daemon to substitute the path in
-    # the background so the next request is served locally. Upstream PR to
-    # nix-community/harmonia planned post-event.
-    package =
-      let
-        # Patch the source, then vendor from the patched Cargo.lock via
-        # cargoLock.lockFile (importCargoLock). The default cargoHash path
-        # (fetchCargoVendor) normalizes workspace-internal path deps out of the
-        # vendored Cargo.lock, so its consistency check can never match a lock
-        # that adds harmonia-store-remote/harmonia-protocol to harmonia-cache
-        # ("Cargo.lock is not the same in vendor"). importCargoLock vendors
-        # straight from the lockfile with no such diff — and needs no hash,
-        # since the patch adds only in-tree path deps, no new registry crates.
-        patchedSrc = pkgs.applyPatches {
-          name = "harmonia-substitute-on-miss-src";
-          inherit (pkgs.harmonia) src;
-          patches = [ ../../pkgs/harmonia/substitute-on-miss.patch ];
-        };
-      in
-      pkgs.harmonia.overrideAttrs (prev: {
-        src = patchedSrc;
-        cargoDeps = pkgs.rustPlatform.importCargoLock {
-          lockFile = "${patchedSrc}/Cargo.lock";
-        };
-      });
-    cache = {
-      enable = true;
-      settings = {
-        # Serve raw NARs: harmonia 3.x otherwise zstd-encodes on the fly for
-        # Accept-Encoding: zstd clients. Serve the dedup'd store as-is.
-        enable_compression = false;
-        # Stream-through cache: on a narinfo miss harmonia serves upstream's
-        # narinfo rewritten to point at its own NAR endpoint; on the NAR
-        # request it fetches the upstream .nar.xz once (over its own HTTPS),
-        # decodes it, and fans the bytes to the client(s) AND into the store
-        # via the nix daemon — one uplink fetch, no amplification, no stall.
-        substitute_on_miss = true;
-        miss_upstream_url = "https://cache.nixos.org";
-        # In-flight narinfo LRU (low + self-cleaning; entries drop when their
-        # NAR job completes).
-        miss_narinfo_cache_size = 1024;
-        miss_narinfo_cache_ttl = 600;
-      };
-    };
-  };
-
-  # Stock harmonia is serve-only (it only accepts on a socket-activated fd and
-  # talks to the nix daemon over AF_UNIX), so its unit is network-sandboxed:
-  # PrivateNetwork = true, RestrictAddressFamilies = [ "AF_UNIX" ],
-  # IPAddressDeny = "any". The stream-through substitute-on-miss makes outbound
-  # HTTPS to cache.nixos.org — reqwest can't even socket(AF_INET) under that
-  # sandbox, so every miss silently fell back to a stock 404. Open the unit up
-  # just enough to reach upstream. (The daemon socket stays AF_UNIX.)
-  systemd.services.harmonia.serviceConfig = {
-    PrivateNetwork = lib.mkForce false;
-    RestrictAddressFamilies = lib.mkForce [
-      "AF_UNIX"
-      "AF_INET"
-      "AF_INET6"
-    ];
-    IPAddressDeny = lib.mkForce "";
+  # Patched stream-through harmonia (shared module: modules/harmonia-cache.nix).
+  # ghostgate is the root cache — stream-through straight from the real upstream.
+  # (The VP2420 edge caches point their upstream at cache.nixos.lv = here.)
+  nixVegas.harmoniaCache = {
+    enable = true;
+    upstreamUrl = "https://cache.nixos.org";
   };
 
   systemd.services = {

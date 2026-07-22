@@ -32,11 +32,40 @@ let
     subdomain = "ctf";
     inherit domain;
   };
+
+  # Remote-build clients: hosts allowed to offload to citadel. Their SSH *host*
+  # public keys (from the mesh plan) go straight into the build user's
+  # authorized_keys — the clients authenticate with /etc/ssh/ssh_host_ed25519_key
+  # (see modules/citadel-builder.nix). seht has no hostKey in the plan yet, so
+  # the filter drops it until it's provisioned.
+  planHosts = config.networking.mesh.plan.hosts;
+  buildClients = [
+    "ghostgate"
+    "ayem"
+    "vehk"
+  ];
+  buildClientKeys = map (n: planHosts.${n}.ssh.hostKey) (
+    lib.filter (n: (planHosts.${n}.ssh.hostKey or null) != null) buildClients
+  );
 in
 {
   imports = [
     ../../modules/hydra-builder.nix
   ];
+
+  # citadel is the shared remote builder (the "huge box"). nix.sshServe sets up
+  # the nix-ssh user restricted to the nix protocol only: protocol = "ssh-ng"
+  # force-commands `nix-daemon --stdio` (no shell, no forwarding — see the
+  # `Match User nix-ssh` block it emits), write = true + trusted = true let
+  # offloaded builds write to the store. Auth is the clients' SSH host keys from
+  # the mesh plan (no new secrets); clients connect as nix-ssh (citadel-builder).
+  nix.sshServe = {
+    enable = true;
+    protocol = "ssh-ng";
+    write = true;
+    trusted = true;
+    keys = buildClientKeys;
+  };
 
   boot = {
     initrd.availableKernelModules = [
@@ -98,7 +127,13 @@ in
     # default routes (the multi-default asymmetric-routing footgun).
     interfaces = {
       noc.useDHCP = true;
-      build.useDHCP = true;
+      build = {
+        useDHCP = true;
+        # Pinned so ghostgate's build DHCP reservation is stable (-> 10.4.1.2 /
+        # citadel.build.dc.nixos.lv, the remote-build target) regardless of
+        # which bond member's MAC the LACP bond adopts.
+        macAddress = "02:ca:fe:c7:f0:01";
+      };
       ctf = {
         useDHCP = true;
         # Pinned so ghostgate's DHCP reservation is stable regardless of which

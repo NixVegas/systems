@@ -36,7 +36,10 @@ in
       ./devices/ayem
     ]
     ++ commonModules;
-    address = "ayem.noc.dc.nixos.lv";
+
+    # TODO: un-hardcode with nebula DNS
+    #address = "ayem.noc.dc.nixos.lv";
+    address = "10.5.1.1";
   };
 
   seht = {
@@ -45,7 +48,10 @@ in
       ./devices/seht
     ]
     ++ commonModules;
-    address = "seht.noc.dc.nixos.lv";
+
+    # TODO: un-hardcode with nebula DNS
+    #address = "seht.noc.dc.nixos.lv";
+    address = "10.5.1.2";
   };
 
   vehk = {
@@ -54,7 +60,10 @@ in
       ./devices/vehk
     ]
     ++ commonModules;
-    address = "vehk.noc.dc.nixos.lv";
+
+    # TODO: un-hardcode with nebula DNS
+    #address = "vehk.noc.dc.nixos.lv";
+    address = "10.5.1.3";
   };
 
   adamantia = {

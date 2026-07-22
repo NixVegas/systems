@@ -187,6 +187,36 @@ rec {
     }:
     "_ip route replace ${ctfNet} dev ${dev} table ${table}\n";
 
+  # The build net, hosted behind ghostgate (see devices/ghostgate). citadel sits
+  # here as the shared remote builder; arenas reach it over Nebula via ghostgate
+  # (same path as ctf) so the 2420s — and the attendee arenas — can offload
+  # builds. Keep `buildNet` in sync with ghostgate's `build` net descriptor.
+  buildNet = "10.4.1.0/24";
+  buildGateway = "ghostgate";
+  # citadel's pinned build address (the DHCP reservation on ghostgate), i.e.
+  # citadel.build.dc.nixos.lv — the remote-build SSH target.
+  buildServer = "10.4.1.2";
+
+  # Nebula unsafe_route to the build net via ghostgate. NB: ghostgate's Nebula
+  # cert must be signed with 10.4.1.0/24 as a subnet (like ctf's 10.4.2.0/24) or
+  # peers won't accept this route. install = false (kernel route in postStart).
+  buildUnsafeRoute =
+    { planHosts }:
+    {
+      route = buildNet;
+      via = planHosts.${buildGateway}.nebula.address;
+      install = false;
+    };
+
+  # Shell line installing the build route into a policy table (nebula@arena
+  # postStart). `dev nebula.arena`, no `via` — same reasoning as ctfTableRoutes.
+  buildTableRoutes =
+    {
+      table ? "arena",
+      dev ? "nebula.arena",
+    }:
+    "_ip route replace ${buildNet} dev ${dev} table ${table}\n";
+
   # A single kea `subnet4` entry from a net descriptor. `reservations` is
   # omitted entirely when empty, and `ntp` controls whether an ntp-servers
   # option is advertised — both to match the hand-written entries exactly.
