@@ -18,10 +18,11 @@
     "xhci_pci"
     "ahci"
     "nvme"
+    "uas"
     "usb_storage"
     "sd_mod"
   ];
-  boot.initrd.kernelModules = [ ];
+  boot.initrd.kernelModules = [ "uas" ];
   boot.kernelModules = [ "kvm-intel" ];
   boot.extraModulePackages = [ ];
 
