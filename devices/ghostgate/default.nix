@@ -1040,6 +1040,8 @@ in
         "[::1]:53"
       ];
       extraConfig = erlib.mkKresdExtraConfig {
+        # Synthesize <host>.nebula.arena.nixos.lv A hints from the plan.
+        planHosts = config.networking.mesh.plan.hosts;
         subnets = [
           noc.subnet
           build.subnet

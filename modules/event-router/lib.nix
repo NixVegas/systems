@@ -344,12 +344,25 @@ rec {
       # Static A answers (split-horizon), e.g. { "nixc.tf" = "10.4.2.2"; } to
       # point a public name at an internal host ahead of its public answer.
       hints ? { },
+      # The mesh plan's hosts. When given, every host with a Nebula address gets
+      # a `<host>.nebula.arena.nixos.lv` A hint (its overlay IP), synthesized
+      # from the plan. Nebula's own serve_dns can't back this zone — it exact-
+      # matches bare cert names, so a `<host>.nebula.arena.nixos.lv` query misses
+      # — and the overlay IPs are static in the plan anyway, so the plan is the
+      # source of truth. (The "un-hardcode with nebula DNS" TODO in systems.nix.)
+      planHosts ? { },
       cacheSizeMB ? 32,
     }:
     let
       quote = xs: lib.concatMapStringsSep ", " (x: "'${x}'") xs;
       localPolicy =
         if localForward then "policy.FORWARD({'127.0.0.1@53535'})" else "policy.STUB('127.0.0.1@53535')";
+      # <host>.nebula.arena.nixos.lv -> that host's Nebula overlay IP.
+      nebulaHints = lib.mapAttrs' (
+        name: h: lib.nameValuePair "${name}.nebula.arena.nixos.lv" h.nebula.address
+      ) (lib.filterAttrs (_: h: (h.nebula.address or null) != null) planHosts);
+      # Explicit hints win over the synthesized nebula ones on any name clash.
+      allHints = nebulaHints // hints;
     in
     ''
       cache.size = ${toString cacheSizeMB} * MB
@@ -364,9 +377,9 @@ rec {
         'predict'
       }
 
-      -- Static split-horizon answers (e.g. nixc.tf -> the internal CTF server),
-      -- taking precedence over the public answer.
-      ${lib.concatStrings (lib.mapAttrsToList (name: ip: "hints.set('${name} ${ip}')\n      ") hints)}
+      -- Static split-horizon answers (e.g. nixc.tf -> the internal CTF server)
+      -- plus the synthesized <host>.nebula.arena.nixos.lv overlay names.
+      ${lib.concatStrings (lib.mapAttrsToList (name: ip: "hints.set('${name} ${ip}')\n      ") allHints)}
       -- Accept all requests from these subnets
       subnets = { ${quote subnets} }
       for i, v in ipairs(subnets) do
