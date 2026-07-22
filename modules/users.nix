@@ -3,6 +3,19 @@
   lib,
   ...
 }:
+let
+  # Every wheel (admin) user also lands in these groups: local console + media
+  # + device access (serial/GPU/input) without per-user boilerplate. `usb` comes
+  # from the udev rule below that tags USB devices GROUP="usb".
+  adminExtraGroups = [
+    "tty"
+    "video"
+    "render"
+    "input"
+    "dialout"
+    "usb"
+  ];
+in
 {
   security.sudo = {
     enable = true;
@@ -21,7 +34,18 @@
   };
 
   users = {
-    users = {
+    groups.usb.gid = 500;
+
+    # Fold adminExtraGroups into every user that's in wheel. Maps the local
+    # attrset below (NOT config.users.users), so there's no self-referential
+    # recursion, and any new wheel user picks the groups up automatically.
+    users = lib.mapAttrs (
+      _: u:
+      u
+      // lib.optionalAttrs (lib.elem "wheel" (u.extraGroups or [ ])) {
+        extraGroups = lib.unique (u.extraGroups ++ adminExtraGroups);
+      }
+    ) {
       ross = {
         isNormalUser = true;
         extraGroups = [
@@ -77,6 +101,12 @@
       };
     };
   };
+
+  # USB devices are owned by the `usb` group (which every admin joins above), so
+  # wheel users can talk to them without root.
+  services.udev.extraRules = ''
+    SUBSYSTEM=="usb", GROUP="usb"
+  '';
 
   nix.settings.trusted-users = [
     "@wheel"
