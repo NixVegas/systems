@@ -2,6 +2,7 @@
 
 let
   commonModules = [
+    ./modules/alloy.nix
     ./modules/boot.nix
     ./modules/fs.nix
     ./modules/misc.nix
