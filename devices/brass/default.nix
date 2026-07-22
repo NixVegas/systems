@@ -38,15 +38,15 @@ let
   # serves the public, but the name stays drop-in off-site. Onsite, the box's
   # own client reaches its harmonia locally and never traverses brass. The 2420s
   # are the mesh-client hosts (wifi 10.5.1.x); ghostgate (10.5.0.1) is excluded.
-  vp2420CacheBackends = lib.mapAttrs' (
-    name: h: lib.nameValuePair "${name}.cache.nixos.lv" h.nebula.address
-  ) (
-    lib.filterAttrs (
-      _: h:
-      (h.wifi.address or null) != null
-      && lib.hasPrefix "10.5.1." (lib.head (lib.splitString "/" h.wifi.address))
-    ) config.networking.mesh.plan.hosts
-  );
+  vp2420CacheBackends =
+    lib.mapAttrs' (name: h: lib.nameValuePair "${name}.cache.nixos.lv" h.nebula.address)
+      (
+        lib.filterAttrs (
+          _: h:
+          (h.wifi.address or null) != null
+          && lib.hasPrefix "10.5.1." (lib.head (lib.splitString "/" h.wifi.address))
+        ) config.networking.mesh.plan.hosts
+      );
   # Nothing is SNI-passed through to the public. Every heavy onsite service is
   # onsite-only (302'd); attendees reach everything via split-horizon straight
   # to ghostgate. (The livestream stays public — brass's own owncast vhost.)

@@ -67,6 +67,8 @@ in
     keys = buildClientKeys;
   };
 
+  nixVegas.alloy.nebulaCollector = false;
+
   boot = {
     initrd.availableKernelModules = [
       "nvme"
