@@ -22,7 +22,7 @@ let
   # mt76x2u on internal M.2
   internalM2Wifi = "wlp0s13f0u1";
   # mt76x0u on external USB-A
-  externalUSBWifi = "wlp0s13f0u2";
+  externalUSBWifi = "wlp0s20f0u2";
   # rt2800usb on internal USB-A
   internalUSBWifi = "wlp0s20f0u4";
 
@@ -836,7 +836,18 @@ in
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
-      channel = 36;
+      # Staged for the planned mt76 swap (replacing the n-only rt2800usb) — full
+      # VHT/HE like the 2420 APs. ch165: clear of the mesh's UNII-1 80MHz block
+      # (36-48) AND distinct from the 2420 APs (ayem 149, vehk 157). It runs
+      # VHT20/HE20 there, because 165 is the only distinct non-DFS slot left and
+      # has no legal 40MHz partner (169 is no-IR). To go 40/80MHz you'd either
+      # reuse a 2420 channel (only clash-free if the NOC is RF-isolated) or take
+      # a DFS block — flip wifi5/wifi6 operatingChannelWidth + channel then.
+      # (Deployed on the current rt2800usb this VHT/HE just downgrades to HT20,
+      # same as before, so it's safe to land ahead of the hardware swap.)
+      channel = 165;
+      wifi4.enable = true;
+      wifi5.enable = true;
       wifi6.enable = true;
       networks = {
         ${internalUSBWifi} = {

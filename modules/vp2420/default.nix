@@ -42,6 +42,21 @@ let
     self = config.networking.hostName;
     inherit domain;
   };
+
+  # Attendee-AP 5GHz channel, per box. Kept in UNII-3 (149-165), clear of the
+  # 802.11s mesh backhaul, which runs 80MHz across the whole UNII-1 block
+  # (36-48) — the AP used to sit on ch40 *inside* that block and fight this
+  # box's own backhaul. 40MHz uses HT40+ (each control channel is the lower of
+  # its pair: 149+153, 157+161). Only two clean non-DFS 40MHz blocks exist up
+  # here, so co-located boxes get distinct ones; seht is off-site right now and
+  # reuses ayem's (RF-separated). Revisit if seht returns to the same hall.
+  apChannel =
+    {
+      ayem = 149;
+      vehk = 157;
+      seht = 149;
+    }
+    .${config.networking.hostName} or 149;
 in
 {
   imports = [
@@ -687,8 +702,22 @@ in
       radios.${wlan} = {
         countryCode = "US";
         band = "5g";
-        channel = 40;
-        wifi6.enable = true;
+        channel = apChannel;
+        # 40MHz: HT40+ (secondary channel above the primary), with VHT/HE riding
+        # on top. operatingChannelWidth "20or40" is the 40MHz setting (0); bump
+        # wifi5/wifi6 to "80" here if a box is RF-isolated and wants VHT80.
+        wifi4 = {
+          enable = true;
+          capabilities = [ "HT40+" ];
+        };
+        wifi5 = {
+          enable = true;
+          operatingChannelWidth = "20or40";
+        };
+        wifi6 = {
+          enable = true;
+          operatingChannelWidth = "20or40";
+        };
         networks.${wlan} = {
           ssid = "NixVegas_${config.networking.hostName}";
           authentication = {
