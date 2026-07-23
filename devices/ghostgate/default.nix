@@ -1170,13 +1170,15 @@ in
         # nix.vegas (a public nixpkgs clone endpoint is a bandwidth sink), so
         # this vhost only ever serves onsite traffic. ghostgate still terminates
         # TLS with its own ACME cert (brass forwards the HTTP-01 token). Proxies
-        # to the loopback-bound forgejo on :3000.
+        # to the loopback-bound forgejo on :3001 (NOT :3000, hydra-server binds
+        # *:3000, which would otherwise shadow forgejo's loopback socket and make
+        # git.nixos.lv serve Hydra).
         "git.${baseDomain}" = {
           http2 = true;
           enableACME = true;
           forceSSL = true;
           locations."/" = {
-            proxyPass = "http://127.0.0.1:3000";
+            proxyPass = "http://127.0.0.1:3001";
             proxyWebsockets = true; # live UI / actions log streaming
             # git http-backend pushes and LFS uploads dwarf the 1m nginx
             # default; nixpkgs mirror syncs stream for a long time.
@@ -1209,10 +1211,11 @@ in
           DOMAIN = "git.${baseDomain}";
           ROOT_URL = "https://git.${baseDomain}/";
           # Bind the web app to loopback only — nginx terminates TLS and
-          # proxies in (see the git.nixos.lv vhost). :3000 is never on an
-          # uplink, so it's not in the firewall either.
+          # proxies in (see the git.nixos.lv vhost). :3001 (not :3000, which
+          # hydra-server binds on *:3000) is never on an uplink, so it's not in
+          # the firewall either.
           HTTP_ADDR = "127.0.0.1";
-          HTTP_PORT = 3000;
+          HTTP_PORT = 3001;
           # Built-in SSH server for git push/pull. Reachable onsite and over
           # Nebula, NOT publicly: brass only SNI-passes :443, so 2222 never
           # crosses the public ingress. Public users clone read-only over
