@@ -225,6 +225,7 @@ rec {
       net,
       reservations ? [ ],
       ntp ? true,
+      extraRoutes ? "",
     }:
     {
       inherit (net) subnet id;
@@ -251,6 +252,15 @@ rec {
         name = "ntp-servers";
         data = net.address;
         always-send = true;
+      }
+      ++ lib.optional (extraRoutes != "") {
+        option-data = [
+          {
+            name = "classless-static-route";
+            code = 121;
+            data = extraRoutes;
+          }
+        ];
       };
     }
     // lib.optionalAttrs (reservations != [ ]) { inherit reservations; };
