@@ -36,12 +36,6 @@ let
       scrape_interval = "15s"
     }
 
-    prometheus.scrape "nebula" {
-      targets = [{"__address__" = "127.0.0.1:9200", "instance" = constants.hostname}]
-      forward_to = [prometheus.remote_write.mimir.receiver]
-      scrape_interval = "10s"
-      job_name = "nebula"
-    }
 
     // Remote write to Mimir
     prometheus.remote_write "mimir" {
@@ -50,6 +44,14 @@ let
         url = "http://${cfg.mimirAddress}:${builtins.toString cfg.mimirHttpPort}/api/v1/push"
       }
     }
+    ${optionalString cfg.nebulaCollector ''
+      prometheus.scrape "nebula" {
+        targets = [{"__address__" = "127.0.0.1:9200", "instance" = constants.hostname}]
+        forward_to = [prometheus.remote_write.mimir.receiver]
+        scrape_interval = "10s"
+        job_name = "nebula"
+      }
+    ''}
     ${optionalString (cfg.extraAlloyConfig != "") ''
       // Extra user-provided configuration
       ${cfg.extraAlloyConfig}
