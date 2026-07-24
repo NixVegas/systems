@@ -470,6 +470,13 @@ in
 
         systemd.services.mimir.serviceConfig.DynamicUser = lib.mkForce false;
 
+        environment.etc."grafana/dashboards/harmonia.json" = {
+          source = pkgs.fetchurl {
+            url = "https://raw.githubusercontent.com/nix-community/harmonia/b7c7777f422ff42ce637f6b2f356c2dbac2d3db4/harmonia-cache/harmonia-grafana-dashboard.json";
+            sha256 = "sha256-e1Ai8fsF07iSPjDOs4d52UiI8NzGySDvTrfbT3+QeEU=";
+          };
+        };
+
         services = {
           grafana = {
             enable = true;
@@ -499,6 +506,13 @@ in
                   access = "proxy";
                   url = "http://127.0.0.1:3200/prometheus";
                   isDefault = true;
+                }
+              ];
+              dashboards.settings.providers = [
+                {
+                  name = "default";
+                  options.path = "/etc/grafana/dashboards";
+                  updateIntervalSeconds = 60;
                 }
               ];
             };
