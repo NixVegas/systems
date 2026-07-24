@@ -21,8 +21,8 @@ let
   wwan1 = onboardWifi;
   # mt76x2u on internal M.2
   internalM2Wifi = "wlp0s13f0u1";
-  # mt76x0u on external USB-A
-  externalUSBWifi = "wlp0s20f0u2";
+  # mt76x2u on external USB-A
+  externalUSBWifi = "wlp0s13f0u2";
   # rt2800usb on internal USB-A
   internalUSBWifi = "wlp0s20f0u4";
 
@@ -117,6 +117,7 @@ in
     ../../modules/hydra.nix
     ../../modules/harmonia-cache.nix
     ../../modules/citadel-builder.nix
+    ../../modules/pxe.nix
     ./hardware-configuration.nix
   ];
 
@@ -910,37 +911,7 @@ in
           service-sockets-retry-wait-time = 5000;
         };
 
-        client-classes = [
-          {
-            name = "XClient_iPXE";
-            test = "substring(option[77].hex,0,4) == 'iPXE'";
-            boot-file-name = "http://${baseDomain}/boot/netboot.ipxe";
-          }
-
-          {
-            name = "UEFI-64-1";
-            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00007'";
-            boot-file-name = "${pkgs.ipxe}/ipxe.efi";
-          }
-
-          {
-            name = "UEFI-64-2";
-            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00008'";
-            boot-file-name = "${pkgs.ipxe}/ipxe.efi";
-          }
-
-          {
-            name = "UEFI-64-3";
-            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00009'";
-            boot-file-name = "${pkgs.ipxe}/ipxe.efi";
-          }
-
-          {
-            name = "Legacy";
-            test = "substring(option[60].hex,0,20) == 'PXEClient:Arch:00000'";
-            boot-file-name = "${pkgs.ipxe}/undionly.kpxe";
-          }
-        ];
+        # PXE/iPXE boot classes come from modules/pxe.nix (nixVegas.pxe below).
 
         subnet4 =
           let
@@ -1138,6 +1109,18 @@ in
                 alias = "${netboot}/netboot.ipxe";
               };
 
+              # The "Escape Your Fate" adventure the iPXE class hands out; it
+              # chains netboot.ipxe (above) relative to itself.
+              "= /boot/menu.ipxe" = {
+                alias = "${config.nixVegas.pxe.gameScript}";
+              };
+
+              # Bad Apple, compiled to an iPXE animation — the adventure's hidden
+              # `apple` command chains this.
+              "= /boot/badapple.ipxe" = {
+                alias = "${config.nixVegas.pxe.movieScript}";
+              };
+
               "/".root = public;
             };
         };
@@ -1310,12 +1293,13 @@ in
       "nebula.arena" = forgejoSsh;
     };
 
-  users = {
-    users.tftpd = {
-      isSystemUser = true;
-      group = "tftpd";
-    };
-    groups.tftpd = { };
+  # PXE/iPXE netboot server (shared module: modules/pxe.nix). ghostgate hands
+  # iPXE the nixos.lv menu.ipxe URL, served by its own nixos.lv site vhost (which
+  # aliases the module's gameScript + the /boot/* artifacts) — so serveArtifacts
+  # stays at its default (false).
+  nixVegas.pxe = {
+    enable = true;
+    ipxeScriptUrl = "http://${baseDomain}/boot/menu.ipxe";
   };
 
   # Patched stream-through harmonia (shared module: modules/harmonia-cache.nix).
@@ -1324,27 +1308,6 @@ in
   nixVegas.harmoniaCache = {
     enable = true;
     upstreamUrl = "https://cache.nixos.org";
-  };
-
-  systemd.services = {
-    tftpd = {
-      after = [ "nftables.service" ];
-      description = "TFTP server";
-      serviceConfig = rec {
-        User = "tftpd";
-        Group = "tftpd";
-        Restart = "always";
-        RestartSec = 5;
-        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
-        CapabilityBoundingSet = AmbientCapabilities;
-        Type = "exec";
-        RuntimeDirectory = "tftpd";
-        PIDFile = "${RuntimeDirectory}/tftpd.pid";
-        ExecStart = "${pkgs.tftp-hpa}/bin/in.tftpd -v -l -a 0.0.0.0:69 -P /run/${PIDFile} ${pkgs.ipxe}";
-        TimeoutStopSec = 20;
-      };
-      wantedBy = [ "multi-user.target" ];
-    };
   };
 
   nixVegas.alloy = {

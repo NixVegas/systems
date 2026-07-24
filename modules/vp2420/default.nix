@@ -63,6 +63,7 @@ in
     ../event-router/common.nix
     ../harmonia-cache.nix
     ../citadel-builder.nix
+    ../pxe.nix
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
@@ -131,6 +132,16 @@ in
   nixVegas.harmoniaCache = {
     enable = true;
     upstreamUrl = "https://cache.nixos.lv";
+  };
+
+  # PXE/iPXE netboot server (shared module: modules/pxe.nix). Unlike ghostgate,
+  # each 2420 serves the artifacts locally: iPXE is handed this box's own arena
+  # IP, so the kernel/initrd ride the local arena link rather than the mesh.
+  # serveArtifacts adds the default :80 vhost that answers that by-IP request.
+  nixVegas.pxe = {
+    enable = true;
+    ipxeScriptUrl = "http://${arena.address}/boot/menu.ipxe";
+    serveArtifacts = true;
   };
 
   # This box's own nix client substitutes from ghostgate (cache.nixos.lv), NOT

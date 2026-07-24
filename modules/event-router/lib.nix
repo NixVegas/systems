@@ -231,6 +231,7 @@ rec {
       inherit (net) subnet id;
       pools = [ { pool = "${net.dhcpStart} - ${net.dhcpEnd}"; } ];
       ddns-qualifying-suffix = "${net.dhcpDomain}.";
+      next-server = net.address;
       option-data = lib.mkMerge [
         [
           {
