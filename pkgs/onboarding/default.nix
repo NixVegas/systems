@@ -92,4 +92,11 @@ stdenv.mkDerivation {
     echo "$version" > $out/version
     echo "$rev" > $out/rev
   '';
+
+  # The raw netboot artifacts (bzImage, initrd, netboot.ipxe) as their own
+  # ~2GB closure. A box that only PXE-serves netboot (the vp2420 edge caches
+  # via modules/pxe.nix) references this instead of the whole artifacts/site
+  # bundle, so it doesn't drag the ~9.5GB closure of ISOs, manual, and pagefind
+  # onto a router that will never serve a website.
+  passthru.netboot = netboot.${system};
 }
