@@ -27,14 +27,14 @@ let
   # by nebula, so we trust it like the LAN/mesh.
   nebulaTun = config.services.nebula.networks.arena.tun.device;
 
-  # WWAN
+  # WWAN (internal modem)
   wwan = "wlp0s20f0u3";
-
-  # WLAN
-  wlan = "wlp0s20f0u9";
-
-  # Monitor
-  mon = "wlp0s20f0u2";
+  # mt76x0u on external USB-A (lower)
+  wlan = "wlp0s20f0u2";
+  # mt76x2u on internal M.2
+  internalM2Wifi = "wlp0s20f0u4";
+  # mt76x2u on external USB-A (upper)
+  mon = "wlp0s20f0u7";
 
   # Attendee network. Base/id come from the fleet arena map (arena-hosts.nix),
   # keyed by this host's name.
@@ -42,6 +42,21 @@ let
     self = config.networking.hostName;
     inherit domain;
   };
+
+  # Attendee-AP 5GHz channel, per box. Kept in UNII-3 (149-165), clear of the
+  # 802.11s mesh backhaul, which runs 80MHz across the whole UNII-1 block
+  # (36-48) — the AP used to sit on ch40 *inside* that block and fight this
+  # box's own backhaul. 40MHz uses HT40+ (each control channel is the lower of
+  # its pair: 149+153, 157+161). Only two clean non-DFS 40MHz blocks exist up
+  # here, so co-located boxes get distinct ones; seht is off-site right now and
+  # reuses ayem's (RF-separated). Revisit if seht returns to the same hall.
+  apChannel =
+    {
+      ayem = 149;
+      vehk = 157;
+      seht = 149;
+    }
+    .${config.networking.hostName} or 149;
 in
 {
   imports = [
@@ -140,12 +155,13 @@ in
     wifi = {
       enable = true;
       countryCode = "US";
-      dedicatedWifiDevices = lib.mkDefault [ "wlp0s20f0u4" ];
+      dedicatedWifiDevices = lib.mkDefault [ internalM2Wifi ];
       useForFallbackInternetAccess = true;
       # 20/30 under ideal conditions over 4G, hotel wifi limited to
       # 50, let's just call it 50 for BATMAN throughput estimation purposes
-      advertisedUploadMbps = 50;
-      advertisedDownloadMbps = 50;
+      # Usually these will be close, so go 100
+      advertisedUploadMbps = 100;
+      advertisedDownloadMbps = 100;
     };
     nebula = {
       enable = true;
@@ -685,9 +701,23 @@ in
       enable = true;
       radios.${wlan} = {
         countryCode = "US";
-        band = "2g";
-        channel = 8;
-        wifi6.enable = true;
+        band = "5g";
+        channel = apChannel;
+        # 40MHz: HT40+ (secondary channel above the primary), with VHT/HE riding
+        # on top. operatingChannelWidth "20or40" is the 40MHz setting (0); bump
+        # wifi5/wifi6 to "80" here if a box is RF-isolated and wants VHT80.
+        wifi4 = {
+          enable = true;
+          capabilities = [ "HT40+" ];
+        };
+        wifi5 = {
+          enable = true;
+          operatingChannelWidth = "20or40";
+        };
+        wifi6 = {
+          enable = true;
+          operatingChannelWidth = "20or40";
+        };
         networks.${wlan} = {
           ssid = "NixVegas_${config.networking.hostName}";
           authentication = {
@@ -786,6 +816,8 @@ in
         "[::1]:53"
       ];
       extraConfig = erlib.mkKresdExtraConfig {
+        # Synthesize <host>.nebula.arena.nixos.lv A hints from the plan.
+        planHosts = config.networking.mesh.plan.hosts;
         subnets = [
           arena.subnet
           "127.0.0.0/8"

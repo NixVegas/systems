@@ -16,9 +16,14 @@ let
   baseDomain = "nixos.lv";
   domain = "dc.${baseDomain}";
 
+  # ath10k on pciex4
   onboardWifi = "wlp7s0";
   wwan1 = onboardWifi;
+  # mt76x2u on internal M.2
   internalM2Wifi = "wlp0s13f0u1";
+  # mt76x0u on external USB-A
+  externalUSBWifi = "wlp0s20f0u2";
+  # rt2800usb on internal USB-A
   internalUSBWifi = "wlp0s20f0u4";
 
   wanInterface = "enp3s0";
@@ -808,36 +813,45 @@ in
 
   services.hostapd = {
     enable = true;
-    /*
-      radios.${internalM2Wifi} = {
-        countryCode = "US";
-        band = "2g";
-        channel = 4;
-        wifi6.enable = true;
-        networks = {
-          ${internalM2Wifi} = {
-            ssid = "NixVegas";
-            authentication = {
-              mode = "wpa3-sae-transition";
-              saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
-              wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
-              enableRecommendedPairwiseCiphers = true;
-            };
-            settings = {
-              bridge = "arena";
-            };
+    radios.${externalUSBWifi} = {
+      countryCode = "US";
+      band = "2g";
+      channel = 4;
+      wifi6.enable = true;
+      networks = {
+        ${externalUSBWifi} = {
+          ssid = "NixVegas_2.4";
+          authentication = {
+            mode = "wpa3-sae-transition";
+            saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
+            wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
+            enableRecommendedPairwiseCiphers = true;
+          };
+          settings = {
+            bridge = "arena";
           };
         };
       };
-    */
+    };
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
-      channel = 36;
+      # Staged for the planned mt76 swap (replacing the n-only rt2800usb) — full
+      # VHT/HE like the 2420 APs. ch165: clear of the mesh's UNII-1 80MHz block
+      # (36-48) AND distinct from the 2420 APs (ayem 149, vehk 157). It runs
+      # VHT20/HE20 there, because 165 is the only distinct non-DFS slot left and
+      # has no legal 40MHz partner (169 is no-IR). To go 40/80MHz you'd either
+      # reuse a 2420 channel (only clash-free if the NOC is RF-isolated) or take
+      # a DFS block — flip wifi5/wifi6 operatingChannelWidth + channel then.
+      # (Deployed on the current rt2800usb this VHT/HE just downgrades to HT20,
+      # same as before, so it's safe to land ahead of the hardware swap.)
+      channel = 165;
+      wifi4.enable = true;
+      wifi5.enable = true;
       wifi6.enable = true;
       networks = {
         ${internalUSBWifi} = {
-          ssid = "NixVegas_5";
+          ssid = "NixVegas";
           authentication = {
             mode = "wpa3-sae-transition";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
@@ -938,8 +952,11 @@ in
             };
           in
           [
+            # Reach the Nebula overlay (10.6/16 — e.g. dagoth at 10.6.6.9, where
+            # alloy pushes metrics) out the NOC management interface via ghostgate,
             (erlib.mkDhcp4Subnet {
               net = noc;
+              extraRoutes = "10.6.0.0/16 - 10.4.0.1";
             })
             (erlib.mkDhcp4Subnet {
               net = build;
@@ -1040,6 +1057,8 @@ in
         "[::1]:53"
       ];
       extraConfig = erlib.mkKresdExtraConfig {
+        # Synthesize <host>.nebula.arena.nixos.lv A hints from the plan.
+        planHosts = config.networking.mesh.plan.hosts;
         subnets = [
           noc.subnet
           build.subnet
@@ -1154,13 +1173,15 @@ in
         # nix.vegas (a public nixpkgs clone endpoint is a bandwidth sink), so
         # this vhost only ever serves onsite traffic. ghostgate still terminates
         # TLS with its own ACME cert (brass forwards the HTTP-01 token). Proxies
-        # to the loopback-bound forgejo on :3000.
+        # to the loopback-bound forgejo on :3001 (NOT :3000, hydra-server binds
+        # *:3000, which would otherwise shadow forgejo's loopback socket and make
+        # git.nixos.lv serve Hydra).
         "git.${baseDomain}" = {
           http2 = true;
           enableACME = true;
           forceSSL = true;
           locations."/" = {
-            proxyPass = "http://127.0.0.1:3000";
+            proxyPass = "http://127.0.0.1:3001";
             proxyWebsockets = true; # live UI / actions log streaming
             # git http-backend pushes and LFS uploads dwarf the 1m nginx
             # default; nixpkgs mirror syncs stream for a long time.
@@ -1193,10 +1214,11 @@ in
           DOMAIN = "git.${baseDomain}";
           ROOT_URL = "https://git.${baseDomain}/";
           # Bind the web app to loopback only — nginx terminates TLS and
-          # proxies in (see the git.nixos.lv vhost). :3000 is never on an
-          # uplink, so it's not in the firewall either.
+          # proxies in (see the git.nixos.lv vhost). :3001 (not :3000, which
+          # hydra-server binds on *:3000) is never on an uplink, so it's not in
+          # the firewall either.
           HTTP_ADDR = "127.0.0.1";
-          HTTP_PORT = 3000;
+          HTTP_PORT = 3001;
           # Built-in SSH server for git push/pull. Reachable onsite and over
           # Nebula, NOT publicly: brass only SNI-passes :443, so 2222 never
           # crosses the public ingress. Public users clone read-only over
