@@ -952,8 +952,11 @@ in
             };
           in
           [
+            # Reach the Nebula overlay (10.6/16 — e.g. dagoth at 10.6.6.9, where
+            # alloy pushes metrics) out the NOC management interface via ghostgate,
             (erlib.mkDhcp4Subnet {
               net = noc;
+              extraRoutes = "10.6.0.0/16 - 10.4.0.1";
             })
             (erlib.mkDhcp4Subnet {
               net = build;
