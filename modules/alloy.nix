@@ -26,7 +26,7 @@ let
   cfg = config.nixVegas.alloy;
   alloyConfig = pkgs.writeText "config.alloy" ''
     // Prometheus exporter for host metrics (CPU, memory, disk, network, systemd)
-    // Includes: zfs by default
+    // Includes: arch stats for zfs by default
     prometheus.exporter.unix "local" { }
 
     // Scrape the local unix exporter
@@ -52,6 +52,13 @@ let
         job_name = "nebula"
       }
     ''}
+    ${optionalString cfg.zfsCollector ''
+      prometheus.scrape "zfs_exporter" {
+        targets = [{"__address__" = "127.0.0.1:9134", "instance" = constants.hostname}]
+        forward_to = [prometheus.remote_write.mimir.receiver]
+        scrape_interval = "30s"
+      }
+    ''}
     ${optionalString (cfg.extraAlloyConfig != "") ''
       // Extra user-provided configuration
       ${cfg.extraAlloyConfig}
@@ -66,6 +73,12 @@ in
         type = types.bool;
         default = true;
         description = "Enable the Nebula collector";
+      };
+      # this provides more details than the builtin alloy zfs plugin
+      zfsCollector = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Enable the zfs collector/exporter";
       };
       mimirAddress = mkOption {
         type = types.str;
@@ -95,6 +108,15 @@ in
         lighthouse_metrics = true;
         message_metrics = true;
         interval = "10s";
+      };
+    })
+
+    (mkIf cfg.zfsCollector {
+      services.prometheus.exporters.zfs = {
+        enable = true;
+        extraFlags = [
+          "--properties.dataset-filesystem='available,logicalused,quota,referenced,used,usedbydataset,written,compressratio'"
+        ];
       };
     })
 
