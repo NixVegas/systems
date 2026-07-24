@@ -231,37 +231,39 @@ rec {
       inherit (net) subnet id;
       pools = [ { pool = "${net.dhcpStart} - ${net.dhcpEnd}"; } ];
       ddns-qualifying-suffix = "${net.dhcpDomain}.";
-      option-data = [
-        {
-          name = "routers";
-          data = net.address;
-          always-send = true;
-        }
-        {
-          name = "domain-name-servers";
-          data = net.address;
-          always-send = true;
-        }
-        {
-          name = "domain-name";
-          data = net.dhcpDomain;
-          always-send = true;
-        }
-      ]
-      ++ lib.optional ntp {
-        name = "ntp-servers";
-        data = net.address;
-        always-send = true;
-      }
-      ++ lib.optional (extraRoutes != "") {
-        option-data = [
+      option-data = lib.mkMerge [
+        [
+          {
+            name = "routers";
+            data = net.address;
+            always-send = true;
+          }
+          {
+            name = "domain-name-servers";
+            data = net.address;
+            always-send = true;
+          }
+          {
+            name = "domain-name";
+            data = net.dhcpDomain;
+            always-send = true;
+          }
+        ]
+        (lib.mkIf ntp [
+          {
+            name = "ntp-servers";
+            data = net.address;
+            always-send = true;
+          }
+        ])
+        (lib.mkIf (extraRoutes != "") [
           {
             name = "classless-static-route";
             code = 121;
             data = extraRoutes;
           }
-        ];
-      };
+        ])
+      ];
     }
     // lib.optionalAttrs (reservations != [ ]) { inherit reservations; };
 
