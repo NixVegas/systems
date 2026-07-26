@@ -64,6 +64,7 @@ in
     ../harmonia-cache.nix
     ../citadel-builder.nix
     ../pxe.nix
+    ../swap.nix
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 

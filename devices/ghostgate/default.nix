@@ -837,19 +837,27 @@ in
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
-      # Staged for the planned mt76 swap (replacing the n-only rt2800usb) — full
-      # VHT/HE like the 2420 APs. ch165: clear of the mesh's UNII-1 80MHz block
-      # (36-48) AND distinct from the 2420 APs (ayem 149, vehk 157). It runs
-      # VHT20/HE20 there, because 165 is the only distinct non-DFS slot left and
-      # has no legal 40MHz partner (169 is no-IR). To go 40/80MHz you'd either
-      # reuse a 2420 channel (only clash-free if the NOC is RF-isolated) or take
-      # a DFS block — flip wifi5/wifi6 operatingChannelWidth + channel then.
-      # (Deployed on the current rt2800usb this VHT/HE just downgrades to HT20,
-      # same as before, so it's safe to land ahead of the hardware swap.)
-      channel = 165;
-      wifi4.enable = true;
-      wifi5.enable = true;
-      wifi6.enable = true;
+      # This is a USB mt76 (wlp0s20f0u4) — USB mt76 parts don't do DFS radar
+      # detection, so a DFS channel fails at start (`start_dfs_cac() failed, -1`,
+      # interface init aborts). That confines this AP to non-DFS 5GHz, where the
+      # only two 40MHz blocks (149+153, 157+161) are already the attendee 2420
+      # APs. So this AP goes 40MHz co-channel with ayem: ch149 HT40+ (149+153),
+      # the same block ayem uses — they share the airtime via CSMA. The trade is
+      # ayem-AP throughput for this AP's width (vs the 20MHz orphan on 165; 80MHz
+      # on 149-161 would overlap BOTH 2420s).
+      channel = 149;
+      wifi4 = {
+        enable = true;
+        capabilities = [ "HT40+" ];
+      };
+      wifi5 = {
+        enable = true;
+        operatingChannelWidth = "20or40";
+      };
+      wifi6 = {
+        enable = true;
+        operatingChannelWidth = "20or40";
+      };
       networks = {
         ${internalUSBWifi} = {
           ssid = "NixVegas";
@@ -873,6 +881,7 @@ in
   services = {
     openssh = {
       enable = true;
+      ports = [ 42070 ];
     };
 
     ntp = {
@@ -1202,13 +1211,9 @@ in
           # the firewall either.
           HTTP_ADDR = "127.0.0.1";
           HTTP_PORT = 3001;
-          # Built-in SSH server for git push/pull. Reachable onsite and over
-          # Nebula, NOT publicly: brass only SNI-passes :443, so 2222 never
-          # crosses the public ingress. Public users clone read-only over
-          # HTTPS; SSH is for admins/mirrors.
+          SSH_LISTEN_PORT = 22;
+          SSH_PORT = 22;
           START_SSH_SERVER = true;
-          SSH_LISTEN_PORT = 2222;
-          SSH_PORT = 2222; # advertised in clone URLs
           SSH_DOMAIN = "git.${baseDomain}";
         };
 
@@ -1266,7 +1271,9 @@ in
         # Profile Picture > Site Administration > Configuration >  Mailer Configuration
         mailer = {
           ENABLED = true;
+          PROTOCOL = "smtps";
           SMTP_ADDR = "mail.nix.vegas";
+          SMTP_PORT = 465;
           FROM = "noreply@nix.vegas";
           USER = "noreply@nix.vegas";
         };
@@ -1277,20 +1284,32 @@ in
     };
   };
 
-  # Forgejo git-over-SSH (built-in server on :2222) — admin/mirror pushes from
-  # the management LAN and over Nebula only. The WAN firewall
-  # (allowedTCPPorts above) deliberately omits 2222, so it's never public;
-  # public users clone read-only over HTTPS. Not opened on arena — attendees
-  # don't push.
+  # Allow forgejo to listen on port 22 for git ssh. CAP_NET_BIND_SERVICE alone
+  # isn't enough: the module also sets PrivateUsers=true, and inside a private
+  # user namespace the cap only applies to that namespace (binding host :22 still
+  # fails "permission denied"). Turn PrivateUsers off so the cap works in the
+  # host netns; the rest of the module's hardening stays.
+  systemd.services.forgejo.serviceConfig = {
+    AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+    CapabilityBoundingSet = lib.mkForce [ "CAP_NET_BIND_SERVICE" ];
+    PrivateUsers = lib.mkForce false;
+  };
+
   networking.firewall.interfaces =
     let
-      forgejoSsh = {
-        allowedTCPPorts = [ 2222 ];
+      attendeeFirewall = {
+        allowedTCPPorts = [
+          # forgejo ssh
+          22
+        ];
       };
     in
     {
-      noc = forgejoSsh;
-      "nebula.arena" = forgejoSsh;
+      noc = attendeeFirewall;
+      arena = attendeeFirewall;
+      build = attendeeFirewall;
+      ctf = attendeeFirewall;
+      "nebula.arena" = attendeeFirewall;
     };
 
   # PXE/iPXE netboot server (shared module: modules/pxe.nix). ghostgate hands

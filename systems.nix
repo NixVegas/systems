@@ -20,6 +20,9 @@ in
     ]
     ++ commonModules;
     address = "ghostgate";
+
+    # forgejo ssh runs on 22
+    profile.sshOpts = [ "-t" "-p42070" ];
   };
 
   citadel = {
