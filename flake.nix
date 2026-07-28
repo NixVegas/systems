@@ -32,6 +32,11 @@
       };
     };
 
+    dcwifi = {
+      url = "github:NixVegas/dcwifi";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nixos-mailserver = {
       url = "gitlab:simple-nixos-mailserver/nixos-mailserver/nixos-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -79,6 +84,7 @@
       nixpkgs-gold,
       hydra,
       great-value-hydra,
+      dcwifi,
       nixpkcs,
       deploy-rs,
       nixos-pagefind,
@@ -212,6 +218,7 @@
               tenstorrent-nix.nixosModules.default
               nix-vegas-ctf.nixosModules.default
               hydra.nixosModules.hydra
+              dcwifi.nixosModules.default
             ];
             nixpkgs.config.gold = {
               acceptEula = true;
@@ -246,7 +253,7 @@
           overlayAttrs =
             let
               onboardingArtifacts = pkgs.callPackage ./pkgs/onboarding {
-                inherit nixpkgs;
+                inherit nixpkgs dcwifi;
               };
             in
             {

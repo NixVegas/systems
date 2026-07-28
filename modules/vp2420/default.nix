@@ -43,20 +43,21 @@ let
     inherit domain;
   };
 
-  # Attendee-AP 5GHz channel, per box. Kept in UNII-3 (149-165), clear of the
-  # 802.11s mesh backhaul, which runs 80MHz across the whole UNII-1 block
-  # (36-48) — the AP used to sit on ch40 *inside* that block and fight this
-  # box's own backhaul. 40MHz uses HT40+ (each control channel is the lower of
-  # its pair: 149+153, 157+161). Only two clean non-DFS 40MHz blocks exist up
-  # here, so co-located boxes get distinct ones; seht is off-site right now and
-  # reuses ayem's (RF-separated). Revisit if seht returns to the same hall.
+  # Attendee-AP 5GHz channel, per box. Back on lower 5GHz (UNII-1): UNII-3 was
+  # unreliable in practice on these mt76 radios ("channel up, width wrong"),
+  # while UNII-1 ran solid all last conference. 40MHz on ch44 (HT40+, 44+48) —
+  # the upper half of UNII-1; ghostgate's AP takes the lower half (36+40), so the
+  # two don't overlap each other. Both overlap the mesh backhaul's 80MHz (ch48,
+  # 36-48), which the mt76x2u tolerates fine (that's how it ran last year).
+  # ayem/vehk are in separate halls, so sharing ch44 is spatial reuse, not a
+  # clash; seht reuses it too.
   apChannel =
     {
-      ayem = 149;
-      vehk = 157;
-      seht = 149;
+      ayem = 44;
+      vehk = 44;
+      seht = 44;
     }
-    .${config.networking.hostName} or 149;
+    .${config.networking.hostName} or 44;
 in
 {
   imports = [

@@ -789,27 +789,6 @@ in
   networking.wireless = {
     enable = true;
     interfaces = [ onboardWifi ];
-    fallbackToWPA2 = false;
-    allowAuxiliaryImperativeNetworks = true;
-    userControlled = true;
-    secretsFile = "/etc/meshos/dc34/wireless.env";
-    networks."DefCon" = {
-      priority = 5;
-      authProtocols = lib.singleton "WPA-EAP";
-      auth = ''
-        proto=RSN
-        pairwise=CCMP
-        auth_alg=OPEN
-        eap=PEAP
-        identity="Nix"
-        password=ext:dc_wifi_pass
-        phase1="peaplabel=0"
-        phase2="auth=MSCHAPV2"
-        ca_cert="${../hellenic-academic-root-ca.crt}"
-        subject_match="CN=wifireg.defcon.org"
-        altsubject_match="DNS:wifi.defcon.org;DNS:wifireg.defcon.org"
-      '';
-    };
   };
 
   services.hostapd = {
@@ -837,15 +816,13 @@ in
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
-      # This is a USB mt76 (wlp0s20f0u4) — USB mt76 parts don't do DFS radar
-      # detection, so a DFS channel fails at start (`start_dfs_cac() failed, -1`,
-      # interface init aborts). That confines this AP to non-DFS 5GHz, where the
-      # only two 40MHz blocks (149+153, 157+161) are already the attendee 2420
-      # APs. So this AP goes 40MHz co-channel with ayem: ch149 HT40+ (149+153),
-      # the same block ayem uses — they share the airtime via CSMA. The trade is
-      # ayem-AP throughput for this AP's width (vs the 20MHz orphan on 165; 80MHz
-      # on 149-161 would overlap BOTH 2420s).
-      channel = 149;
+      # On UNII-3 (149, HT40+, 149+153) to escape same-box self-interference: the
+      # mesh backhaul radio sits inches away on ch48 80MHz (36-48), and an AP
+      # anywhere in UNII-1 lands inside that block, so the mesh's TX desenses the
+      # AP's RX -> heavy 5GHz packet loss (2.4GHz is fine, different band). UNII-3
+      # is ~600MHz away, so the two radios stop stepping on each other. (Testing
+      # this on ghostgate first; the 2420 APs stay on ch44 until it's confirmed.)
+      channel = 36;
       wifi4 = {
         enable = true;
         capabilities = [ "HT40+" ];

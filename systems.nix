@@ -19,7 +19,7 @@ in
       ./devices/ghostgate
     ]
     ++ commonModules;
-    address = "ghostgate";
+    address = "ghostgate.dc.nixos.lv";
 
     # forgejo ssh runs on 22
     profile.sshOpts = [ "-t" "-p42070" ];

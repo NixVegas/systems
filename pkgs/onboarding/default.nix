@@ -1,6 +1,7 @@
 {
   lib,
   nixpkgs,
+  dcwifi,
   stdenv,
   system,
   nixos-pagefind-build,
@@ -44,7 +45,12 @@ let
       revCount = nixpkgs.revCount or (lib.toInt nixpkgs.lastModifiedDate + revCountOffset);
     };
     supportedSystems = systems;
-    configuration = import ../../modules/onboarding/nix-vegas-defaults.nix;
+    configuration = {
+      imports = [
+        dcwifi.nixosModules.default
+        ../../modules/onboarding/nix-vegas-defaults.nix
+      ];
+    };
   };
   inherit (release) channel;
   inherit (release) iso_minimal iso_graphical sd_image;
