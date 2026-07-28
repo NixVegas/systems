@@ -23,11 +23,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785219351,
-        "narHash": "sha256-etRH/5+b9r0CIO9i+pUNJ5ghA3gHGjbEubFUVwd+gKE=",
+        "lastModified": 1785228046,
+        "narHash": "sha256-I/8S2bRfNPSvn5G1Di3Qu7cICmPE/qRIGicB79sMO+Y=",
         "owner": "NixVegas",
         "repo": "dcwifi",
-        "rev": "1e2e099bdd0d788cbd94c07b9143610ac70fdced",
+        "rev": "57e84adf92c0eb4eb713e411198a2d2b1c130572",
         "type": "github"
       },
       "original": {
@@ -926,11 +926,11 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1785104993,
-        "narHash": "sha256-eKbrvPoAOFutbYMdbB3r5EQVmFxKv24iKqHPPUXA0gM=",
+        "lastModified": 1785133411,
+        "narHash": "sha256-Yjv0WEg39KRYS0rBdTbu6Fc/or/ihAKk13W9sQ6VWd0=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "8623c4c20aa4ca2f5fb81510d2944066c3fb0d96",
+        "rev": "2f5a153c270b70cb0f8c11f46d96d6d3bc39f4e3",
         "type": "github"
       },
       "original": {

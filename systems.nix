@@ -7,6 +7,7 @@ let
     ./modules/fs.nix
     ./modules/misc.nix
     ./modules/net.nix
+    ./modules/ntp.nix
     ./modules/users.nix
     ./modules/zones.nix
     ./mesh.nix

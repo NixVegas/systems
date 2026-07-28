@@ -23,6 +23,12 @@ let
     lib.splitString "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address
   );
 
+  # The chrony-protocol socket gpsd writes GPS (and PPS, if present) samples to,
+  # which ntpd-rs reads as a `sock` source. gpsd names it after the device
+  # basename. VERIFY on-site: after gpsd starts, `ls -l /run/chrony.*.sock`, and
+  # set this to whatever it actually created (and check the sock/PPS below).
+  gpsChronySock = "chrony.usb-Qualcomm_MDG200-if02-port0.sock";
+
   # Nebula tun interface — traffic arriving here is already CA-authenticated
   # by nebula, so we trust it like the LAN/mesh.
   nebulaTun = config.services.nebula.networks.arena.tun.device;
@@ -118,6 +124,15 @@ in
         "8N1"
       ];
     };
+
+  # Modern, memory-safe NTP (shared module: modules/ntp.nix). Serves the arena
+  # (nftables redirects udp/123 to us); upstream is ghostgate first, plus the
+  # local GPS via gpsd. Metrics scraped automatically via alloy's ntpCollector.
+  nixVegas.ntp = {
+    enable = true;
+    servers = [ ghostgateMesh ];
+    gpsdSock = gpsChronySock;
+  };
 
   # Try to save power since these machines are usually on battery
   powerManagement.cpuFreqGovernor = "powersave";
@@ -695,20 +710,6 @@ in
       SUBSYSTEM=="net", KERNEL=="${wwan}", TAG+="systemd", \
         ENV{SYSTEMD_WANTS}+="wpa_supplicant-${wwan}.service", ENV{SYSTEMD_WANTS}+="network-addresses-${wwan}.service"
     '';
-
-    ntp = {
-      enable = true;
-      servers = [ ghostgateMesh ];
-      extraConfig = ''
-        # GPS Serial data reference
-        server 127.127.28.0 minpoll 4 maxpoll 4
-        fudge 127.127.28.0 time1 0.0 refid GPS
-
-        # GPS PPS reference
-        server 127.127.28.1 minpoll 4 maxpoll 4 prefer
-        fudge 127.127.28.1 refid PPS
-      '';
-    };
 
     hostapd = {
       enable = true;

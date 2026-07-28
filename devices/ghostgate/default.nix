@@ -855,15 +855,30 @@ in
   # Restart it if it fails
   systemd.services.hostapd.unitConfig.StartLimitIntervalSec = 0;
 
+  # Modern, memory-safe NTP (shared module: modules/ntp.nix). Serves the LANs
+  # (nftables redirects udp/123 to us). Metrics scraped via alloy's ntpCollector.
+  nixVegas.ntp = {
+    enable = true;
+    # Primary upstream is brass over nebula: the venue blocks outbound NTP to the
+    # public pool, but brass is off-site and reachable inside the encrypted
+    # tunnel. Pool entries stay as a fallback for if egress ever opens up.
+    servers = [
+      config.networking.mesh.plan.hosts.brass.nebula.address
+      "time.nist.gov"
+      "time.cloudflare.com"
+      "0.nixos.pool.ntp.org"
+      "1.nixos.pool.ntp.org"
+      "2.nixos.pool.ntp.org"
+      "3.nixos.pool.ntp.org"
+    ];
+    # Only brass is actually reachable here, so don't require a 3-source quorum.
+    minimumAgreeingSources = 1;
+  };
+
   services = {
     openssh = {
       enable = true;
       ports = [ 42070 ];
-    };
-
-    ntp = {
-      enable = true;
-      servers = [ "time.nist.gov" ];
     };
 
     kea.dhcp4 = {
