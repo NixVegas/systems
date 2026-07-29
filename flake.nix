@@ -283,6 +283,7 @@
               nixos-lv-root-ca = pkgs.callPackage ./pkgs/nixos-lv-root-ca { };
               great-value-hydra = great-value-hydra.packages.${system};
               badapple2ipxe = pkgs.callPackage ./pkgs/badapple-ipxe { };
+              prometheus-nixos-exporter = pkgs.callPackage ./pkgs/prometheus-nixos-exporter { };
             };
 
           packages = {
