@@ -33,9 +33,14 @@ let
     "enp5s0"
   ];
   arenaInterface = "enp6s0";
-  arenaInterfaces = [ arenaInterface ];
-  trunkInterface1 = "enp2s0f0np0";
-  trunkInterface2 = "enp2s0f1np1";
+  trunkInterface1 = "enp2s0f0np0"; # lower 10G SFP -> arena (attendee switch 10G uplink)
+  trunkInterface2 = "enp2s0f1np1"; # higher 10G SFP -> citadel (build+ctf VLAN trunk)
+  # The lower SFP joins the arena bridge so an attendee switch on it lands on the
+  # arena L2 over 10G (the higher SFP stays the citadel backbone).
+  arenaInterfaces = [
+    arenaInterface
+    trunkInterface1
+  ];
 
   # Shared event-router helpers (kea/knot/kresd builders).
   erlib = import ../../modules/event-router/lib.nix { inherit lib pkgs; };
@@ -123,6 +128,9 @@ in
 
   boot.kernelParams = [
     "console=ttyS1,115200n8"
+    # Cap the ZFS ARC at 4 GiB. Default is ~half of RAM and slow to release under
+    # pressure, which was OOM-killing services on this box.
+    "zfs.zfs_arc_max=4294967296"
   ];
   boot.kernel.sysctl = {
     "net.ipv6.conf.all.accept_ra" = 0;
@@ -131,6 +139,10 @@ in
 
     "net.ipv6.conf.${wanInterface}.accept_ra" = 2;
     "net.ipv6.conf.${wanInterface}.autoconf" = 1;
+
+    # Fleet default (modules/boot.nix) is 1, which suppresses swapping and pushes
+    # this box straight to OOM-kills. Let it page out idle anon memory instead.
+    "vm.swappiness" = 60;
   };
   boot.extraModprobeConfig = ''
     # Feed the L2ARC at 256 MB/s until it's full
@@ -367,31 +379,19 @@ in
 
     useDHCP = false;
 
-    bonds = {
-      trunk = {
-        interfaces = [
-          trunkInterface1
-          trunkInterface2
-        ];
-        # LACP over the 2x10G backbone to citadel. Both ends must match.
-        driverOptions = {
-          mode = "802.3ad";
-          lacp_rate = "fast";
-          xmit_hash_policy = "layer3+4";
-          miimon = "100";
-        };
-      };
-    };
-
+    # Bond bifurcated: the higher 10G SFP (trunkInterface2) is now a single link
+    # to citadel carrying the build+ctf VLANs; the lower SFP (trunkInterface1)
+    # joins the arena bridge for the attendee switch's 10G uplink (see
+    # arenaInterfaces above). citadel's end is de-bonded to match.
     vlans = {
       "trunk.build" = {
         inherit (build) id;
-        interface = "trunk";
+        interface = trunkInterface2;
       };
 
       "trunk.ctf" = {
         inherit (ctf) id;
-        interface = "trunk";
+        interface = trunkInterface2;
       };
     };
 

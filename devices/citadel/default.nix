@@ -86,31 +86,19 @@ in
     useDHCP = false;
     hostName = "citadel";
 
-    bonds = {
-      trunk = {
-        interfaces = [
-          trunkInterface1
-          trunkInterface2
-        ];
-        # LACP over the 2x10G backbone to ghostgate. Both ends must match.
-        driverOptions = {
-          mode = "802.3ad";
-          lacp_rate = "fast";
-          xmit_hash_policy = "layer3+4";
-          miimon = "100";
-        };
-      };
-    };
-
+    # Bond bifurcated (ghostgate split its 2x10G): citadel now takes a single 10G
+    # link on its higher SFP (trunkInterface2) carrying the build+ctf VLANs.
+    # Cable ghostgate's higher SFP (enp2s0f1np1) to this port; the lower SFP
+    # (trunkInterface1) is now free.
     vlans = {
       "trunk.build" = {
         inherit (build) id;
-        interface = "trunk";
+        interface = trunkInterface2;
       };
 
       "trunk.ctf" = {
         inherit (ctf) id;
-        interface = "trunk";
+        interface = trunkInterface2;
       };
     };
 

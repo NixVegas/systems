@@ -106,7 +106,14 @@ in
   boot.kernelParams = [
     "console=tty0"
     "console=ttyS0,115200n8"
+    # Cap the ZFS ARC at 2 GiB. Default is ~half of RAM and slow to release under
+    # pressure, which was OOM-killing services on these low-RAM routers.
+    "zfs.zfs_arc_max=2147483648"
   ];
+
+  # Fleet default (modules/boot.nix) is 1, which suppresses swapping and pushes
+  # these low-RAM routers to OOM-kills. Let them page out idle anon memory.
+  boot.kernel.sysctl."vm.swappiness" = 60;
 
   services.gpsd =
     let
