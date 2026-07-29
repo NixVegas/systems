@@ -25,21 +25,7 @@ let
   # each line into setting `L` and emits `echo ${L:string}` — the whitespace-safe
   # idiom from the iPXE forums.
   pxeBanner = ''
-                ___   __
-         /-\    \  \ /  ;
-         \  \    \  v  /
-      /---   ----\\   /  /\
-     '------------.\  \ /  ;
-          /--;      \ //  /_
-    _____/  /        '/     \
-    \      /,        /  /----
-     --/  // \      /__/
-      .  / \  \.------------.
-       \/  /   \\_____   ___/
-          /  ,  \     \  \
-          \_/ \__\     \_/
-          NIX VEGAS @ DC34
-          ESCAPE YOUR FATE
+    ${lib.readFile ./motd.txt}
   '';
 
   # Shell snippet: clear the screen, then emit whitespace-safe iPXE echo lines for

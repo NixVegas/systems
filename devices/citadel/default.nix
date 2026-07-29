@@ -181,9 +181,9 @@ in
       enable = true;
 
       upstreams = {
-        "ctf-app" = {
+        "nixctf" = {
           servers = {
-            "localhost:4000" = {
+            "127.0.0.1:4000" = {
               weight = 100;
               fail_timeout = "30s";
               max_fails = 3;
@@ -202,7 +202,7 @@ in
           enableACME = true;
           forceSSL = true;
           locations."/" = {
-            proxyPass = "http://ctf-app";
+            proxyPass = "http://nixctf";
             proxyWebsockets = true;
           };
         };

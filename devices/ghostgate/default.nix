@@ -789,27 +789,6 @@ in
   networking.wireless = {
     enable = true;
     interfaces = [ onboardWifi ];
-    fallbackToWPA2 = false;
-    allowAuxiliaryImperativeNetworks = true;
-    userControlled = true;
-    secretsFile = "/etc/meshos/dc34/wireless.env";
-    networks."DefCon" = {
-      priority = 5;
-      authProtocols = lib.singleton "WPA-EAP";
-      auth = ''
-        proto=RSN
-        pairwise=CCMP
-        auth_alg=OPEN
-        eap=PEAP
-        identity="Nix"
-        password=ext:dc_wifi_pass
-        phase1="peaplabel=0"
-        phase2="auth=MSCHAPV2"
-        ca_cert="${../hellenic-academic-root-ca.crt}"
-        subject_match="CN=wifireg.defcon.org"
-        altsubject_match="DNS:wifi.defcon.org;DNS:wifireg.defcon.org"
-      '';
-    };
   };
 
   services.hostapd = {
@@ -837,19 +816,25 @@ in
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
-      # Staged for the planned mt76 swap (replacing the n-only rt2800usb) — full
-      # VHT/HE like the 2420 APs. ch165: clear of the mesh's UNII-1 80MHz block
-      # (36-48) AND distinct from the 2420 APs (ayem 149, vehk 157). It runs
-      # VHT20/HE20 there, because 165 is the only distinct non-DFS slot left and
-      # has no legal 40MHz partner (169 is no-IR). To go 40/80MHz you'd either
-      # reuse a 2420 channel (only clash-free if the NOC is RF-isolated) or take
-      # a DFS block — flip wifi5/wifi6 operatingChannelWidth + channel then.
-      # (Deployed on the current rt2800usb this VHT/HE just downgrades to HT20,
-      # same as before, so it's safe to land ahead of the hardware swap.)
-      channel = 165;
-      wifi4.enable = true;
-      wifi5.enable = true;
-      wifi6.enable = true;
+      # On UNII-3 (149, HT40+, 149+153) to escape same-box self-interference: the
+      # mesh backhaul radio sits inches away on ch48 80MHz (36-48), and an AP
+      # anywhere in UNII-1 lands inside that block, so the mesh's TX desenses the
+      # AP's RX -> heavy 5GHz packet loss (2.4GHz is fine, different band). UNII-3
+      # is ~600MHz away, so the two radios stop stepping on each other. (Testing
+      # this on ghostgate first; the 2420 APs stay on ch44 until it's confirmed.)
+      channel = 36;
+      wifi4 = {
+        enable = true;
+        capabilities = [ "HT40+" ];
+      };
+      wifi5 = {
+        enable = true;
+        operatingChannelWidth = "20or40";
+      };
+      wifi6 = {
+        enable = true;
+        operatingChannelWidth = "20or40";
+      };
       networks = {
         ${internalUSBWifi} = {
           ssid = "NixVegas";
@@ -870,14 +855,30 @@ in
   # Restart it if it fails
   systemd.services.hostapd.unitConfig.StartLimitIntervalSec = 0;
 
+  # Modern, memory-safe NTP (shared module: modules/ntp.nix). Serves the LANs
+  # (nftables redirects udp/123 to us). Metrics scraped via alloy's ntpCollector.
+  nixVegas.ntp = {
+    enable = true;
+    # Primary upstream is brass over nebula: the venue blocks outbound NTP to the
+    # public pool, but brass is off-site and reachable inside the encrypted
+    # tunnel. Pool entries stay as a fallback for if egress ever opens up.
+    servers = [
+      config.networking.mesh.plan.hosts.brass.nebula.address
+      "time.nist.gov"
+      "time.cloudflare.com"
+      "0.nixos.pool.ntp.org"
+      "1.nixos.pool.ntp.org"
+      "2.nixos.pool.ntp.org"
+      "3.nixos.pool.ntp.org"
+    ];
+    # Only brass is actually reachable here, so don't require a 3-source quorum.
+    minimumAgreeingSources = 1;
+  };
+
   services = {
     openssh = {
       enable = true;
-    };
-
-    ntp = {
-      enable = true;
-      servers = [ "time.nist.gov" ];
+      ports = [ 42070 ];
     };
 
     kea.dhcp4 = {
@@ -1202,13 +1203,9 @@ in
           # the firewall either.
           HTTP_ADDR = "127.0.0.1";
           HTTP_PORT = 3001;
-          # Built-in SSH server for git push/pull. Reachable onsite and over
-          # Nebula, NOT publicly: brass only SNI-passes :443, so 2222 never
-          # crosses the public ingress. Public users clone read-only over
-          # HTTPS; SSH is for admins/mirrors.
+          SSH_LISTEN_PORT = 22;
+          SSH_PORT = 22;
           START_SSH_SERVER = true;
-          SSH_LISTEN_PORT = 2222;
-          SSH_PORT = 2222; # advertised in clone URLs
           SSH_DOMAIN = "git.${baseDomain}";
         };
 
@@ -1266,7 +1263,9 @@ in
         # Profile Picture > Site Administration > Configuration >  Mailer Configuration
         mailer = {
           ENABLED = true;
+          PROTOCOL = "smtps";
           SMTP_ADDR = "mail.nix.vegas";
+          SMTP_PORT = 465;
           FROM = "noreply@nix.vegas";
           USER = "noreply@nix.vegas";
         };
@@ -1277,20 +1276,32 @@ in
     };
   };
 
-  # Forgejo git-over-SSH (built-in server on :2222) — admin/mirror pushes from
-  # the management LAN and over Nebula only. The WAN firewall
-  # (allowedTCPPorts above) deliberately omits 2222, so it's never public;
-  # public users clone read-only over HTTPS. Not opened on arena — attendees
-  # don't push.
+  # Allow forgejo to listen on port 22 for git ssh. CAP_NET_BIND_SERVICE alone
+  # isn't enough: the module also sets PrivateUsers=true, and inside a private
+  # user namespace the cap only applies to that namespace (binding host :22 still
+  # fails "permission denied"). Turn PrivateUsers off so the cap works in the
+  # host netns; the rest of the module's hardening stays.
+  systemd.services.forgejo.serviceConfig = {
+    AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+    CapabilityBoundingSet = lib.mkForce [ "CAP_NET_BIND_SERVICE" ];
+    PrivateUsers = lib.mkForce false;
+  };
+
   networking.firewall.interfaces =
     let
-      forgejoSsh = {
-        allowedTCPPorts = [ 2222 ];
+      attendeeFirewall = {
+        allowedTCPPorts = [
+          # forgejo ssh
+          22
+        ];
       };
     in
     {
-      noc = forgejoSsh;
-      "nebula.arena" = forgejoSsh;
+      noc = attendeeFirewall;
+      arena = attendeeFirewall;
+      build = attendeeFirewall;
+      ctf = attendeeFirewall;
+      "nebula.arena" = attendeeFirewall;
     };
 
   # PXE/iPXE netboot server (shared module: modules/pxe.nix). ghostgate hands

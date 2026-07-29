@@ -194,14 +194,14 @@ in
           443
         ];
         allowedUDPPorts = [
-          53
-          5000
+          5000 # nebula
         ];
-        interfaces.arena = {
+        interfaces."nebula.arena" = {
           allowedTCPPorts = [ 1935 ];
           allowedUDPPorts = [
-            1935
-            5000
+            53   # dns
+            1935 # rtmp
+            123  # serve NTP to the nebula fleet; public :123 stays firewalled off
           ];
         };
       };
@@ -225,6 +225,22 @@ in
         '';
       };
     };
+
+  # Off-site, so it can actually reach the internet pool — this makes brass the
+  # fleet's real time source. ghostgate and the arena routers sync from here over
+  # the encrypted nebula tunnel, bypassing the venue's outbound-NTP block. Only
+  # the nebula interface is opened for :123 (above); public :123 stays closed.
+  nixVegas.ntp = {
+    enable = true;
+    servers = [
+      "time.nist.gov"
+      "time.cloudflare.com"
+      "0.nixos.pool.ntp.org"
+      "1.nixos.pool.ntp.org"
+      "2.nixos.pool.ntp.org"
+      "3.nixos.pool.ntp.org"
+    ];
+  };
 
   services = {
     owncast = {

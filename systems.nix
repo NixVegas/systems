@@ -7,6 +7,7 @@ let
     ./modules/fs.nix
     ./modules/misc.nix
     ./modules/net.nix
+    ./modules/ntp.nix
     ./modules/users.nix
     ./modules/zones.nix
     ./mesh.nix
@@ -19,7 +20,10 @@ in
       ./devices/ghostgate
     ]
     ++ commonModules;
-    address = "ghostgate";
+    address = "ghostgate.dc.nixos.lv";
+
+    # forgejo ssh runs on 22
+    profile.sshOpts = [ "-t" "-p42070" ];
   };
 
   citadel = {

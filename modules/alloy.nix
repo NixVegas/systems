@@ -59,6 +59,14 @@ let
         scrape_interval = "30s"
       }
     ''}
+    ${optionalString cfg.ntpCollector ''
+      prometheus.scrape "ntp" {
+        targets = [{"__address__" = "127.0.0.1:9975", "instance" = constants.hostname}]
+        forward_to = [prometheus.remote_write.mimir.receiver]
+        scrape_interval = "15s"
+        job_name = "ntp"
+      }
+    ''}
     ${optionalString (cfg.extraAlloyConfig != "") ''
       // Extra user-provided configuration
       ${cfg.extraAlloyConfig}
@@ -79,6 +87,13 @@ in
         type = types.bool;
         default = true;
         description = "Enable the zfs collector/exporter";
+      };
+      # auto-on wherever the ntpd-rs metrics exporter is enabled (nixVegas.ntp)
+      ntpCollector = mkOption {
+        type = types.bool;
+        default = config.services.ntpd-rs.metrics.enable;
+        defaultText = "config.services.ntpd-rs.metrics.enable";
+        description = "Scrape the local ntpd-rs metrics exporter";
       };
       mimirAddress = mkOption {
         type = types.str;
