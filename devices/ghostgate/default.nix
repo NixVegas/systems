@@ -23,7 +23,7 @@ let
   internalM2Wifi = "wlp0s13f0u1";
   # mt76x2u on external USB-A
   externalUSBWifi = "wlp0s13f0u2";
-  # rt2800usb on internal USB-A
+  # mt76x2u on internal USB-A
   internalUSBWifi = "wlp0s20f0u4";
 
   wanInterface = "enp3s0";
@@ -802,7 +802,7 @@ in
         ${externalUSBWifi} = {
           ssid = "NixVegas_2.4";
           authentication = {
-            mode = "wpa3-sae-transition";
+            mode = "wpa3-sae";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
             wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
@@ -816,22 +816,25 @@ in
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
-      # On UNII-3 (149, HT40+, 149+153) to escape same-box self-interference: the
-      # mesh backhaul radio sits inches away on ch48 80MHz (36-48), and an AP
-      # anywhere in UNII-1 lands inside that block, so the mesh's TX desenses the
-      # AP's RX -> heavy 5GHz packet loss (2.4GHz is fine, different band). UNII-3
-      # is ~600MHz away, so the two radios stop stepping on each other. (Testing
-      # this on ghostgate first; the 2420 APs stay on ch44 until it's confirmed.)
-      channel = 36;
-      wifi4 = {
-        enable = true;
-        capabilities = [ "HT40+" ];
-      };
+      # DO NOT enable wifi6/HE on this radio. The mt76x2u dongle is an MT7612U:
+      # an 802.11ac (Wave-2) chip with NO 802.11ax hardware. With wifi6 on,
+      # hostapd advertises HE the chip can't actually transmit -> clients
+      # associate, finish the 4-way and get a DHCP lease, then every HE-rate
+      # downlink data frame dies in a TX path that doesn't exist (uplink fine,
+      # downlink dead, on any channel/cipher). wifi5 (VHT) is the chip's real
+      # ceiling and works. In 2026 this masqueraded for hours as a cipher /
+      # interference / hardware fault; it was always the HE PHY.
+      #
+      # NB: the same wifi6 flag is harmless on the 2.4 AP -- there HE degrades to
+      # plain HT (11n), which this chip does natively. It's specifically 5GHz
+      # where enabling HE engages an HE PPDU / HE-MCS TX path the hardware has no
+      # silicon to emit. So "no wifi6" is a 5GHz rule here, not a blanket ban.
+      #
+      # Channel: UNII-3 ch149 (non-DFS, no CAC), kept clear of the on-box 5GHz
+      # 802.11s mesh, which runs 80 MHz on ch48 (center 5210 -> 5170-5250,
+      # i.e. ch36-48). Keep this AP out of that block.
+      channel = 149;
       wifi5 = {
-        enable = true;
-        operatingChannelWidth = "20or40";
-      };
-      wifi6 = {
         enable = true;
         operatingChannelWidth = "20or40";
       };
@@ -839,7 +842,7 @@ in
         ${internalUSBWifi} = {
           ssid = "NixVegas";
           authentication = {
-            mode = "wpa3-sae-transition";
+            mode = "wpa3-sae";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
             wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
@@ -929,6 +932,12 @@ in
             (erlib.mkDhcp4Subnet {
               net = noc;
               extraRoutes = "10.6.0.0/16 - 10.4.0.1";
+              # Pin citadel (infra) to a stable noc address so citadel.noc resolves
+              # consistently. Uses citadel's real noc NIC MAC (comes up the same
+              # every boot, no citadel-side change); .2 sits just outside the pool.
+              reservations = [
+                (mkReservation noc "9c:6b:00:4f:26:aa" 2 "citadel")
+              ];
             })
             (erlib.mkDhcp4Subnet {
               net = build;
@@ -962,7 +971,12 @@ in
 
         ddns-send-updates = true;
         ddns-qualifying-suffix = "${domain}.";
-        ddns-update-on-renew = true;
+        # Do NOT re-send DDNS updates on every renewal. With check-with-dhcid,
+        # d2 implements each renewal update as a remove-then-add, so on a short
+        # (1200s) lease that opens an NXDOMAIN window every ~10min that resolvers
+        # negative-cache — which is why citadel.noc/build/ctf were flapping. The
+        # record is still created on allocation and persists in knot's journal.
+        ddns-update-on-renew = false;
         ddns-replace-client-name = "when-not-present";
         hostname-char-set = "[^A-Za-z0-9.-]";
         hostname-char-replacement = "";
@@ -982,7 +996,7 @@ in
       aclName = "nixos-lv-acl";
       keyName = "nixos-lv-key";
       zoneText = ''
-        @ SOA ns noc.${baseDomain} 10 86400 7200 3600000 172800
+        @ SOA ns noc.${baseDomain}. 10 86400 7200 3600000 172800
         @ NS nameserver
         nameserver A 127.0.0.1
         ${baseDomain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
@@ -1001,6 +1015,13 @@ in
         ghostgate.${noc.dhcpDomain}. A ${noc.address}
         ghostgate.${build.dhcpDomain}. A ${build.address}
         ghostgate.${ctf.dhcpDomain}. A ${ctf.address}
+
+        ; Static 802.11s mesh addresses for the VP2420 routers. The WiFi mesh
+        ; (10.5/16) carries no DHCP, so these can't come from DDNS like the
+        ; wired LANs do; pin them straight from the mesh plan (drop the /16).
+        ${lib.concatMapStringsSep "\n" (
+          n: "${n}.mesh.${domain}. A ${lib.head (lib.splitString "/" config.networking.mesh.plan.hosts.${n}.wifi.address)}"
+        ) [ "ayem" "seht" "vehk" ]}
 
         ctf.${domain}. CNAME citadel.ctf.${domain}.
 
