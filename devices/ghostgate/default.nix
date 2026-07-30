@@ -1019,9 +1019,19 @@ in
         ; Static 802.11s mesh addresses for the VP2420 routers. The WiFi mesh
         ; (10.5/16) carries no DHCP, so these can't come from DDNS like the
         ; wired LANs do; pin them straight from the mesh plan (drop the /16).
-        ${lib.concatMapStringsSep "\n" (
-          n: "${n}.mesh.${domain}. A ${lib.head (lib.splitString "/" config.networking.mesh.plan.hosts.${n}.wifi.address)}"
-        ) [ "ayem" "seht" "vehk" ]}
+        ${lib.concatMapStringsSep "\n"
+          (
+            n:
+            "${n}.mesh.${domain}. A ${
+              lib.head (lib.splitString "/" config.networking.mesh.plan.hosts.${n}.wifi.address)
+            }"
+          )
+          [
+            "ayem"
+            "seht"
+            "vehk"
+          ]
+        }
 
         ctf.${domain}. CNAME citadel.ctf.${domain}.
 

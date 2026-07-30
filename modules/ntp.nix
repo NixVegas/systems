@@ -12,7 +12,13 @@
 
 let
   cfg = config.nixVegas.ntp;
-  inherit (lib) mkEnableOption mkOption mkIf types optional;
+  inherit (lib)
+    mkEnableOption
+    mkOption
+    mkIf
+    types
+    optional
+    ;
   hasGps = cfg.gpsdSock != null;
 in
 {
