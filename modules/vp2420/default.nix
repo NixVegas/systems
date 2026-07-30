@@ -35,7 +35,7 @@ let
 
   # WWAN (internal modem)
   wwan = "wlp0s20f0u3";
-  # mt76x0u on external USB-A (lower)
+  # mt76x2u on external USB-A (lower)
   wlan = "wlp0s20f0u2";
   # mt76x2u on internal M.2
   internalM2Wifi = "wlp0s20f0u4";
@@ -49,21 +49,18 @@ let
     inherit domain;
   };
 
-  # Attendee-AP 5GHz channel, per box. Back on lower 5GHz (UNII-1): UNII-3 was
-  # unreliable in practice on these mt76 radios ("channel up, width wrong"),
-  # while UNII-1 ran solid all last conference. 40MHz on ch44 (HT40+, 44+48) —
-  # the upper half of UNII-1; ghostgate's AP takes the lower half (36+40), so the
-  # two don't overlap each other. Both overlap the mesh backhaul's 80MHz (ch48,
-  # 36-48), which the mt76x2u tolerates fine (that's how it ran last year).
-  # ayem/vehk are in separate halls, so sharing ch44 is spatial reuse, not a
-  # clash; seht reuses it too.
+  # Attendee AP channels. Constraints: the 5GHz 802.11s mesh owns UNII-1 (it
+  # runs 80 MHz on ch48 -> 5170-5250, i.e. ch36-48), and these mt76 can't do
+  # DFS (UNII-2, ch52-144), so every AP must live in UNII-3 (149-165). Keep each
+  # box's AP out of the mesh block (co-located overlap desenses both radios) and
+  # spaced 20 MHz from the neighbours and ghostgate (149): 149/153/157/161/165.
   apChannel =
     {
-      ayem = 44;
-      vehk = 44;
-      seht = 44;
+      ayem = 153;
+      vehk = 157;
+      seht = 161;
     }
-    .${config.networking.hostName} or 44;
+    .${config.networking.hostName} or 165;
 in
 {
   imports = [
@@ -106,7 +103,14 @@ in
   boot.kernelParams = [
     "console=tty0"
     "console=ttyS0,115200n8"
+    # Cap the ZFS ARC at 2 GiB. Default is ~half of RAM and slow to release under
+    # pressure, which was OOM-killing services on these low-RAM routers.
+    "zfs.zfs_arc_max=2147483648"
   ];
+
+  # Fleet default (modules/boot.nix) is 1, which suppresses swapping and pushes
+  # these low-RAM routers to OOM-kills. Let them page out idle anon memory.
+  boot.kernel.sysctl."vm.swappiness" = 60;
 
   services.gpsd =
     let
@@ -717,25 +721,23 @@ in
         countryCode = "US";
         band = "5g";
         channel = apChannel;
-        # 40MHz: HT40+ (secondary channel above the primary), with VHT/HE riding
-        # on top. operatingChannelWidth "20or40" is the 40MHz setting (0); bump
-        # wifi5/wifi6 to "80" here if a box is RF-isolated and wants VHT80.
-        wifi4 = {
-          enable = true;
-          capabilities = [ "HT40+" ];
-        };
+        # DO NOT enable wifi6/HE. The AP radio here is an mt76x2u (MT7612U), an
+        # 802.11ac chip with NO 802.11ax hardware. With wifi6 on, hostapd
+        # advertises HE the chip can't transmit -> clients associate and get a
+        # DHCP lease, then every HE-rate downlink data frame dies (uplink fine,
+        # downlink dead). wifi5 (VHT) is the chip's real ceiling. Same trap that
+        # cost hours on ghostgate's mt76x2u in 2026; it was always the HE PHY,
+        # never a cipher/interference/hardware fault. NB: the same wifi6 flag is
+        # harmless on a 2.4 AP (HE degrades to plain HT there, which this chip
+        # does natively) -- this is a 5GHz rule, not a blanket ban.
         wifi5 = {
-          enable = true;
-          operatingChannelWidth = "20or40";
-        };
-        wifi6 = {
           enable = true;
           operatingChannelWidth = "20or40";
         };
         networks.${wlan} = {
           ssid = "NixVegas_${config.networking.hostName}";
           authentication = {
-            mode = "wpa3-sae-transition";
+            mode = "wpa3-sae";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
             wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;

@@ -199,9 +199,9 @@ in
         interfaces."nebula.arena" = {
           allowedTCPPorts = [ 1935 ];
           allowedUDPPorts = [
-            53   # dns
+            53 # dns
             1935 # rtmp
-            123  # serve NTP to the nebula fleet; public :123 stays firewalled off
+            123 # serve NTP to the nebula fleet; public :123 stays firewalled off
           ];
         };
       };

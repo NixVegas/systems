@@ -23,7 +23,10 @@ in
     address = "ghostgate.dc.nixos.lv";
 
     # forgejo ssh runs on 22
-    profile.sshOpts = [ "-t" "-p42070" ];
+    profile.sshOpts = [
+      "-t"
+      "-p42070"
+    ];
   };
 
   citadel = {
@@ -41,10 +44,7 @@ in
       ./devices/ayem
     ]
     ++ commonModules;
-
-    # TODO: un-hardcode with nebula DNS
-    #address = "ayem.noc.dc.nixos.lv";
-    address = "10.5.1.1";
+    address = "ayem.mesh.dc.nixos.lv";
   };
 
   seht = {
@@ -54,9 +54,7 @@ in
     ]
     ++ commonModules;
 
-    # TODO: un-hardcode with nebula DNS
-    #address = "seht.noc.dc.nixos.lv";
-    address = "10.5.1.2";
+    address = "seht.mesh.dc.nixos.lv";
   };
 
   vehk = {
@@ -66,9 +64,7 @@ in
     ]
     ++ commonModules;
 
-    # TODO: un-hardcode with nebula DNS
-    #address = "vehk.noc.dc.nixos.lv";
-    address = "10.5.1.3";
+    address = "vehk.mesh.dc.nixos.lv";
   };
 
   adamantia = {
