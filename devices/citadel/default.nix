@@ -186,6 +186,45 @@ in
   hardware.tenstorrent = {
     enable = true;
     meshName = "p150_x4";
+
+    # OpenAI serving on the four-card mesh, replacing the single-stream llama-cpp
+    # service. Serves Qwen3.6-27B (a reasoning model, gated-delta-net attention)
+    # through tt-metal's in-tree qwen36 model, tensor-parallel across the four
+    # p150s. The served id is advertised as the Llama name the console's frontend
+    # expects. The qwen36 model is registered with the vLLM plugin via an
+    # EXTRA_MODELS_DIR bundle, and needs the l1_small_size / trace_region_size
+    # device params for its GDN path on a mesh.
+    vllm = {
+      enable = true;
+      model = "Qwen/Qwen3.6-27B";
+      hfModel = "Qwen/Qwen3.6-27B";
+      # Advertise the real model id. The console's frontend must send the same id
+      # (set via services.tt-studio.frontend below), or vLLM 404s the request.
+      servedModelName = "Qwen/Qwen3.6-27B";
+      meshDevice = "P150x4";
+      maxNumSeqs = 1;
+      reasoningParser = "qwen3";
+      additionalConfig = {
+        sample_on_device_mode = "decode_only";
+        l1_small_size = 24576;
+        trace_region_size = 1073741824;
+      };
+      extraModelsDir = pkgs.writeTextDir "qwen36/vllm_metadata.json" (builtins.toJSON {
+        arch = "Qwen3_5ForConditionalGeneration";
+        main_class = "models.demos.blackhole.qwen36.tt.qwen36_vllm:Qwen36ForCausalLM";
+        hf_weights = "Qwen/Qwen3.6-27B";
+      });
+    };
+  };
+
+  # The native tt-studio web console, chatting through the vLLM server above. The
+  # frontend is rebuilt to send the same model id the vLLM server advertises.
+  services.tt-studio = {
+    enable = true;
+    cloudChatUrl = "http://127.0.0.1:8000/v1/chat/completions";
+    frontend = pkgs.tt-studio-frontend.override {
+      servedModelName = "Qwen/Qwen3.6-27B";
+    };
   };
 
   services = {
@@ -238,16 +277,6 @@ in
       };
     };
 
-    llama-cpp = {
-      enable = true;
-      package = pkgs.llama-cpp-metalium;
-      extraFlags = [
-        "-hf"
-        "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M"
-        "-nkvo"
-      ];
-      openFirewall = false;
-    };
     ctf-server = {
       enable = true;
       openFirewall = false;
@@ -274,19 +303,6 @@ in
       "ctf-server"
     ];
   };
-
-  systemd.services.llama-cpp = {
-    serviceConfig = {
-      MemoryDenyWriteExecute = lib.mkForce false;
-      ProcSubset = lib.mkForce "all";
-    };
-
-    environment = {
-      inherit (config.environment.variables) TT_MESH_GRAPH_DESC_PATH GGML_METALIUM_MESH_SHAPE;
-    };
-  };
-
-  environment.variables.GGML_METALIUM_MESH_SHAPE = "2x2";
 
   # The CTF is reached by attendees over the arena -> ctf path and by brass's
   # public front, so open the web ports (the challenge-VM SSH range is opened by
