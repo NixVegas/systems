@@ -241,6 +241,9 @@ in
         from = 26000;
         to = 27023;
       };
+
+      # Allow everything out ctf
+      egressAllowSubnets = [ "0.0.0.0/0" ];
       egressInterface = "ctf";
     };
     postgresql.ensureDatabases = [
