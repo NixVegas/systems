@@ -8,7 +8,7 @@
 # line here plus its mesh.nix nebula entry.
 {
   ghostgate = {
-    id = 4;
+    id = 10;
     base = "10.7.0";
   };
   ayem = {

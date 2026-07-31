@@ -134,6 +134,23 @@ rec {
         fi
       }
 
+      # route-replace on a device that may come up LATE. WiFi/hostapd-backed
+      # bridges (iot, mesh2) can appear after nebula@arena starts, so a bare
+      # `ip route replace ... dev X` silently fails under `set +e` while its
+      # dev-less policy rule succeeds -- leaving that net's ghostgate-sourced
+      # replies (ICMP, DNS) to fall through to the arena default route and vanish
+      # into the tun. Wait for the device (up to ~30s), then install.
+      # Usage: _route_replace_dev <dev> <prefix> [table <t> ...]
+      _route_replace_dev() {
+        _rrd_dev="$1"; shift
+        _rrd_t=0
+        while [ "$_rrd_t" -lt 30 ] && ! _ip link show "$_rrd_dev" >/dev/null 2>&1; do
+          ${sleep} 1
+          _rrd_t=$((_rrd_t + 1))
+        done
+        _ip route replace "$@" dev "$_rrd_dev"
+      }
+
       # Wait (up to ~30s) for the Nebula tun before installing routes on it.
       _tries=0
       while [ "$_tries" -lt 30 ] && ! _ip link show ${tun} >/dev/null 2>&1; do
