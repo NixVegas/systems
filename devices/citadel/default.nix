@@ -258,6 +258,28 @@ in
           };
         };
 
+        # The tt-studio console (the "clanker box", nixie). Routed exactly like
+        # nixc.tf: onsite attendees resolve nixie.nixos.lv straight here via
+        # split-horizon DNS, and brass forwards ONLY the ACME HTTP-01 challenge
+        # (its onsiteBackends maps nixie.nixos.lv -> citadel's ctf address), so
+        # this vhost mints and renews its own Let's Encrypt cert. Proxies to the
+        # tt-studio module's own nginx on :3000, which serves the frontend and
+        # fans the /*-api/ paths to the Django backend. Buffering is off and the
+        # read timeout is long so the chat token stream is not held back.
+        "nixie.${baseDomain}" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:${toString config.services.tt-studio.port}";
+            proxyWebsockets = true;
+            extraConfig = ''
+              proxy_buffering off;
+              proxy_read_timeout 1200s;
+            '';
+          };
+        };
+
         # www + canonical + legacy -> redirect to the front.
         "www.nixc.tf" = {
           enableACME = true;
