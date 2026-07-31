@@ -68,7 +68,14 @@ in
         cache_size = 16m
       </Plugin::Session>
       evaluator_workers = 4
-      evaluator_max_memory_size = 2048
+      # Full nixpkgs release.nix eval across ALL supportedSystems (linux x2 +
+      # darwin x2 + 32-bit/arm variants) is the heaviest eval nixpkgs has and
+      # peaks well past 8G; 2048 OOM-kills the evaluator before it finishes.
+      # NB: this is a per-evaluator cap -- with max_concurrent_evals = 2 the
+      # worst case is 2x this. ghostgate caps ZFS ARC at 4G, so if the box OOMs
+      # on a concurrent nixpkgs+other eval, drop max_concurrent_evals to 1
+      # rather than lowering this (a truncated nixpkgs eval is useless).
+      evaluator_max_memory_size = 4096
       queue_runner_endpoint = http://localhost:8080
       upload_logs_to_binary_cache = true
 
@@ -76,7 +83,7 @@ in
       binary_cache_public_uri = https://cache.nixos.lv
 
       compress_build_logs = true
-      max_concurrent_evals = 2
+      max_concurrent_evals = 5
       max_unsupported_time = 86400
 
       max_output_size = ${toString (1024 * 1024 * 1024)}

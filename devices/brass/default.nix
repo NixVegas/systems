@@ -56,6 +56,8 @@ let
     "www.nixc.tf" = citadelCtf;
     "ctf.nixos.lv" = citadelCtf;
     "ctf.nix.vegas" = citadelCtf;
+    # ollama
+    "nixie.nixos.lv" = citadelCtf;
     # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
     "git.nixos.lv" = ghostgateNebula;
     "git.nix.vegas" = ghostgateNebula;
@@ -68,6 +70,10 @@ let
     # ghostgate's hydra certs renew.
     "hydra.nixos.lv" = ghostgateNebula;
     "runner.hydra.nixos.lv" = ghostgateNebula;
+    # Home Assistant web UI: onsite-only (reached via split-horizon straight to
+    # ghostgate); brass forwards ACME so ghostgate's LE cert renews. No :443
+    # passthrough (publicBackends stays empty), so it is not publicly reachable.
+    "home.nixos.lv" = ghostgateNebula;
   };
   # The binary cache is like onsiteBackends (onsite -> ghostgate's harmonia via
   # split-horizon; brass terminates TLS + forwards ACME; no :443 passthrough),

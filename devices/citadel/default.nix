@@ -268,6 +268,9 @@ in
     443
   ];
 
+  # Only build one thing at a time, we should try to substitute as much as we can
+  services.hydra-queue-builder-dev.maxJobs = 1;
+
   # Required by the nginx `enableACME` on ctf.nixos.lv (matches the other hosts).
   security.acme = {
     acceptTerms = true;

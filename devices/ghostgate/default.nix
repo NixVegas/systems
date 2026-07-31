@@ -123,6 +123,7 @@ in
     ../../modules/harmonia-cache.nix
     ../../modules/citadel-builder.nix
     ../../modules/pxe.nix
+    ../../modules/home-assistant.nix
     ./hardware-configuration.nix
   ];
 
@@ -971,12 +972,16 @@ in
 
         ddns-send-updates = true;
         ddns-qualifying-suffix = "${domain}.";
-        # Do NOT re-send DDNS updates on every renewal. With check-with-dhcid,
-        # d2 implements each renewal update as a remove-then-add, so on a short
-        # (1200s) lease that opens an NXDOMAIN window every ~10min that resolvers
-        # negative-cache — which is why citadel.noc/build/ctf were flapping. The
-        # record is still created on allocation and persists in knot's journal.
-        ddns-update-on-renew = false;
+        # Re-send DDNS on renewal so dynamic records self-heal if knot's journal
+        # is ever wiped. A redeploy/reboot dropped the whole fleet's dynamic
+        # records once, and with this off (records only created on allocation)
+        # renewing clients never re-registered, so the names stayed gone until
+        # lease reallocation. Downside: with check-with-dhcid, d2 does each
+        # renewal as a remove-then-add, opening a brief NXDOMAIN window every
+        # renewal that resolvers may negative-cache. That churn used to break
+        # citadel, but citadel is now a STATIC record (see the zone below), so
+        # only ephemeral clients we don't hard-depend on are exposed to it.
+        ddns-update-on-renew = true;
         ddns-replace-client-name = "when-not-present";
         hostname-char-set = "[^A-Za-z0-9.-]";
         hostname-char-replacement = "";
@@ -1003,6 +1008,7 @@ in
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         git.${baseDomain}. CNAME ghostgate.${domain}.
+        home.${baseDomain}. CNAME ghostgate.${domain}.
         hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         runner.hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
@@ -1015,6 +1021,16 @@ in
         ghostgate.${noc.dhcpDomain}. A ${noc.address}
         ghostgate.${build.dhcpDomain}. A ${build.address}
         ghostgate.${ctf.dhcpDomain}. A ${ctf.address}
+
+        ; citadel is pinned infra (kea reservations, .2 on each LAN), so publish
+        ; it STATICALLY rather than leaning on DDNS. DDNS records live in knot's
+        ; journal, which a redeploy/reboot can wipe; with ddns-update-on-renew
+        ; off, a renewing citadel never re-registers, so the name would stay gone
+        ; until its lease is reallocated. Static keeps citadel resolvable no
+        ; matter what happens to the journal. IPs match the mkReservation .2s.
+        citadel.${noc.dhcpDomain}. A 10.4.0.2
+        citadel.${build.dhcpDomain}. A 10.4.1.2
+        citadel.${ctf.dhcpDomain}. A 10.4.2.2
 
         ; Static 802.11s mesh addresses for the VP2420 routers. The WiFi mesh
         ; (10.5/16) carries no DHCP, so these can't come from DDNS like the
