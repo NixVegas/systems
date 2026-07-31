@@ -241,6 +241,10 @@ in
         from = 26000;
         to = 27023;
       };
+
+      # Allow everything out ctf
+      egressAllowSubnets = [ "0.0.0.0/0" ];
+      egressInterface = "ctf";
     };
     postgresql.ensureDatabases = [
       "ctf-server"
@@ -267,6 +271,8 @@ in
     80
     443
   ];
+
+  services.hydra-queue-builder-dev.maxJobs = 1;
 
   # Required by the nginx `enableACME` on ctf.nixos.lv (matches the other hosts).
   security.acme = {

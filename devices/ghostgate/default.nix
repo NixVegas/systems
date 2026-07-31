@@ -25,6 +25,8 @@ let
   externalUSBWifi = "wlp0s13f0u2";
   # mt76x2u on internal USB-A
   internalUSBWifi = "wlp0s20f0u4";
+  # mt76x0u
+  externalUSBTinyWifi = "wlp0s20f0u9";
 
   wanInterface = "enp3s0";
   wanInterfaces = [ wanInterface ];
@@ -66,6 +68,14 @@ let
     id = 3;
     base = "10.4.2";
     subdomain = "ctf";
+    inherit domain;
+  };
+
+  # Stupid shit
+  iot = erlib.mkNet {
+    id = 4;
+    base = "10.4.3";
+    subdomain = "iot";
     inherit domain;
   };
 
@@ -123,6 +133,7 @@ in
     ../../modules/harmonia-cache.nix
     ../../modules/citadel-builder.nix
     ../../modules/pxe.nix
+    ../../modules/home-assistant.nix
     ./hardware-configuration.nix
   ];
 
@@ -255,6 +266,7 @@ in
     _rule_replace from ${build.subnet} lookup arena
     _rule_replace from ${ctf.subnet} lookup arena
     _rule_replace from ${noc.subnet} lookup arena
+    _rule_replace from ${iot.subnet} lookup arena
     _rule_replace from ${config.networking.mesh.plan.constants.wifi.subnet} lookup arena
     _rule_replace from ${config.networking.mesh.plan.constants.nebula.subnet} lookup arena
 
@@ -269,11 +281,18 @@ in
       _ip rule add from ${config.networking.mesh.plan.constants.wifi.subnet} ipproto udp dport "$_lhport" lookup main priority 100
     done
 
-    _ip route replace ${arena.subnet} dev arena table arena
-    _ip route replace ${build.subnet} dev build table arena
-    _ip route replace ${ctf.subnet} dev ctf table arena
-    _ip route replace ${noc.subnet} dev noc table arena
-    _ip route replace ${config.networking.mesh.plan.constants.wifi.subnet} dev mesh2 table arena
+    # Per-net local-delivery routes in the arena table. _route_replace_dev waits
+    # for the device first: iot and mesh2 are WiFi/hostapd-backed bridges that can
+    # appear after nebula@arena starts, and a bare route-replace on a not-yet-up
+    # device silently fails (set +e) while its policy rule succeeds -- which
+    # black-holes that net's ghostgate-sourced replies (ICMP, kresd DNS) into the
+    # tun. That was the iot "no internet / can't ping gateway" bug.
+    _route_replace_dev arena ${arena.subnet} table arena
+    _route_replace_dev build ${build.subnet} table arena
+    _route_replace_dev ctf ${ctf.subnet} table arena
+    _route_replace_dev noc ${noc.subnet} table arena
+    _route_replace_dev iot ${iot.subnet} table arena
+    _route_replace_dev mesh2 ${config.networking.mesh.plan.constants.wifi.subnet} table arena
 
     # Reach the VP2420 arena LANs over Nebula (full mesh) — in table arena for
     # LAN clients, and in the main table so ghostgate itself can reach them.
@@ -436,6 +455,15 @@ in
           }
         ];
       };
+
+      iot = {
+        ipv4.addresses = [
+          {
+            inherit (iot) address;
+            prefixLength = iot.prefix;
+          }
+        ];
+      };
     };
 
     bridges = {
@@ -453,6 +481,11 @@ in
 
       arena.interfaces = arenaInterfaces;
       "arena.wlan".interfaces = [ ];
+
+      # Isolated IoT VLAN (Govee lamps etc.) — bridges the dedicated IoT AP
+      # radio. Internet-egress like arena but firewalled off from arena/ctf/build
+      # (forward policy is drop; iot is only added to the nebula-egress path).
+      iot.interfaces = [ externalUSBTinyWifi ];
     };
 
     nftables = {
@@ -519,6 +552,7 @@ in
                 "build",
                 "ctf",
                 "arena",
+                "iot",
                 "nebula.arena",
                 "mesh2"
               } counter accept
@@ -544,6 +578,22 @@ in
 
             chain forward {
               type filter hook forward priority filter; policy drop;
+
+              # MSS clamp for everything crossing the Nebula tunnel. The tun MTU
+              # (1300) is smaller than the 1500 LAN, so full-size forwarded TCP
+              # segments (TLS handshakes, real payloads) get black-holed while tiny
+              # packets (DNS, small GETs) pass -- looks like "no internet". A
+              # masqueraded net (iot, noc) can't even self-heal via PMTUD, since
+              # the "frag needed" ICMP can't get back to the real client. Clamp on
+              # the tunnel interface in BOTH directions so both endpoints size to
+              # the tunnel MSS (1300-40=1260) -- covers every net (iot/noc/arena/
+              # build/ctf/mesh), not just the one that happened to break. Match
+              # SYN/SYN-ACK (where the maxseg option lives); these rules only
+              # mangle and fall through to the accept rules below. ghostgate's own
+              # tunnel traffic is OUTPUT (not forward) and already sizes to the tun
+              # MTU natively, so it needs no clamp.
+              oifname "nebula.arena" tcp flags & (syn | rst) == syn tcp option maxseg size set 1260 counter comment "clamp MSS entering nebula tunnel"
+              iifname "nebula.arena" tcp flags & (syn | rst) == syn tcp option maxseg size set 1260 counter comment "clamp MSS leaving nebula tunnel"
 
               # Route between arena LANs over Nebula (cert-authorized, no NAT).
               iifname "arena" oifname "nebula.arena" counter accept comment "arena -> nebula (inter-arena)"
@@ -576,6 +626,17 @@ in
 
               iifname { "lo", "arena", "build", "ctf", "mesh2", "noc" } oifname { "nebula.arena" } counter accept comment "Allow Arena networks to get out"
 
+              # Isolated IoT VLAN: internet egress over Nebula ONLY. Excluding the
+              # arena CIDRs + the Nebula overlay means iot can reach the public
+              # internet (via brass) but NOT other arenas, the overlay, or remote
+              # ctf/build — so a compromised lamp can't pivot into the fleet. Local
+              # arena/ctf/build/noc are already unreachable (forward policy drop).
+              iifname "iot" oifname "nebula.arena" ip daddr != { ${
+                lib.concatStringsSep ", " (
+                  erlib.arenaCidrs ++ [ config.networking.mesh.plan.constants.nebula.subnet ]
+                )
+              } } counter accept comment "iot -> internet only (isolated from fleet)"
+
               # Let mesh clients (2420s falling back through ghostgate) reach the
               # Nebula lighthouses via the clear WAN to bootstrap their own
               # Nebula. Scoped to the lighthouse UDP ports only — all other mesh
@@ -607,7 +668,8 @@ in
                 "build",
                 "ctf",
                 "mesh2",
-                "noc"
+                "noc",
+                "iot"
               } ct state established,related counter accept comment "Allow established back to LANs"
             }
           '';
@@ -620,8 +682,8 @@ in
               type nat hook prerouting priority filter; policy accept;
 
               # Redirect DNS, TFTP, and NTP queries to us
-              iifname {"noc", "build", "ctf", "arena", "mesh2"} udp dport {53, 123} counter redirect
-              iifname {"noc", "build", "ctf", "arena", "mesh2"} tcp dport {53} counter redirect
+              iifname {"noc", "build", "ctf", "arena", "iot", "mesh2"} udp dport {53, 123} counter redirect
+              iifname {"noc", "build", "ctf", "arena", "iot", "mesh2"} tcp dport {53} counter redirect
             }
 
             # Setup NAT masquerading on the wan interface
@@ -813,6 +875,32 @@ in
         };
       };
     };
+    radios.${externalUSBTinyWifi} = {
+      countryCode = "US";
+      band = "2g";
+      channel = 8;
+      wifi4.enable = true;
+      networks = {
+        ${externalUSBTinyWifi} = {
+          ssid = "NixVegas_IoT";
+          authentication = {
+            # Govee H6076 (and ESP-class IoT generally) speak ONLY plain
+            # WPA-PSK + CCMP on 2.4GHz. wpa2-sha1 gives wpa_key_mgmt = WPA-PSK
+            # (wpa2-sha256 would be WPA-PSK-SHA256, which they can't do; SAE /
+            # transition offer no AKM they support). enableRecommendedPairwise-
+            # Ciphers stays false so rsn_pairwise = CCMP only (no GCMP, which
+            # their radio can't even parse). No saePasswordsFile: SAE is unused.
+            mode = "wpa2-sha1";
+            wpaPskFile = "/etc/meshos/dc34/nixvegas-iot.wpa2.keys";
+            enableRecommendedPairwiseCiphers = false;
+          };
+          settings = {
+            # Dedicated isolated IoT VLAN (10.4.3.0/24), not the attendee arena.
+            bridge = "iot";
+          };
+        };
+      };
+    };
     radios.${internalUSBWifi} = {
       countryCode = "US";
       band = "5g";
@@ -904,6 +992,7 @@ in
             "build"
             "ctf"
             "arena"
+            "iot"
           ];
 
           # A bridge may have no carrier at boot ("interface isn't running"), so
@@ -960,6 +1049,10 @@ in
             (erlib.mkDhcp4Subnet {
               net = arena;
             })
+            # Isolated IoT VLAN (Govee lamps etc.). Pool-only, like arena.
+            (erlib.mkDhcp4Subnet {
+              net = iot;
+            })
           ];
 
         # Enable communication between dhcp4 and a local dhcp-ddns
@@ -971,12 +1064,16 @@ in
 
         ddns-send-updates = true;
         ddns-qualifying-suffix = "${domain}.";
-        # Do NOT re-send DDNS updates on every renewal. With check-with-dhcid,
-        # d2 implements each renewal update as a remove-then-add, so on a short
-        # (1200s) lease that opens an NXDOMAIN window every ~10min that resolvers
-        # negative-cache — which is why citadel.noc/build/ctf were flapping. The
-        # record is still created on allocation and persists in knot's journal.
-        ddns-update-on-renew = false;
+        # Re-send DDNS on renewal so dynamic records self-heal if knot's journal
+        # is ever wiped. A redeploy/reboot dropped the whole fleet's dynamic
+        # records once, and with this off (records only created on allocation)
+        # renewing clients never re-registered, so the names stayed gone until
+        # lease reallocation. Downside: with check-with-dhcid, d2 does each
+        # renewal as a remove-then-add, opening a brief NXDOMAIN window every
+        # renewal that resolvers may negative-cache. That churn used to break
+        # citadel, but citadel is now a STATIC record (see the zone below), so
+        # only ephemeral clients we don't hard-depend on are exposed to it.
+        ddns-update-on-renew = true;
         ddns-replace-client-name = "when-not-present";
         hostname-char-set = "[^A-Za-z0-9.-]";
         hostname-char-replacement = "";
@@ -1003,6 +1100,7 @@ in
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         git.${baseDomain}. CNAME ghostgate.${domain}.
+        home.${baseDomain}. CNAME ghostgate.${domain}.
         hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         runner.hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
@@ -1015,6 +1113,17 @@ in
         ghostgate.${noc.dhcpDomain}. A ${noc.address}
         ghostgate.${build.dhcpDomain}. A ${build.address}
         ghostgate.${ctf.dhcpDomain}. A ${ctf.address}
+        ghostgate.${iot.dhcpDomain}. A ${iot.address}
+
+        ; citadel is pinned infra (kea reservations, .2 on each LAN), so publish
+        ; it STATICALLY rather than leaning on DDNS. DDNS records live in knot's
+        ; journal, which a redeploy/reboot can wipe; with ddns-update-on-renew
+        ; off, a renewing citadel never re-registers, so the name would stay gone
+        ; until its lease is reallocated. Static keeps citadel resolvable no
+        ; matter what happens to the journal. IPs match the mkReservation .2s.
+        citadel.${noc.dhcpDomain}. A 10.4.0.2
+        citadel.${build.dhcpDomain}. A 10.4.1.2
+        citadel.${ctf.dhcpDomain}. A 10.4.2.2
 
         ; Static 802.11s mesh addresses for the VP2420 routers. The WiFi mesh
         ; (10.5/16) carries no DHCP, so these can't come from DDNS like the
@@ -1035,6 +1144,9 @@ in
 
         ctf.${domain}. CNAME citadel.ctf.${domain}.
 
+        ; clanker box
+        nixie.${domain}. CNAME citadel.ctf.${domain}.
+
         ; ctf.nixos.lv resolves internally straight to citadel (the direct
         ; arena -> ctf path) while public DNS points it at brass, which fronts
         ; TLS and proxies back in.
@@ -1051,6 +1163,7 @@ in
         "${build.address}:53"
         "${ctf.address}:53"
         "${arena.address}:53"
+        "${iot.address}:53"
         "${
           lib.head (
             lib.split "/" config.networking.mesh.plan.hosts.${config.networking.hostName}.wifi.address
@@ -1067,6 +1180,7 @@ in
           build.subnet
           ctf.subnet
           arena.subnet
+          iot.subnet
           config.networking.mesh.plan.constants.wifi.subnet
           config.networking.mesh.plan.constants.nebula.subnet
           "127.0.0.0/8"
@@ -1079,12 +1193,14 @@ in
           "www.nixos.lv."
           "cache.nixos.lv."
           "git.nixos.lv."
+          "home.nixos.lv."
           "hydra.nixos.lv."
           "runner.hydra.nixos.lv."
           # Split-horizon: hand ctf.nixos.lv to our knot (-> citadel) instead of
           # the public upstream (-> brass), so ghostgate's arena reaches the CTF
           # directly.
           "ctf.nixos.lv."
+          "nixie.nixos.lv."
         ];
         localDomains = [ "${domain}." ];
         upstreams = [ "10.6.6.7@53" ];
@@ -1093,6 +1209,7 @@ in
         hints = {
           "nixc.tf" = erlib.ctfServer;
           "www.nixc.tf" = erlib.ctfServer;
+          "nixie.nixos.lv" = erlib.ctfServer;
         };
       };
     };
@@ -1332,6 +1449,17 @@ in
       arena = attendeeFirewall;
       build = attendeeFirewall;
       ctf = attendeeFirewall;
+      # Govee LAN (govee_light_local): the lamps reply to HA on ghostgate:4002 as
+      # a NEW inbound UDP flow (not conntrack-related to the multicast scan we
+      # sent), so networking.firewall's nixos-fw table drops it -- 4002 isn't in
+      # the global allow list. The custom inet-filter table already accepts
+      # iifname iot, but both base chains run on INPUT and a drop in either wins,
+      # so we must open 4002 in the firewall too. iot-only (not global -> no WAN
+      # exposure); covers unicast scan replies and the 239.255.255.250:4002
+      # status multicast (dport match is dst-agnostic).
+      iot = attendeeFirewall // {
+        allowedUDPPorts = [ 4002 ];
+      };
       "nebula.arena" = attendeeFirewall;
     };
 
