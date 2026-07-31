@@ -80,7 +80,31 @@ in
       "sd_mod"
     ];
     kernelModules = [ "kvm-amd" ];
+
+    # Reserve one 1GB hugepage per Tenstorrent p150 (four in the mesh) for the
+    # UMD sysmem buffer. Without these tt-metal falls back to 4K pages and warns
+    # "Sysmem using regular pages", which slows host-device DMA and, for a mesh,
+    # the per-layer fabric collectives. The pages must be reserved at boot
+    # because 1GB pages need contiguous physical memory.
+    kernelParams = [
+      "hugepagesz=1G"
+      "hugepages=4"
+    ];
   };
+
+  # tt-metal's UMD maps its 1GB sysmem buffers from a hugetlbfs mounted at
+  # /dev/hugepages-1G (the default /dev/hugepages is 2MB). mode=1777 lets the
+  # unprivileged serving user create its hugepage files.
+  systemd.mounts = [
+    {
+      description = "Tenstorrent 1G hugepages";
+      what = "hugetlbfs";
+      where = "/dev/hugepages-1G";
+      type = "hugetlbfs";
+      options = "pagesize=1G,mode=1777";
+      wantedBy = [ "multi-user.target" ];
+    }
+  ];
 
   networking = {
     useDHCP = false;
