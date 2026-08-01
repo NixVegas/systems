@@ -177,49 +177,69 @@ in
 
   hardware.tenstorrent = {
     enable = true;
-    meshName = "p150_x4";
+    # Single-card descriptor: the LLM below is pinned to one p150 so the other
+    # chips stay free (Whisper runs on a disjoint chip via services.tt-whisper).
+    # This sets TT_MESH_GRAPH_DESC_PATH for the vLLM service to match its one
+    # visible chip; the whisper service manages its own device separately.
+    meshName = "p150";
 
-    # OpenAI serving on the four-card mesh, replacing the single-stream llama-cpp
-    # service. Serves Qwen3.6-27B (a reasoning model, gated-delta-net attention)
-    # through tt-metal's in-tree qwen36 model, tensor-parallel across the four
-    # p150s. The served id is advertised as the Llama name the console's frontend
-    # expects. The qwen36 model is registered with the vLLM plugin via an
-    # EXTRA_MODELS_DIR bundle, and needs the l1_small_size / trace_region_size
-    # device params for its GDN path on a mesh.
+    # OpenAI chat serving on a SINGLE p150, leaving the other three chips free.
+    # Qwen3.6-27B needed all four cards (its per-chip L1 does not fit on fewer),
+    # so it could not coexist with Whisper. Qwen3-8B runs on one chip via the
+    # general tt_transformers path (Qwen3ForCausalLM is registered by the vLLM
+    # plugin, no EXTRA_MODELS_DIR) at ~31 tok/s, a quality upgrade over Llama-8B,
+    # and leaves room for the speech-to-text service. Pinned to chip 0 with
+    # visibleDevices so the UMD cluster does not lock the whole box.
     vllm = {
       enable = true;
-      model = "Qwen/Qwen3.6-27B";
-      hfModel = "Qwen/Qwen3.6-27B";
-      # Advertise the real model id. The console's frontend must send the same id
-      # (set via services.tt-studio.frontend below), or vLLM 404s the request.
-      servedModelName = "Qwen/Qwen3.6-27B";
-      meshDevice = "P150x4";
+      model = "Qwen/Qwen3-8B";
+      hfModel = "Qwen/Qwen3-8B";
+      # The console's frontend must send this same id (set via
+      # services.tt-studio.frontend below), or vLLM 404s the request.
+      servedModelName = "Qwen/Qwen3-8B";
+      meshDevice = "P150";
+      visibleDevices = "0";
       maxNumSeqs = 1;
+      maxModelLen = 8192;
       reasoningParser = "qwen3";
-      additionalConfig = {
-        sample_on_device_mode = "decode_only";
-        l1_small_size = 24576;
-        trace_region_size = 1073741824;
-      };
-      extraModelsDir = pkgs.writeTextDir "qwen36/vllm_metadata.json" (
-        builtins.toJSON {
-          arch = "Qwen3_5ForConditionalGeneration";
-          main_class = "models.demos.blackhole.qwen36.tt.qwen36_vllm:Qwen36ForCausalLM";
-          hf_weights = "Qwen/Qwen3.6-27B";
-        }
-      );
     };
   };
 
-  # The native tt-studio web console, chatting through the vLLM server above. The
-  # frontend is rebuilt to send the same model id the vLLM server advertises.
+  # The native tt-studio web console, chatting through the vLLM server above and
+  # transcribing mic audio through the tt-whisper server below. The frontend is
+  # rebuilt to send the same model id the vLLM server advertises.
   services.tt-studio = {
     enable = true;
     cloudChatUrl = "http://127.0.0.1:8000/v1/chat/completions";
+    cloudSpeechUrl = "http://127.0.0.1:8030/v1/audio/transcriptions";
+    cloudSpeechAuthToken = "sk-whisper";
     frontend = pkgs.tt-studio-frontend.override {
-      servedModelName = "Qwen/Qwen3.6-27B";
+      servedModelName = "Qwen/Qwen3-8B";
     };
   };
+
+  # Native speech-to-text (Whisper distil-large-v3) on a disjoint p150. The LLM
+  # above holds chip 0 (visibleDevices = "0"); DEVICE_IDS = "(1)" puts Whisper on
+  # a different chip so the two coexist. The apiKey matches the console's
+  # cloudSpeechAuthToken; the default port 8030 matches cloudSpeechUrl.
+  #
+  # Bind on all interfaces so off-box clients (Home Assistant on ghostgate, over
+  # the build net) can reach the OpenAI /v1/audio/transcriptions endpoint; the
+  # firewall below scopes it to the build bridge only (NOT ctf/public). The
+  # apiKey Bearer token is the second layer.
+  services.tt-whisper = {
+    enable = true;
+    deviceIds = "(1)";
+    apiKey = "sk-whisper";
+    host = "0.0.0.0";
+  };
+
+  # Reach Whisper only from the build network (10.4.1.0/24, where ghostgate and
+  # Home Assistant live). Scoped to the build bridge so the ctf network and the
+  # public front never see port 8030.
+  networking.firewall.interfaces.build.allowedTCPPorts = [
+    config.services.tt-whisper.port
+  ];
 
   services = {
     nginx = {
