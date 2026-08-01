@@ -38,9 +38,7 @@ in
     # here (the zfs module, imported by BOTH the fleet and the desktops) rather
     # than in net.nix, which desktops can't import (it mkForce-disables
     # NetworkManager). mkDefault so a host can still override.
-    networking.hostId = lib.mkDefault (
-      builtins.substring 0 8 (builtins.hashString "sha256" hostName)
-    );
+    networking.hostId = lib.mkDefault (builtins.substring 0 8 (builtins.hashString "sha256" hostName));
 
     services.zfs = {
       trim.enable = true;
