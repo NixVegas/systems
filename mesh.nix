@@ -215,14 +215,17 @@
 
       dragonborn = {
         cache.client.sets = [ "cnl" ];
+        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICLFEC8i6hZkPVi41xysUjDlHOeZN4xfh8+qtnkMJKVB root@dragonborn";
       };
 
       vestige = {
         cache.client.sets = [ "cnl" ];
+        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMB5O2gKhSCyV/3INXMn2pVaa5zTyhk3ES3wILikSvhr root@vestige";
       };
 
       talin = {
         cache.client.sets = [ "cnl" ];
+        ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIw6OfZsjKfpSpvsA+nI6AE3DMHRV2M7kTjhUVjgdd8H root@talin";
       };
     };
 
