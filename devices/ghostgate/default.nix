@@ -1103,7 +1103,14 @@ in
         home.${baseDomain}. CNAME ghostgate.${domain}.
         hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         runner.hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
-        ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
+        ; Shared CNAME target for the onsite service names (cache/git/www/home).
+        ; Point it at ghostgate's ctf-net (10.4) address, NOT its Nebula (10.6)
+        ; overlay IP. Local clients reach any ghostgate IP by local delivery, but
+        ; a challenge VM behind citadel can route the 10.4 fabric and NOT the 10.6
+        ; overlay; a 10.6 target made git/cache unreachable there and needed an
+        ; /etc/hosts pin on citadel. 10.4.2.1 works for every onsite net, no
+        ; override. Nebula-reached peers use the hardcoded nebula addr, not DNS.
+        ghostgate.${domain}. A ${ctf.address}
 
         ; ghostgate on each of its LANs, so clients resolve it by its local
         ; gateway address — both the FQDN and bare `ghostgate` (which a client
