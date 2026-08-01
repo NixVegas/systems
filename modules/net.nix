@@ -7,10 +7,6 @@
 {
   networking = {
     useDHCP = lib.mkDefault true;
-    hostId = lib.mkDefault (
-      builtins.substring 0 8 (builtins.hashString "sha256" config.networking.hostName)
-    );
-    networkmanager.enable = lib.mkForce false;
   };
 
   security.pki.certificateFiles = [ pkgs.nixos-lv-root-ca ];
@@ -47,4 +43,7 @@
   };
 
   programs.ssh.startAgent = true;
+
+  # Don't enable this garbage.
+  services.gnome.gcr-ssh-agent.enable = lib.mkForce false;
 }
