@@ -203,7 +203,15 @@ in
           5000 # nebula
         ];
         interfaces."nebula.arena" = {
-          allowedTCPPorts = [ 1935 ];
+          allowedTCPPorts = [
+            # Attendee-facing web over the tunnel: the arena LANs reach brass's
+            # owncast livestream (live.nix.vegas / live.nixos.lv) and public site
+            # directly over Nebula instead of hairpinning out to brass's public
+            # IP. Public :80/:443 stay open on the egress interface below.
+            80
+            443
+            1935 # rtmp
+          ];
           allowedUDPPorts = [
             53 # dns
             1935 # rtmp

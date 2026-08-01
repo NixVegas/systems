@@ -723,6 +723,16 @@ in
               # can't route back to it. Masquerade its Nebula egress so they reply
               # to us; this must come before the real-source rule below.
               oifname "nebula.arena" ip saddr ${noc.subnet} masquerade
+              # Attendees reaching brass's web services (owncast livestream, the
+              # public site) over Nebula. brass has no route back to the arena
+              # aggregates -- its only unsafe_route is the ctf net -- so a
+              # real-source 10.7/10.8 packet would strand brass's reply on its
+              # public default gateway. Masquerade arena->brass to ghostgate's
+              # Nebula source so brass replies symmetrically over the tunnel (same
+              # pattern as the noc->nebula masq above). Scoped to brass's overlay
+              # address so inter-arena traffic to the OTHER routers still keeps its
+              # real source (the daddr != {...} rule below).
+              oifname "nebula.arena" ip saddr ${arena.subnet} ip daddr ${config.networking.mesh.plan.hosts.brass.nebula.address} masquerade
               # Masquerade only genuine internet egress over Nebula. Traffic to
               # other arenas OR to Nebula hosts (e.g. a router's own Nebula IP,
               # as when pinging from the box) keeps its real source so replies
@@ -1228,6 +1238,15 @@ in
           "nixc.tf" = erlib.ctfServer;
           "www.nixc.tf" = erlib.ctfServer;
           "nixie.nixos.lv" = erlib.ctfServer;
+          # Livestream over the tunnel: point the owncast names at brass's Nebula
+          # overlay IP so onsite clients watch it directly over Nebula (with the
+          # arena->brass masq above closing the return path) instead of
+          # hairpinning out through brass's own egress to its public IP. Both the
+          # .lv and .vegas names, since brass fronts both (live.nixos.lv ->
+          # live.nix.vegas -> owncast). Public DNS still answers brass's public
+          # addr for off-site viewers.
+          "live.nixos.lv" = config.networking.mesh.plan.hosts.brass.nebula.address;
+          "live.nix.vegas" = config.networking.mesh.plan.hosts.brass.nebula.address;
         };
       };
     };
