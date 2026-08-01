@@ -871,6 +871,11 @@ in
           };
           settings = {
             bridge = "arena";
+            # nixpkgs transition mode offers WPA-PSK-SHA256 + SAE. The Wi-Fi Alliance
+            # definition uses plain WPA-PSK + SAE. Clients without WPA-PSK-SHA256 cannot
+            # associate otherwise. mkForce is necessary because the module sets this
+            # value without mkDefault.
+            wpa_key_mgmt = lib.mkForce "WPA-PSK WPA-PSK-SHA256 SAE";
           };
         };
       };
@@ -937,6 +942,11 @@ in
           };
           settings = {
             bridge = "arena";
+            # nixpkgs transition mode offers WPA-PSK-SHA256 + SAE. The Wi-Fi Alliance
+            # definition uses plain WPA-PSK + SAE. Clients without WPA-PSK-SHA256 cannot
+            # associate otherwise. mkForce is necessary because the module sets this
+            # value without mkDefault.
+            wpa_key_mgmt = lib.mkForce "WPA-PSK WPA-PSK-SHA256 SAE";
           };
         };
       };
