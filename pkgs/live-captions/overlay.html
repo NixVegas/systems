@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Live captions</title>
+<style>
+  /* Transparent so OBS Browser Source composites over the video. */
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: rgba(0,0,0,0);
+    overflow: hidden;
+    font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  }
+  /* Caption box anchored to the lower third, a few lines tall. */
+  #wrap {
+    position: absolute;
+    left: 0; right: 0; bottom: 6vh;
+    display: flex; justify-content: center;
+  }
+  #caption {
+    max-width: 84vw;
+    font-size: 3.2vw;
+    line-height: 1.35;
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+    /* Heavy outline + shadow so text is legible over any video. */
+    text-shadow:
+      -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
+      0 0 8px rgba(0,0,0,0.9);
+    background: rgba(0,0,0,0.28);
+    padding: 0.35em 0.7em;
+    border-radius: 0.35em;
+    /* Clamp to the last few lines so it reads like TV captions. */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* Words not yet locked in by the overlap-merge: slightly dimmed. */
+  .tentative { color: #d7d7d7; opacity: 0.82; }
+  #status {
+    position: absolute; top: 6px; left: 8px;
+    font-size: 12px; color: #7CFC00; opacity: 0.0;
+    text-shadow: 0 0 4px #000; transition: opacity .3s;
+  }
+  #status.show { opacity: 0.75; }
+</style>
+</head>
+<body>
+  <div id="status">connecting…</div>
+  <div id="wrap"><div id="caption"><span id="committed"></span><span id="tentative" class="tentative"></span></div></div>
+<script>
+  const committedEl = document.getElementById("committed");
+  const tentativeEl = document.getElementById("tentative");
+  const statusEl = document.getElementById("status");
+
+  function setStatus(t, show) {
+    statusEl.textContent = t;
+    statusEl.classList.toggle("show", !!show);
+  }
+
+  function connect() {
+    const es = new EventSource("/events");
+    es.onopen = () => setStatus("live", false);
+    es.onerror = () => { setStatus("reconnecting…", true); es.close(); setTimeout(connect, 1500); };
+    es.onmessage = (ev) => {
+      let d;
+      try { d = JSON.parse(ev.data); } catch { return; }
+      // committed = locked words; tentative = latest, may still change.
+      committedEl.textContent = d.committed || "";
+      tentativeEl.textContent = (d.committed && d.tentative) ? (" " + d.tentative) : (d.tentative || "");
+    };
+  }
+  connect();
+</script>
+</body>
+</html>

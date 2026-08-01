@@ -282,6 +282,7 @@
               nixos-lv-root-ca = pkgs.callPackage ./pkgs/nixos-lv-root-ca { };
               great-value-hydra = great-value-hydra.packages.${system};
               badapple2ipxe = pkgs.callPackage ./pkgs/badapple-ipxe { };
+              live-captions = pkgs.callPackage ./pkgs/live-captions { };
             };
 
           packages = {
@@ -290,6 +291,7 @@
             inherit (pkgs) nix-vegas-site nix-vegas-site-onsite;
             inherit (pkgs) nixos-lv-root-ca;
             inherit (pkgs) badapple2ipxe;
+            inherit (pkgs) live-captions;
           };
 
           devShells.default = pkgs.mkShell {
