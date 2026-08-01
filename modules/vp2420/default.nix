@@ -737,7 +737,7 @@ in
         networks.${wlan} = {
           ssid = "NixVegas_${config.networking.hostName}";
           authentication = {
-            mode = "wpa3-sae";
+            mode = "wpa3-sae-transition";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
             wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
