@@ -482,10 +482,14 @@ in
       arena.interfaces = arenaInterfaces;
       "arena.wlan".interfaces = [ ];
 
-      # Isolated IoT VLAN (Govee lamps etc.) — bridges the dedicated IoT AP
-      # radio. Internet-egress like arena but firewalled off from arena/ctf/build
-      # (forward policy is drop; iot is only added to the nebula-egress path).
-      iot.interfaces = [ externalUSBTinyWifi ];
+      # Isolated IoT VLAN (Govee lamps etc.). Memberless like arena.wlan: hostapd
+      # solely owns the wlan-to-bridge enslavement via the radio's `bridge =
+      # "iot"` setting. Do NOT also list externalUSBTinyWifi here -- double-
+      # managing a hostapd-AP wlan (network-setup enslaving it AND hostapd
+      # bridging it) leaves the bridge admin-down with the port `disabled`, so
+      # kea can never bind iot (the arena wifi APs aren't listed here for the
+      # same reason).
+      iot.interfaces = [ ];
     };
 
     nftables = {
@@ -707,6 +711,13 @@ in
               # to us symmetrically. Arena traffic keeps its real source (attendee
               # IPs) because this only matches the noc subnet.
               oifname "ctf" ip saddr ${noc.subnet} masquerade
+              # Nebula overlay peers (e.g. brass at 10.6.x) reaching citadel at
+              # 10.4.2.2 land on citadel's ctf interface, but citadel routes 10.6/16
+              # back out noc (the noc DHCP extraRoute 10.6.0.0/16 -> 10.4.0.1), so
+              # its strict rpf drops the ctf-arriving packet and it never replies.
+              # Masquerade overlay->ctf to a ctf-local source (10.4.2.1) so citadel
+              # replies symmetrically over ctf -- same fix as noc->ctf above.
+              oifname "ctf" ip saddr ${config.networking.mesh.plan.constants.nebula.subnet} masquerade
               # NOC is a management network with no presence in Nebula, so hosts
               # reached over the overlay (the builders at 10.6.9.x, other arenas)
               # can't route back to it. Masquerade its Nebula egress so they reply
@@ -864,7 +875,7 @@ in
         ${externalUSBWifi} = {
           ssid = "NixVegas_2.4";
           authentication = {
-            mode = "wpa3-sae";
+            mode = "wpa3-sae-transition";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
             wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
@@ -930,7 +941,7 @@ in
         ${internalUSBWifi} = {
           ssid = "NixVegas";
           authentication = {
-            mode = "wpa3-sae";
+            mode = "wpa3-sae-transition";
             saePasswordsFile = "/etc/meshos/dc34/nixvegas.wpa3.keys";
             wpaPskFile = "/etc/meshos/dc34/nixvegas.wpa2.keys";
             enableRecommendedPairwiseCiphers = true;
@@ -1103,7 +1114,14 @@ in
         home.${baseDomain}. CNAME ghostgate.${domain}.
         hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         runner.hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
-        ghostgate.${domain}. A ${config.networking.mesh.plan.hosts.ghostgate.nebula.address}
+        ; Shared CNAME target for the onsite service names (cache/git/www/home).
+        ; Point it at ghostgate's ctf-net (10.4) address, NOT its Nebula (10.6)
+        ; overlay IP. Local clients reach any ghostgate IP by local delivery, but
+        ; a challenge VM behind citadel can route the 10.4 fabric and NOT the 10.6
+        ; overlay; a 10.6 target made git/cache unreachable there and needed an
+        ; /etc/hosts pin on citadel. 10.4.2.1 works for every onsite net, no
+        ; override. Nebula-reached peers use the hardcoded nebula addr, not DNS.
+        ghostgate.${domain}. A ${ctf.address}
 
         ; ghostgate on each of its LANs, so clients resolve it by its local
         ; gateway address — both the FQDN and bare `ghostgate` (which a client
