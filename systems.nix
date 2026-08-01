@@ -1,4 +1,4 @@
-{ ... }:
+{ nixos-hardware, ... }:
 
 let
   commonModules = [
@@ -10,6 +10,21 @@ let
     ./modules/ntp.nix
     ./modules/users.nix
     ./modules/zones.nix
+    ./mesh.nix
+  ];
+
+  # Personal desktops (dragonborn/vestige/talin). Curated set, NOT commonModules:
+  # net.nix mkForce-disables NetworkManager (which these need), and mesh/alloy/
+  # zones/ntp are fleet/router-only. desktop.nix carries the shared profile.
+  desktopModules = [
+    ./modules/alloy.nix
+    ./modules/boot.nix
+    ./modules/fs.nix
+    ./modules/misc.nix
+    ./modules/net.nix
+    ./modules/users.nix
+    ./modules/zones.nix
+    ./modules/desktop.nix
     ./mesh.nix
   ];
 in
@@ -101,5 +116,33 @@ in
     ]
     ++ commonModules;
     address = "dagoth.arena.nixos.lv";
+  };
+
+  dragonborn = {
+    version = "26.05";
+    modules = [
+      ./devices/dragonborn
+      nixos-hardware.nixosModules.framework-16-amd-ai-300-series
+    ]
+    ++ desktopModules;
+    address = "localhost";
+  };
+
+  vestige = {
+    version = "26.05";
+    modules = [
+      ./devices/vestige
+      nixos-hardware.nixosModules.gpd-pocket-4
+    ]
+    ++ desktopModules;
+  };
+
+  talin = {
+    version = "26.05";
+    modules = [
+      ./devices/talin
+      nixos-hardware.nixosModules.lenovo-thinkpad-x1-10th-gen
+    ]
+    ++ desktopModules;
   };
 }

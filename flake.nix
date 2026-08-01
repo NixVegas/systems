@@ -11,6 +11,7 @@
     nixpkgs-prev.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkcs.url = "github:numinit/nixpkcs/v1.3";
     meshos.url = "github:numinit/MeshOS";
+    nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     nixpkgs-gold.url = "github:Jaculabilis/nixpkgs-gold";
 
@@ -101,8 +102,6 @@
 
       flake =
         let
-          deployUser = "deploy";
-
           inherit (nixpkgs-lib) lib;
 
           # Maps nixpkgs instances to their version.
@@ -170,7 +169,7 @@
                 hostname = address;
                 profiles.system = lib.attrsets.recursiveUpdate {
                   user = "root";
-                  sshUser = deployUser;
+                  sshUser = "root";
                   sshOpts = [ "-t" ];
                   path = deploy-rs.lib.${config.pkgs.stdenv.hostPlatform.system}.activate.nixos config;
                 } profile;

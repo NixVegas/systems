@@ -201,11 +201,13 @@ in
         l1_small_size = 24576;
         trace_region_size = 1073741824;
       };
-      extraModelsDir = pkgs.writeTextDir "qwen36/vllm_metadata.json" (builtins.toJSON {
-        arch = "Qwen3_5ForConditionalGeneration";
-        main_class = "models.demos.blackhole.qwen36.tt.qwen36_vllm:Qwen36ForCausalLM";
-        hf_weights = "Qwen/Qwen3.6-27B";
-      });
+      extraModelsDir = pkgs.writeTextDir "qwen36/vllm_metadata.json" (
+        builtins.toJSON {
+          arch = "Qwen3_5ForConditionalGeneration";
+          main_class = "models.demos.blackhole.qwen36.tt.qwen36_vllm:Qwen36ForCausalLM";
+          hf_weights = "Qwen/Qwen3.6-27B";
+        }
+      );
     };
   };
 

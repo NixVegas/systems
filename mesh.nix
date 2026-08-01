@@ -212,6 +212,18 @@
         };
         ssh.hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID9Mi3Z6hRCX5z/rGncDPjYybRWLJhAbsH56dtnaKy42 root@vehk";
       };
+
+      dragonborn = {
+        cache.client.sets = [ "cnl" ];
+      };
+
+      vestige = {
+        cache.client.sets = [ "cnl" ];
+      };
+
+      talin = {
+        cache.client.sets = [ "cnl" ];
+      };
     };
 
     constants = {
