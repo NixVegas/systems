@@ -56,7 +56,7 @@ let
     "www.nixc.tf" = citadelCtf;
     "ctf.nixos.lv" = citadelCtf;
     "ctf.nix.vegas" = citadelCtf;
-    # ollama
+    # tt-studio console
     "nixie.nixos.lv" = citadelCtf;
     # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
     "git.nixos.lv" = ghostgateNebula;
