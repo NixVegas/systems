@@ -134,8 +134,20 @@ in
     ../../modules/citadel-builder.nix
     ../../modules/pxe.nix
     ../../modules/home-assistant.nix
+    ../../modules/ctf-recon-bluetooth.nix
+    ../../modules/ctf-recon-ipxe.nix
     ./hardware-configuration.nix
   ];
+
+  # RF scavenger-hunt find (Recon7 "Ghost in the Piconet"): advertise the flag as
+  # this box's Bluetooth device name. Flag provisioned out-of-band at
+  # /etc/nixctf/flag-recon-bluetooth (not committed).
+  nixVegas.ctfReconBluetooth.enable = true;
+
+  # Netboot scavenger-hunt find (Recon2 "Chain Loader"): inject the flag as an
+  # iPXE `set` variable into the menu this box serves at /boot/menu.ipxe. Flag
+  # provisioned out-of-band at /etc/nixctf/flag-recon-ipxe (not committed).
+  nixVegas.ctfReconIpxe.enable = true;
 
   boot.kernelParams = [
     "console=ttyS1,115200n8"
@@ -1296,9 +1308,11 @@ in
               };
 
               # The "Escape Your Fate" adventure the iPXE class hands out; it
-              # chains netboot.ipxe (above) relative to itself.
+              # chains netboot.ipxe (above) relative to itself. Served from the
+              # runtime copy with the Recon2 flag injected as a comment (see
+              # nixVegas.ctfReconIpxe), not the bare build artifact.
               "= /boot/menu.ipxe" = {
-                alias = "${config.nixVegas.pxe.gameScript}";
+                alias = "${config.nixVegas.ctfReconIpxe.output}";
               };
 
               # Bad Apple, compiled to an iPXE animation — the adventure's hidden

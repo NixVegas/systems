@@ -92,7 +92,14 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/swap.nix
     ../../modules/unbound.nix
+    ../../modules/ctf-recon-owncast.nix
   ];
+
+  # Stream scavenger-hunt find (Recon3 "On the Hour"): post the flag into the
+  # Owncast chat once an hour, on the hour. Flag + Owncast token provisioned
+  # out-of-band at /etc/nixctf/flag-recon-owncast and /etc/nixctf/owncast-token
+  # (not committed).
+  nixVegas.ctfReconOwncast.enable = true;
 
   boot = {
     initrd.availableKernelModules = [
