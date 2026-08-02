@@ -293,6 +293,19 @@ in
       };
     };
 
+    # Don't allow all from the ctf-egress filter.
+    ctf-libvirt.egressFilters = {
+      ctf-egress = {
+        allowAll = lib.mkForce false;
+        allowSubnets = lib.mkForce [ ctf.subnet ];
+      };
+      ctf-egress-internet = {
+        # Implicitly does not allow RFC 1918
+        allowAll = lib.mkForce true;
+        allowSubnets = lib.mkForce [ ctf.subnet ];
+      };
+    };
+
     ctf-server = {
       enable = true;
       openFirewall = false;
@@ -311,8 +324,7 @@ in
         to = 27023;
       };
 
-      # Allow everything out ctf
-      egressAllowSubnets = [ "0.0.0.0/0" ];
+      # Allow egress out the CTF subnet
       egressInterface = "ctf";
     };
     postgresql.ensureDatabases = [
