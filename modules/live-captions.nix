@@ -15,27 +15,32 @@ let
 
   cfg = config.services.live-captions;
 
-  args =
-    [
-      "--whisper-url"
-      cfg.whisperUrl
-      "--api-key"
-      cfg.apiKey
-      "--model"
-      cfg.model
-      "--keyword"
-      cfg.keyword
-      "--window"
-      (toString cfg.window)
-      "--hop"
-      (toString cfg.hop)
-      "--keyword-cooldown"
-      (toString cfg.keywordCooldown)
-      "--port"
-      (toString cfg.port)
-    ]
-    ++ optionals (cfg.device != null) [ "--device" cfg.device ]
-    ++ optionals (cfg.webhookUrl != null) [ "--webhook-url" cfg.webhookUrl ];
+  args = [
+    "--whisper-url"
+    cfg.whisperUrl
+    "--api-key"
+    cfg.apiKey
+    "--model"
+    cfg.model
+    "--keyword"
+    cfg.keyword
+    "--window"
+    (toString cfg.window)
+    "--hop"
+    (toString cfg.hop)
+    "--keyword-cooldown"
+    (toString cfg.keywordCooldown)
+    "--port"
+    (toString cfg.port)
+  ]
+  ++ optionals (cfg.device != null) [
+    "--device"
+    cfg.device
+  ]
+  ++ optionals (cfg.webhookUrl != null) [
+    "--webhook-url"
+    cfg.webhookUrl
+  ];
 in
 {
   options.services.live-captions = {
