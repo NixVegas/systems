@@ -5,6 +5,13 @@
   ...
 }:
 {
+  imports = [
+    # Runs limine-install.py with Python safe-path so it doesn't scandir the
+    # whole /nix/store on import (catastrophic on the cache host). No-ops on
+    # grub hosts. Delete once the upstream shebang fix reaches our nixpkgs.
+    ./limine-safepath.nix
+  ];
+
   boot.kernelPackages = lib.mkDefault pkgs.linuxKernel.packages.linux_6_18;
 
   boot.kernel.sysctl = {
