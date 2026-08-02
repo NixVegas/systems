@@ -11,6 +11,7 @@
       "networkmanager"
       "lp"
       "libvirtd" # virt-manager: talk to the libvirt socket without sudo
+      "wireshark"
     ];
   };
 
@@ -64,6 +65,7 @@
       protontricks.enable = true;
       extraCompatPackages = with pkgs; [ proton-ge-bin ];
     };
+    wireshark.enable = true;
     gnupg.agent.enable = true;
   };
 
