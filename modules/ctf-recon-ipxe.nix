@@ -2,7 +2,7 @@
 # the netboot chain hands out, as a comment players find by reading the script.
 # Pairs with the Recon2 "Chain Loader" challenge in the ctf-server repo.
 #
-# The menu itself is a build artifact (nixVegas.pxe.gameScript). Rather than bake
+# The menu itself is a build artifact (nixVegas.pxe.menuScript). Rather than bake
 # the flag into it (this repo is on the player-facing forgejo), a runtime service
 # copies the menu and injects the flag as an iPXE setting (`set <var> <flag>`),
 # so it both shows to anyone reading the script and is referenceable later as
@@ -24,8 +24,8 @@ in
 
     menuScript = lib.mkOption {
       type = lib.types.path;
-      default = config.nixVegas.pxe.gameScript;
-      defaultText = lib.literalExpression "config.nixVegas.pxe.gameScript";
+      default = config.nixVegas.pxe.menuScript;
+      defaultText = lib.literalExpression "config.nixVegas.pxe.menuScript";
       description = "The base iPXE menu script the flag setting is injected into.";
     };
 

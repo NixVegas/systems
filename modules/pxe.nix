@@ -54,6 +54,8 @@ let
     chain badapple.ipxe || goto flag
 
     :flag
+    echo
+    echo
     echo ''${flag}
     goto boot
 
