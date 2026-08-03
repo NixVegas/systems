@@ -158,7 +158,10 @@
     openmw
     kdePackages.kdenlive
     audacity
-    obs-studio
+    # OBS + obs-source-record: the Source Record filter lets a scene/source be
+    # recorded (or streamed) independently of the Program, e.g. a caption-free
+    # "clean" recording alongside the captioned stream on dragonborn.
+    (wrapOBS { plugins = with obs-studio-plugins; [ obs-source-record ]; })
     wireshark
     yubikey-manager
     yubioath-flutter
