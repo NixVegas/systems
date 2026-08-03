@@ -62,6 +62,7 @@ in
 {
   imports = [
     ../../modules/hydra-builder.nix
+    ../../modules/tt-chat-proxy.nix
   ];
 
   # citadel is the shared remote builder (the "huge box"). nix.sshServe sets up
@@ -221,12 +222,21 @@ in
     };
   };
 
+  # Reasoning-hiding, flag-redacting proxy in front of vLLM. Keeps Qwen3 thinking
+  # on (quality) but removes the chain-of-thought and any Nix{...} before the
+  # answer reaches the console. Defaults: listen :8009, forward to vLLM :8000.
+  services.tt-chat-proxy.enable = true;
+
   # The native tt-studio web console, chatting through the vLLM server above and
   # transcribing mic audio through the tt-whisper server below. The frontend is
   # rebuilt to send the same model id the vLLM server advertises.
   services.tt-studio = {
     enable = true;
-    cloudChatUrl = "http://127.0.0.1:8000/v1/chat/completions";
+    # Chat goes through tt-chat-proxy (below), which strips the model's reasoning
+    # from the stream and redacts Nix{...} from answers, so the CTF flag in the
+    # system prompt cannot leak via the visible chain-of-thought. The proxy
+    # forwards to the real vLLM server on :8000.
+    cloudChatUrl = "http://127.0.0.1:8009/v1/chat/completions";
     cloudSpeechUrl = "http://127.0.0.1:8030/v1/audio/transcriptions";
     # File-backed: same key file the tt-whisper server validates against. Read at
     # runtime, so the token never enters the nix store. See whisperKeyFile below.
