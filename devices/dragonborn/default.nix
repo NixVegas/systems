@@ -3,6 +3,7 @@
   imports = [
     ../../modules/desktop.nix
     ../../modules/live-captions.nix
+    ../../modules/swap.nix
     ./hardware-configuration.nix
   ];
 

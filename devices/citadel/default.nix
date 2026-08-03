@@ -388,6 +388,12 @@ in
       enable = true;
       openFirewall = false;
       openVmFirewall = true; # open the challenge-VM SSH range (below)
+      # On a real flag capture, POST the flag-capture Home Assistant webhook (the
+      # green lights pattern). citadel reaches home.nixos.lv over the noc L2
+      # (it resolves to ghostgate's noc address) with a noc source, satisfying the
+      # webhook's `allow noc.subnet` gate. Best-effort; scoring is unaffected if HA
+      # is down. The "escape your fate" caption hotword fires the same webhook.
+      homeAssistantWebhookUrl = "https://home.nixos.lv/api/webhook/flag-capture";
       # Front-facing domain the app presents (Phoenix PHX_HOST): nixc.tf. The
       # nginx vhost + cert stay ctf.nixos.lv (canonical) — brass proxies with
       # Host: ctf.nixos.lv, so citadel needn't be on the nixc.tf cert.
