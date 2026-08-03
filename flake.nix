@@ -72,6 +72,11 @@
       url = "github:NixVegas/ctf-server";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    fix = {
+      url = "github:psyclyx/fix";
+      flake = false;
+    };
   };
 
   outputs =
@@ -93,6 +98,7 @@
       meshos,
       tenstorrent-nix,
       nix-vegas-ctf,
+      fix,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -103,6 +109,8 @@
       flake =
         let
           inherit (nixpkgs-lib) lib;
+
+          fixProject = import fix { };
 
           # Maps nixpkgs instances to their version.
           nixpkgsVersions = builtins.listToAttrs (
@@ -218,6 +226,7 @@
               nix-vegas-ctf.nixosModules.default
               hydra.nixosModules.hydra
               dcwifi.nixosModules.default
+              fixProject.nixosModules.fix
             ];
             nixpkgs.config.gold = {
               acceptEula = true;
@@ -282,6 +291,8 @@
               nixos-lv-root-ca = pkgs.callPackage ./pkgs/nixos-lv-root-ca { };
               great-value-hydra = great-value-hydra.packages.${system};
               badapple2ipxe = pkgs.callPackage ./pkgs/badapple-ipxe { };
+              live-captions = pkgs.callPackage ./pkgs/live-captions { };
+              tt-chat-proxy = pkgs.callPackage ./pkgs/tt-chat-proxy { };
             };
 
           packages = {
@@ -290,6 +301,8 @@
             inherit (pkgs) nix-vegas-site nix-vegas-site-onsite;
             inherit (pkgs) nixos-lv-root-ca;
             inherit (pkgs) badapple2ipxe;
+            inherit (pkgs) live-captions;
+            inherit (pkgs) tt-chat-proxy;
           };
 
           devShells.default = pkgs.mkShell {

@@ -15,6 +15,24 @@
 
 let
   baseDomain = "nixos.lv";
+
+  # The Govee lamps the AGENCY flash drives. Single source of truth: used for the
+  # pre-flash state snapshot, the flash on/off, and the restore below -- fill in
+  # the real entity_ids ONCE here. (Developer Tools -> States, filter `light.`;
+  # govee_light_local names them like light.govee_h6076_xxxx.)
+  goveeLights = [
+    "light.govee_1"
+    "light.govee_2"
+  ];
+
+  # The resting look both flash automations settle on afterward, so the normal
+  # state is defined ONCE. Currently the Govee "snowflake" effect -- the name must
+  # match the device's effect_list (Developer Tools -> States -> a govee light).
+  restGovee = {
+    action = "light.turn_on";
+    target.entity_id = goveeLights;
+    data.effect = "snowflake";
+  };
 in
 {
   services.home-assistant = {
@@ -40,6 +58,117 @@ in
         ];
         use_x_forwarded_for = true;
       };
+
+      # Declarative automations. The "automation manual" key (a labelled domain,
+      # not a bare `automation`) keeps the HA UI automation editor usable
+      # alongside these -- a bare `automation` here would shadow it.
+      "automation manual" = [
+        {
+          alias = "Flash Govee on AGENCY";
+          # Fires on POST to /api/webhook/agency-flash. `webhook` ships in
+          # default_config, so no extra component is needed. local_only means
+          # only onsite/private-source requests are accepted (nginx forwards the
+          # real client IP via X-Forwarded-For, which we already trust above).
+          triggers = [
+            {
+              trigger = "webhook";
+              webhook_id = "agency-flash";
+              local_only = true;
+              allowed_methods = [ "POST" ];
+            }
+          ];
+          actions = [
+            {
+              repeat = {
+                count = 3;
+                sequence = [
+                  {
+                    action = "light.turn_on";
+                    target.entity_id = goveeLights;
+                    data = {
+                      rgb_color = [
+                        255
+                        0
+                        0
+                      ];
+                      brightness_pct = 100;
+                    };
+                  }
+                  { delay = "00:00:00.35"; }
+                  {
+                    action = "light.turn_off";
+                    target.entity_id = goveeLights;
+                  }
+                  { delay = "00:00:00.35"; }
+                ];
+              };
+            }
+            # End deterministically ON at the resting look (never leaves the
+            # lamps dark). Scene-snapshot/restore was unreliable here:
+            # govee_light_local is a LAN integration whose cached state lags, so
+            # the snapshot often captured a stale `off` and "restored" them off.
+            restGovee
+          ];
+        }
+        {
+          alias = "Flag capture pattern";
+          # POST /api/webhook/flag-capture -- fired by the "escape your fate"
+          # hotword (live-captions) when a CTF flag is captured. Distinct green
+          # celebration pattern, then settle to the resting look. local_only +
+          # the nginx NOC gate on home.nixos.lv restrict who can fire it.
+          triggers = [
+            {
+              trigger = "webhook";
+              webhook_id = "flag-capture";
+              local_only = true;
+              allowed_methods = [ "POST" ];
+            }
+          ];
+          actions = [
+            {
+              repeat = {
+                count = 4;
+                sequence = [
+                  {
+                    action = "light.turn_on";
+                    target.entity_id = goveeLights;
+                    data = {
+                      rgb_color = [
+                        0
+                        255
+                        0
+                      ];
+                      brightness_pct = 100;
+                    };
+                  }
+                  { delay = "00:00:00.25"; }
+                  {
+                    action = "light.turn_off";
+                    target.entity_id = goveeLights;
+                  }
+                  { delay = "00:00:00.25"; }
+                ];
+              };
+            }
+            # Then hold solid green so the celebration lasts ~15s total (2s flash +
+            # 13s hold) -- matches the caption banner's flagSeconds on dragonborn.
+            {
+              action = "light.turn_on";
+              target.entity_id = goveeLights;
+              data = {
+                rgb_color = [
+                  0
+                  255
+                  0
+                ];
+                brightness_pct = 100;
+              };
+            }
+            { delay = "00:00:13"; }
+            restGovee
+          ];
+        }
+      ];
     };
   };
 

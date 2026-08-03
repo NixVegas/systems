@@ -134,8 +134,20 @@ in
     ../../modules/citadel-builder.nix
     ../../modules/pxe.nix
     ../../modules/home-assistant.nix
+    ../../modules/ctf-recon-bluetooth.nix
+    ../../modules/ctf-recon-ipxe.nix
     ./hardware-configuration.nix
   ];
+
+  # RF scavenger-hunt find (Recon7 "Ghost in the Piconet"): advertise the flag as
+  # this box's Bluetooth device name. Flag provisioned out-of-band at
+  # /etc/nixctf/flag-recon-bluetooth (not committed).
+  nixVegas.ctfReconBluetooth.enable = true;
+
+  # Netboot scavenger-hunt find (Recon2 "Chain Loader"): inject the flag as an
+  # iPXE `set` variable into the menu this box serves at /boot/menu.ipxe. Flag
+  # provisioned out-of-band at /etc/nixctf/flag-recon-ipxe (not committed).
+  nixVegas.ctfReconIpxe.enable = true;
 
   boot.kernelParams = [
     "console=ttyS1,115200n8"
@@ -1046,7 +1058,7 @@ in
               # consistently. Uses citadel's real noc NIC MAC (comes up the same
               # every boot, no citadel-side change); .2 sits just outside the pool.
               reservations = [
-                (mkReservation noc "9c:6b:00:4f:26:aa" 2 "citadel")
+                (mkReservation noc "9c:6b:00:4f:26:ab" 2 "citadel")
               ];
             })
             (erlib.mkDhcp4Subnet {
@@ -1229,6 +1241,9 @@ in
           # directly.
           "ctf.nixos.lv."
           "nixie.nixos.lv."
+          # Whisper API on citadel (nginx-fronted). Onsite resolves straight to
+          # the CTF server; public DNS still points at brass.
+          "whisper.nixos.lv."
         ];
         localDomains = [ "${domain}." ];
         upstreams = [ "10.6.6.7@53" ];
@@ -1238,6 +1253,13 @@ in
           "nixc.tf" = erlib.ctfServer;
           "www.nixc.tf" = erlib.ctfServer;
           "nixie.nixos.lv" = erlib.ctfServer;
+          # whisper is NOC-only: resolve it to citadel's *noc* address (its pinned
+          # .2 reservation, = citadel.noc), NOT the ctf server. The AV box is on
+          # noc, so it reaches citadel directly over the noc L2 with its real
+          # source -- no ghostgate ctf hairpin, no noc->ctf masquerade -- and
+          # citadel's vhost allow can be the real noc subnet. Literal to match the
+          # `citadel.noc A 10.4.0.2` static record + the kea .2 reservation above.
+          "whisper.nixos.lv" = "10.4.0.2";
           # Livestream over the tunnel: point the owncast names at brass's Nebula
           # overlay IP so onsite clients watch it directly over Nebula (with the
           # arena->brass masq above closing the return path) instead of
@@ -1296,9 +1318,11 @@ in
               };
 
               # The "Escape Your Fate" adventure the iPXE class hands out; it
-              # chains netboot.ipxe (above) relative to itself.
+              # chains netboot.ipxe (above) relative to itself. Served from the
+              # runtime copy with the Recon2 flag injected as a comment (see
+              # nixVegas.ctfReconIpxe), not the bare build artifact.
               "= /boot/menu.ipxe" = {
-                alias = "${config.nixVegas.pxe.gameScript}";
+                alias = "${config.nixVegas.ctfReconIpxe.output}";
               };
 
               # Bad Apple, compiled to an iPXE animation — the adventure's hidden
@@ -1531,6 +1555,21 @@ in
   security.acme = {
     acceptTerms = true;
     defaults.email = "noc@nix.vegas";
+  };
+
+  # Home Assistant webhooks are NOC-only. A webhook drives real-world actuators
+  # (the Govee lights), and the caller is the AV box on the NOC net, so restrict
+  # /api/webhook/ to the noc subnet at nginx -- a hard gate beyond HA's own
+  # local_only. $remote_addr is the real onsite client here (ghostgate's nginx is
+  # the edge; home.nixos.lv is onsite-only, resolved straight to us). The rest of
+  # home.nixos.lv stays reachable. Merges into the vhost from home-assistant.nix;
+  # the longest-prefix /api/webhook/ location wins over its "/".
+  services.nginx.virtualHosts."home.${baseDomain}".locations."/api/webhook/" = {
+    proxyPass = "http://127.0.0.1:8123";
+    extraConfig = ''
+      allow ${noc.subnet};
+      deny all;
+    '';
   };
 
   systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];

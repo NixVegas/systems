@@ -11,6 +11,7 @@
       "networkmanager"
       "lp"
       "libvirtd" # virt-manager: talk to the libvirt socket without sudo
+      "wireshark"
     ];
   };
 
@@ -24,6 +25,7 @@
   # These boxes boot ZFS off partlabel'd disks (the fleet uses by-id; fs.nix
   # deliberately leaves devNodes to the NixOS default, so set it here).
   boot.zfs.devNodes = "/dev/disk/by-partlabel";
+
   # xanmod over boot.nix's `mkDefault linux_6_18`.
   boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod;
 
@@ -64,6 +66,7 @@
       protontricks.enable = true;
       extraCompatPackages = with pkgs; [ proton-ge-bin ];
     };
+    wireshark.enable = true;
     gnupg.agent.enable = true;
   };
 
@@ -156,7 +159,10 @@
     openmw
     kdePackages.kdenlive
     audacity
-    obs-studio
+    # OBS + obs-source-record: the Source Record filter lets a scene/source be
+    # recorded (or streamed) independently of the Program, e.g. a caption-free
+    # "clean" recording alongside the captioned stream on dragonborn.
+    (wrapOBS { plugins = with obs-studio-plugins; [ obs-source-record ]; })
     wireshark
     yubikey-manager
     yubioath-flutter

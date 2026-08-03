@@ -47,11 +47,17 @@ let
     done < "$bannerFile"
   '';
 
-  pxeGame = ''
+  pxeMenu = ''
     :intro
     echo
-    prompt --timeout 20000 Press any key to play Bad Apple, or wait to boot NixOS... || goto boot
-    chain badapple.ipxe || goto boot
+    prompt --timeout 5000 Press any key to play Bad Apple, or wait to boot NixOS... || goto boot
+    chain badapple.ipxe || goto flag
+
+    :flag
+    echo
+    echo
+    echo ''${flag}
+    goto boot
 
     :boot
     echo
@@ -83,16 +89,16 @@ let
         } > $out/autoexec.ipxe
       '';
 
-  # The HTTP boot script the DHCP iPXE class hands out: title + the adventure,
+  # The HTTP boot script the DHCP iPXE class hands out,
   # every path chaining the real netboot.ipxe. Reached via autoboot's DHCP, so
   # the console/input are up by the time it runs.
-  gameScript =
+  menuScript =
     pkgs.runCommand "nixvegas-menu.ipxe"
       {
-        inherit pxeBanner pxeGame;
+        inherit pxeBanner pxeMenu;
         passAsFile = [
           "pxeBanner"
-          "pxeGame"
+          "pxeMenu"
         ];
       }
       ''
@@ -101,16 +107,10 @@ let
           printf '#!ipxe\n\n'
           ${bannerToIpxe}
           printf '\n'
-          cat "$pxeGamePath"
+          cat "$pxeMenuPath"
         } > $out
       '';
 
-  # Secret branch: the hidden `apple` command in the adventure chains this. The
-  # Bad Apple video is fetched at build time and compiled to an iPXE console
-  # animation (pkgs/badapple-ipxe) sized/paced for a 115200 serial link (--baud
-  # subtracts each frame's transmit time from its delay, holding the frame rate
-  # where the link keeps up and degrading to baud-limited on busy frames). The
-  # mp4 is a build input only — the runtime closure is just the ASCII script.
   badAppleVideo = pkgs.fetchurl {
     url = "https://github.com/bad-apple-lab/Bad-Apple/raw/refs/heads/main/badapple.mp4";
     hash = "sha256-2DOWQv0zA6DElx4VZFFegvae9htwDOF7aB3rsZQEwjo=";
@@ -140,22 +140,19 @@ in
       example = "http://nixos.lv/boot/menu.ipxe";
       description = ''
         URL handed to a running iPXE client (boot-file-name for the XClient_iPXE
-        class). Point it at the menu.ipxe (gameScript) served next to
-        netboot.ipxe; the adventure chains netboot.ipxe relative to this URL, and
+        class). Point it at the menu.ipxe (menuScript) served next to
+        netboot.ipxe; the boot menu chains netboot.ipxe relative to this URL, and
         netboot.ipxe in turn fetches the kernel/initrd from the same host:port.
       '';
     };
 
-    gameScript = lib.mkOption {
+    menuScript = lib.mkOption {
       type = lib.types.package;
       readOnly = true;
-      default = gameScript;
+      default = menuScript;
       defaultText = lib.literalExpression "<generated Escape Your Fate menu.ipxe>";
       description = ''
-        The generated iPXE menu script (banner + "Escape Your Fate" adventure,
-        every path chaining netboot.ipxe). serveArtifacts publishes it at
-        /boot/menu.ipxe; a host serving /boot itself (ghostgate's site vhost)
-        aliases this at the same path. Point ipxeScriptUrl here.
+        The generated iPXE menu script.
       '';
     };
 
@@ -263,7 +260,7 @@ in
       virtualHosts.pxe-netboot = {
         default = true;
         locations = {
-          "= /boot/menu.ipxe".alias = "${cfg.gameScript}";
+          "= /boot/menu.ipxe".alias = "${cfg.menuScript}";
           "= /boot/badapple.ipxe".alias = "${cfg.movieScript}";
           "= /boot/netboot.ipxe".alias = "${cfg.artifactsPath}/netboot.ipxe";
           "= /boot/bzImage".alias = "${cfg.artifactsPath}/bzImage";

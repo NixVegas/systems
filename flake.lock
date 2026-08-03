@@ -56,6 +56,22 @@
         "type": "github"
       }
     },
+    "fix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785715719,
+        "narHash": "sha256-qLTYqSdaxPNMsI59PVgOCMVZjBn655xujFeraqxyK/M=",
+        "owner": "psyclyx",
+        "repo": "fix",
+        "rev": "fd675c2e938da6c9f444a00893b6716d66c89927",
+        "type": "github"
+      },
+      "original": {
+        "owner": "psyclyx",
+        "repo": "fix",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -567,11 +583,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785651706,
-        "narHash": "sha256-Cw6SIw7WAsQ39tl/73i9F5bOAHvsYbWZTKHaiv000gw=",
+        "lastModified": 1785734619,
+        "narHash": "sha256-bXIWT1XCrHYDLaNOl0rrnzn03cGBw4+Ie1pLJQjburU=",
         "owner": "NixVegas",
         "repo": "ctf-server",
-        "rev": "b28dc0890ead1ff18070b46c617c8d65e5c85bbe",
+        "rev": "fc0dc7e6685d909fcbf0dd16f0a1b25e591b0a65",
         "type": "github"
       },
       "original": {
@@ -1035,11 +1051,11 @@
     },
     "nixpkgs_5": {
       "locked": {
-        "lastModified": 1785491804,
-        "narHash": "sha256-p00vplVOyfKGlhju0+eGGPAxyYYKaY0lpyuoHLFIx2Y=",
+        "lastModified": 1785599192,
+        "narHash": "sha256-dg4RTtDxnXY13UkJNdhmgTUTl0n/IJBlCigfO7nutZw=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "5b4f72e1705a63aace42900610c4db82cb4af0ec",
+        "rev": "6d65bfc1bcef2ef39a239d38e577e92a89fb0f07",
         "type": "github"
       },
       "original": {
@@ -1101,6 +1117,7 @@
       "inputs": {
         "dcwifi": "dcwifi",
         "deploy-rs": "deploy-rs",
+        "fix": "fix",
         "flake-parts": "flake-parts",
         "freescout": "freescout",
         "great-value-hydra": "great-value-hydra",
@@ -1205,11 +1222,11 @@
         "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
-        "lastModified": 1785615333,
-        "narHash": "sha256-koePsClCewOlfCW3JQGzMNOBK0xX+SR/Dqb4Odw+4mc=",
+        "lastModified": 1785732406,
+        "narHash": "sha256-tm/zx5LUMCQF1pp3QrC9O4djHkyDn/24iKV6URKdW+w=",
         "owner": "RossComputerGuy",
         "repo": "tenstorrent.nix",
-        "rev": "0cf0a35a596a8a03b5d952a8746b5286f70a20c9",
+        "rev": "5c8e8f0829c4baaa1462d3c1134b90a59710ff85",
         "type": "github"
       },
       "original": {

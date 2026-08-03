@@ -6,6 +6,8 @@
 }:
 
 let
+  whisperKeyFile = "/etc/whisper/api-key";
+
   nocInterface1 = "enp200s0";
   nocInterface2 = "enp201s0";
 
@@ -16,6 +18,15 @@ let
 
   baseDomain = "nixos.lv";
   domain = "ctf.${baseDomain}";
+
+  # NOC management network (citadel is bridged onto it). Only used here for
+  # noc.subnet (the whisper vhost allow); citadel gets its noc address by DHCP.
+  noc = erlib.mkNet {
+    id = 1;
+    base = "10.4.0";
+    subdomain = "noc";
+    inherit domain;
+  };
 
   # Build machines.
   build = erlib.mkNet {
@@ -51,6 +62,7 @@ in
 {
   imports = [
     ../../modules/hydra-builder.nix
+    ../../modules/tt-chat-proxy.nix
   ];
 
   # citadel is the shared remote builder (the "huge box"). nix.sshServe sets up
@@ -177,48 +189,81 @@ in
 
   hardware.tenstorrent = {
     enable = true;
-    meshName = "p150_x4";
+    # Single-card descriptor: the LLM below is pinned to one p150 so the other
+    # chips stay free (Whisper runs on a disjoint chip via services.tt-whisper).
+    # This sets TT_MESH_GRAPH_DESC_PATH for the vLLM service to match its one
+    # visible chip; the whisper service manages its own device separately.
+    meshName = "p150";
 
-    # OpenAI serving on the four-card mesh, replacing the single-stream llama-cpp
-    # service. Serves Qwen3.6-27B (a reasoning model, gated-delta-net attention)
-    # through tt-metal's in-tree qwen36 model, tensor-parallel across the four
-    # p150s. The served id is advertised as the Llama name the console's frontend
-    # expects. The qwen36 model is registered with the vLLM plugin via an
-    # EXTRA_MODELS_DIR bundle, and needs the l1_small_size / trace_region_size
-    # device params for its GDN path on a mesh.
+    # OpenAI chat serving on a SINGLE p150, leaving the other three chips free.
+    # Qwen3.6-27B needed all four cards (its per-chip L1 does not fit on fewer),
+    # so it could not coexist with Whisper. Qwen3-8B runs on one chip via the
+    # general tt_transformers path (Qwen3ForCausalLM is registered by the vLLM
+    # plugin, no EXTRA_MODELS_DIR) at ~31 tok/s, a quality upgrade over Llama-8B,
+    # and leaves room for the speech-to-text service. Pinned to chip 0 with
+    # visibleDevices so the UMD cluster does not lock the whole box.
     vllm = {
       enable = true;
-      model = "Qwen/Qwen3.6-27B";
-      hfModel = "Qwen/Qwen3.6-27B";
-      # Advertise the real model id. The console's frontend must send the same id
-      # (set via services.tt-studio.frontend below), or vLLM 404s the request.
-      servedModelName = "Qwen/Qwen3.6-27B";
-      meshDevice = "P150x4";
+      model = "Qwen/Qwen3-8B";
+      hfModel = "Qwen/Qwen3-8B";
+      # The console's frontend must send this same id (set via
+      # services.tt-studio.frontend below), or vLLM 404s the request.
+      servedModelName = "Qwen/Qwen3-8B";
+      meshDevice = "P150";
+      visibleDevices = "0";
       maxNumSeqs = 1;
+      maxModelLen = 8192;
       reasoningParser = "qwen3";
-      additionalConfig = {
-        sample_on_device_mode = "decode_only";
-        l1_small_size = 24576;
-        trace_region_size = 1073741824;
-      };
-      extraModelsDir = pkgs.writeTextDir "qwen36/vllm_metadata.json" (
-        builtins.toJSON {
-          arch = "Qwen3_5ForConditionalGeneration";
-          main_class = "models.demos.blackhole.qwen36.tt.qwen36_vllm:Qwen36ForCausalLM";
-          hf_weights = "Qwen/Qwen3.6-27B";
-        }
-      );
+      systemPromptFile = "/etc/tt-vllm/system-prompt.txt";
+      # Force it: the tt-studio console sends its own system prompt, which would
+      # otherwise shadow ours and keep the CTF flag out of the model's context.
+      # Stripping the client system makes Nixie (and the flag) always present.
+      systemPromptForce = true;
     };
   };
 
-  # The native tt-studio web console, chatting through the vLLM server above. The
-  # frontend is rebuilt to send the same model id the vLLM server advertises.
+  # Reasoning-hiding, flag-redacting proxy in front of vLLM. Keeps Qwen3 thinking
+  # on (quality) but removes the chain-of-thought and any Nix{...} before the
+  # answer reaches the console. Defaults: listen :8009, forward to vLLM :8000.
+  services.tt-chat-proxy.enable = true;
+
+  # The native tt-studio web console, chatting through the vLLM server above and
+  # transcribing mic audio through the tt-whisper server below. The frontend is
+  # rebuilt to send the same model id the vLLM server advertises.
   services.tt-studio = {
     enable = true;
-    cloudChatUrl = "http://127.0.0.1:8000/v1/chat/completions";
+    # Chat goes through tt-chat-proxy (below), which strips the model's reasoning
+    # from the stream and redacts Nix{...} from answers, so the CTF flag in the
+    # system prompt cannot leak via the visible chain-of-thought. The proxy
+    # forwards to the real vLLM server on :8000.
+    cloudChatUrl = "http://127.0.0.1:8009/v1/chat/completions";
+    cloudSpeechUrl = "http://127.0.0.1:8030/v1/audio/transcriptions";
+    # File-backed: same key file the tt-whisper server validates against. Read at
+    # runtime, so the token never enters the nix store. See whisperKeyFile below.
+    cloudSpeechAuthTokenFile = whisperKeyFile;
     frontend = pkgs.tt-studio-frontend.override {
-      servedModelName = "Qwen/Qwen3.6-27B";
+      servedModelName = "Qwen/Qwen3-8B";
     };
+  };
+
+  # Native speech-to-text (Whisper distil-large-v3) on a disjoint p150. The LLM
+  # above holds chip 0 (visibleDevices = "0"); DEVICE_IDS = "(1)" puts Whisper on
+  # a different chip so the two coexist. The Bearer key comes from whisperKeyFile
+  # (below), matching the console's cloudSpeechAuthTokenFile; port 8030 matches
+  # cloudSpeechUrl.
+  #
+  # Bind to loopback only: nginx (the whisper.nixos.lv vhost below) is the sole
+  # ingress now, so off-box clients (live-captions on the NOC AV box) reach
+  # Whisper over TLS through nginx instead of a raw port on the build net. The
+  # tt-studio console still reaches it locally over loopback (cloudSpeechUrl
+  # above). The Bearer token (whisperKeyFile) is validated behind nginx -- that
+  # auth is the gate now, replacing the old build-net firewall exception (removed
+  # deliberately; no raw 8030 is exposed on any interface).
+  services.tt-whisper = {
+    enable = true;
+    deviceIds = "(1)";
+    apiKeyFile = whisperKeyFile;
+    host = "127.0.0.1";
   };
 
   services = {
@@ -270,6 +315,39 @@ in
             extraConfig = ''
               proxy_buffering off;
               proxy_read_timeout 1200s;
+            '';
+          };
+        };
+
+        # Whisper transcription API (tt-whisper). Same onsite/brass-SNI pattern as
+        # nixie: the NOC AV box resolves whisper.nixos.lv straight here via
+        # split-horizon DNS, and brass forwards ONLY the ACME HTTP-01 challenge
+        # (its onsiteBackends maps whisper.nixos.lv -> citadel's ctf address), so
+        # this vhost mints and renews its own Let's Encrypt cert with no public
+        # :443 passthrough. Fronts the loopback-bound tt-whisper: nginx is the sole
+        # ingress (the build-net firewall exception is gone) and the Bearer token
+        # is the auth behind it, forwarded upstream in the Authorization header.
+        "whisper.${baseDomain}" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:${toString config.services.tt-whisper.port}";
+            extraConfig = ''
+              # NOC-only, mirroring the home.nixos.lv webhook restriction. Onsite
+              # DNS resolves whisper.nixos.lv to citadel's noc address (10.4.0.2),
+              # so the NOC AV box reaches this vhost directly over the noc L2 --
+              # real source preserved (no ghostgate ctf hairpin / masquerade). So
+              # $remote_addr is the genuine noc client here: allow the noc subnet,
+              # deny the rest. The Bearer token is the auth behind this.
+              allow ${noc.subnet};
+              deny all;
+
+              # Audio uploads + transcription latency: allow large request bodies
+              # and a long read/send timeout so a caption window isn't cut off.
+              client_max_body_size 64m;
+              proxy_read_timeout 300s;
+              proxy_send_timeout 300s;
             '';
           };
         };

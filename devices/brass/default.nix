@@ -58,6 +58,9 @@ let
     "ctf.nix.vegas" = citadelCtf;
     # tt-studio console
     "nixie.nixos.lv" = citadelCtf;
+    # Whisper transcription API on citadel (onsite-only; nginx-fronted, Bearer-
+    # gated). Public gets the 302; onsite AV box resolves it split-horizon.
+    "whisper.nixos.lv" = citadelCtf;
     # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
     "git.nixos.lv" = ghostgateNebula;
     "git.nix.vegas" = ghostgateNebula;
@@ -92,7 +95,14 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/swap.nix
     ../../modules/unbound.nix
+    ../../modules/ctf-recon-owncast.nix
   ];
+
+  # Stream scavenger-hunt find (Recon3 "On the Hour"): post the flag into the
+  # Owncast chat once an hour, on the hour. Flag + Owncast token provisioned
+  # out-of-band at /etc/nixctf/flag-recon-owncast and /etc/nixctf/owncast-token
+  # (not committed).
+  nixVegas.ctfReconOwncast.enable = true;
 
   boot = {
     initrd.availableKernelModules = [
