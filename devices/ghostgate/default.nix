@@ -1241,6 +1241,9 @@ in
           # directly.
           "ctf.nixos.lv."
           "nixie.nixos.lv."
+          # Whisper API on citadel (nginx-fronted). Onsite resolves straight to
+          # the CTF server; public DNS still points at brass.
+          "whisper.nixos.lv."
         ];
         localDomains = [ "${domain}." ];
         upstreams = [ "10.6.6.7@53" ];
@@ -1250,6 +1253,7 @@ in
           "nixc.tf" = erlib.ctfServer;
           "www.nixc.tf" = erlib.ctfServer;
           "nixie.nixos.lv" = erlib.ctfServer;
+          "whisper.nixos.lv" = erlib.ctfServer;
           # Livestream over the tunnel: point the owncast names at brass's Nebula
           # overlay IP so onsite clients watch it directly over Nebula (with the
           # arena->brass masq above closing the return path) instead of
@@ -1545,6 +1549,21 @@ in
   security.acme = {
     acceptTerms = true;
     defaults.email = "noc@nix.vegas";
+  };
+
+  # Home Assistant webhooks are NOC-only. A webhook drives real-world actuators
+  # (the Govee lights), and the caller is the AV box on the NOC net, so restrict
+  # /api/webhook/ to the noc subnet at nginx -- a hard gate beyond HA's own
+  # local_only. $remote_addr is the real onsite client here (ghostgate's nginx is
+  # the edge; home.nixos.lv is onsite-only, resolved straight to us). The rest of
+  # home.nixos.lv stays reachable. Merges into the vhost from home-assistant.nix;
+  # the longest-prefix /api/webhook/ location wins over its "/".
+  services.nginx.virtualHosts."home.${baseDomain}".locations."/api/webhook/" = {
+    proxyPass = "http://127.0.0.1:8123";
+    extraConfig = ''
+      allow ${noc.subnet};
+      deny all;
+    '';
   };
 
   systemd.services.kea-dhcp4-server.partOf = [ "hostapd.service" ];

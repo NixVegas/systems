@@ -6,11 +6,7 @@
 }:
 
 let
-  # Out-of-store secret: the Whisper Bearer key, validated by tt-whisper and sent
-  # by the tt-studio backend. A STRING path (not a nix path literal) so it is
-  # never copied into the store. Operator places it (see the comment at the
-  # tt-whisper block): install -m600 the key at this path before deploying.
-  whisperKeyFile = "/var/lib/secrets/whisper-api-key";
+  whisperKeyFile = "/etc/whisper/api-key";
 
   nocInterface1 = "enp200s0";
   nocInterface2 = "enp201s0";
@@ -232,23 +228,19 @@ in
   # (below), matching the console's cloudSpeechAuthTokenFile; port 8030 matches
   # cloudSpeechUrl.
   #
-  # Bind on all interfaces so off-box clients (Home Assistant / captions on the
-  # build net) can reach the OpenAI /v1/audio/transcriptions endpoint; the
-  # firewall below scopes it to the build bridge only (NOT ctf/public). The
-  # Bearer token is the second layer.
+  # Bind to loopback only: nginx (the whisper.nixos.lv vhost below) is the sole
+  # ingress now, so off-box clients (live-captions on the NOC AV box) reach
+  # Whisper over TLS through nginx instead of a raw port on the build net. The
+  # tt-studio console still reaches it locally over loopback (cloudSpeechUrl
+  # above). The Bearer token (whisperKeyFile) is validated behind nginx -- that
+  # auth is the gate now, replacing the old build-net firewall exception (removed
+  # deliberately; no raw 8030 is exposed on any interface).
   services.tt-whisper = {
     enable = true;
     deviceIds = "(1)";
     apiKeyFile = whisperKeyFile;
-    host = "0.0.0.0";
+    host = "127.0.0.1";
   };
-
-  # Reach Whisper only from the build network (10.4.1.0/24, where ghostgate and
-  # Home Assistant live). Scoped to the build bridge so the ctf network and the
-  # public front never see port 8030.
-  networking.firewall.interfaces.build.allowedTCPPorts = [
-    config.services.tt-whisper.port
-  ];
 
   services = {
     nginx = {
@@ -299,6 +291,30 @@ in
             extraConfig = ''
               proxy_buffering off;
               proxy_read_timeout 1200s;
+            '';
+          };
+        };
+
+        # Whisper transcription API (tt-whisper). Same onsite/brass-SNI pattern as
+        # nixie: the NOC AV box resolves whisper.nixos.lv straight here via
+        # split-horizon DNS, and brass forwards ONLY the ACME HTTP-01 challenge
+        # (its onsiteBackends maps whisper.nixos.lv -> citadel's ctf address), so
+        # this vhost mints and renews its own Let's Encrypt cert with no public
+        # :443 passthrough. Fronts the loopback-bound tt-whisper: nginx is the sole
+        # ingress (the build-net firewall exception is gone) and the Bearer token
+        # is the auth behind it, forwarded upstream in the Authorization header.
+        "whisper.${baseDomain}" = {
+          http2 = true;
+          enableACME = true;
+          forceSSL = true;
+          locations."/" = {
+            proxyPass = "http://127.0.0.1:${toString config.services.tt-whisper.port}";
+            extraConfig = ''
+              # Audio uploads + transcription latency: allow large request bodies
+              # and a long read/send timeout so a caption window isn't cut off.
+              client_max_body_size 64m;
+              proxy_read_timeout 300s;
+              proxy_send_timeout 300s;
             '';
           };
         };

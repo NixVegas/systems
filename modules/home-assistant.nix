@@ -40,6 +40,63 @@ in
         ];
         use_x_forwarded_for = true;
       };
+
+      # Declarative automations. The "automation manual" key (a labelled domain,
+      # not a bare `automation`) keeps the HA UI automation editor usable
+      # alongside these -- a bare `automation` here would shadow it.
+      "automation manual" = [
+        {
+          alias = "Flash Govee on AGENCY";
+          # Fires on POST to /api/webhook/agency-flash. `webhook` ships in
+          # default_config, so no extra component is needed. local_only means
+          # only onsite/private-source requests are accepted (nginx forwards the
+          # real client IP via X-Forwarded-For, which we already trust above).
+          triggers = [
+            {
+              trigger = "webhook";
+              webhook_id = "agency-flash";
+              local_only = true;
+              allowed_methods = [ "POST" ];
+            }
+          ];
+          actions = [
+            {
+              repeat = {
+                count = 3;
+                sequence = [
+                  {
+                    action = "light.turn_on";
+                    # TODO: replace with the real Govee entity_ids (Developer
+                    # Tools -> States, filter `light.` -- govee_light_local names
+                    # them like light.govee_h6076_xxxx).
+                    target.entity_id = [
+                      "light.govee_1"
+                      "light.govee_2"
+                    ];
+                    data = {
+                      rgb_color = [
+                        255
+                        0
+                        0
+                      ];
+                      brightness_pct = 100;
+                    };
+                  }
+                  { delay = "00:00:00.35"; }
+                  {
+                    action = "light.turn_off";
+                    target.entity_id = [
+                      "light.govee_1"
+                      "light.govee_2"
+                    ];
+                  }
+                  { delay = "00:00:00.35"; }
+                ];
+              };
+            }
+          ];
+        }
+      ];
     };
   };
 

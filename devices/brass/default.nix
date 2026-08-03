@@ -58,6 +58,9 @@ let
     "ctf.nix.vegas" = citadelCtf;
     # tt-studio console
     "nixie.nixos.lv" = citadelCtf;
+    # Whisper transcription API on citadel (onsite-only; nginx-fronted, Bearer-
+    # gated). Public gets the 302; onsite AV box resolves it split-horizon.
+    "whisper.nixos.lv" = citadelCtf;
     # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
     "git.nixos.lv" = ghostgateNebula;
     "git.nix.vegas" = ghostgateNebula;

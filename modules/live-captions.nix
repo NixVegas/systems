@@ -88,8 +88,13 @@ in
 
     whisperUrl = mkOption {
       type = types.str;
-      default = "http://10.4.1.2:8030/v1/audio/transcriptions";
-      description = "Whisper OpenAI transcription endpoint (citadel, over the build net).";
+      default = "https://whisper.nixos.lv/v1/audio/transcriptions";
+      description = ''
+        Whisper OpenAI transcription endpoint. citadel's tt-whisper, fronted by
+        nginx (whisper.nixos.lv, onsite split-horizon -> the CTF server) with the
+        Bearer token gated behind nginx -- no raw build-net port anymore. Resolves
+        onsite via ghostgate; the NOC AV box reaches the CTF net (noc->ctf).
+      '';
     };
 
     apiKey = mkOption {
@@ -105,7 +110,7 @@ in
     apiKeyFile = mkOption {
       type = types.nullOr types.path;
       default = null;
-      example = "/var/lib/live-captions/whisper-api-key";
+      example = "/etc/live-captions/whisper-api-key";
       description = ''
         Path to a file (on the machine, out of the store) holding the whisper
         Bearer key. Read at runtime, so the secret never enters the store. Must be

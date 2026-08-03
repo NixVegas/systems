@@ -39,11 +39,6 @@
 
   services.live-captions = {
     enable = true;
-    # Whisper Bearer key read from a file at runtime (out of the store). A STRING
-    # path so it is not copied in. Operator places it readable by the desktop
-    # user, e.g. `install -m644 -D <key> /var/lib/live-captions/whisper-api-key`
-    # (low-value LAN key; use 640 + a group if you prefer). Must match citadel's.
-    apiKeyFile = "/var/lib/live-captions/whisper-api-key";
     triggers = [
       {
         keyword = "agency";
