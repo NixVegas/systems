@@ -158,6 +158,7 @@
     sanoid
     openmw
     kdePackages.kdenlive
+    krita
     audacity
     # OBS + obs-source-record: the Source Record filter lets a scene/source be
     # recorded (or streamed) independently of the Program, e.g. a caption-free

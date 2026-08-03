@@ -13,6 +13,8 @@
     btop
     iftop
     perf
+    wget
+    curl
   ];
 
   systemd.services.nix-daemon.serviceConfig.LimitNOFILE = lib.mkForce 1073741816;
