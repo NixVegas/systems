@@ -214,6 +214,10 @@ in
       maxModelLen = 8192;
       reasoningParser = "qwen3";
       systemPromptFile = "/etc/tt-vllm/system-prompt.txt";
+      # Force it: the tt-studio console sends its own system prompt, which would
+      # otherwise shadow ours and keep the CTF flag out of the model's context.
+      # Stripping the client system makes Nixie (and the flag) always present.
+      systemPromptForce = true;
     };
   };
 
