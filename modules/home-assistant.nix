@@ -24,6 +24,15 @@ let
     "light.govee_1"
     "light.govee_2"
   ];
+
+  # The resting look both flash automations settle on afterward, so the normal
+  # state is defined ONCE. Currently the Govee "snowflake" effect -- the name must
+  # match the device's effect_list (Developer Tools -> States -> a govee light).
+  restGovee = {
+    action = "light.turn_on";
+    target.entity_id = goveeLights;
+    data.effect = "snowflake";
+  };
 in
 {
   services.home-assistant = {
@@ -69,17 +78,6 @@ in
             }
           ];
           actions = [
-            # Snapshot the lamps' current state (on/off, color, brightness) into a
-            # throwaway scene so we can put them back exactly as they were after
-            # the flash -- otherwise the sequence ends on turn_off and leaves them
-            # dark. `scene` ships in default_config.
-            {
-              action = "scene.create";
-              data = {
-                scene_id = "agency_flash_restore";
-                snapshot_entities = goveeLights;
-              };
-            }
             {
               repeat = {
                 count = 3;
@@ -105,11 +103,69 @@ in
                 ];
               };
             }
-            # Restore whatever they were before the flash (lit -> lit, off -> off).
+            # End deterministically ON at the resting look (never leaves the
+            # lamps dark). Scene-snapshot/restore was unreliable here:
+            # govee_light_local is a LAN integration whose cached state lags, so
+            # the snapshot often captured a stale `off` and "restored" them off.
+            restGovee
+          ];
+        }
+        {
+          alias = "Flag capture pattern";
+          # POST /api/webhook/flag-capture -- fired by the "escape your fate"
+          # hotword (live-captions) when a CTF flag is captured. Distinct green
+          # celebration pattern, then settle to the resting look. local_only +
+          # the nginx NOC gate on home.nixos.lv restrict who can fire it.
+          triggers = [
             {
-              action = "scene.turn_on";
-              target.entity_id = "scene.agency_flash_restore";
+              trigger = "webhook";
+              webhook_id = "flag-capture";
+              local_only = true;
+              allowed_methods = [ "POST" ];
             }
+          ];
+          actions = [
+            {
+              repeat = {
+                count = 4;
+                sequence = [
+                  {
+                    action = "light.turn_on";
+                    target.entity_id = goveeLights;
+                    data = {
+                      rgb_color = [
+                        0
+                        255
+                        0
+                      ];
+                      brightness_pct = 100;
+                    };
+                  }
+                  { delay = "00:00:00.25"; }
+                  {
+                    action = "light.turn_off";
+                    target.entity_id = goveeLights;
+                  }
+                  { delay = "00:00:00.25"; }
+                ];
+              };
+            }
+            # Then hold solid green so the celebration lasts ~15s total (2s flash +
+            # 13s hold) -- matches the caption banner's flagSeconds on dragonborn.
+            {
+              action = "light.turn_on";
+              target.entity_id = goveeLights;
+              data = {
+                rgb_color = [
+                  0
+                  255
+                  0
+                ];
+                brightness_pct = 100;
+              };
+            }
+            { delay = "00:00:13"; }
+            restGovee
           ];
         }
       ];

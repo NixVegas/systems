@@ -34,10 +34,14 @@ let
   # automations.
   triggersJson = pkgs.writeText "live-captions-triggers.json" (
     builtins.toJSON (
-      map (t: {
-        inherit (t) keyword cooldown;
-        webhook = t.webhookUrl;
-      }) cfg.triggers
+      map (
+        t:
+        {
+          inherit (t) keyword cooldown;
+          webhook = t.webhookUrl;
+        }
+        // lib.optionalAttrs (t.captionFile != null) { caption_file = t.captionFile; }
+      ) cfg.triggers
     )
   );
 
@@ -52,6 +56,8 @@ let
     (toString cfg.hop)
     "--port"
     (toString cfg.port)
+    "--flag-seconds"
+    (toString cfg.flagSeconds)
   ]
   ++ optionals (cfg.device != null) [
     "--device"
@@ -160,6 +166,17 @@ in
               type = types.str;
               description = "Home Assistant webhook URL to POST when the keyword is heard.";
             };
+            captionFile = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              example = "/etc/nixvegas/flag-caption";
+              description = ''
+                Optional path to a file (on the box, out of the store) whose
+                contents are flashed onto the caption overlay as a flag banner when
+                this keyword fires. Read live on every fire, so the flag text is
+                editable without a rebuild. Combines with webhookUrl (both run).
+              '';
+            };
             cooldown = mkOption {
               type = types.float;
               default = 6.0;
@@ -186,6 +203,12 @@ in
       type = types.port;
       default = 8090;
       description = "Port the overlay + SSE server binds to (point OBS Browser Source at /overlay).";
+    };
+
+    flagSeconds = mkOption {
+      type = types.float;
+      default = 10.0;
+      description = "How long a flag banner (a trigger's captionFile) stays on the overlay.";
     };
 
     openFirewall = mkOption {

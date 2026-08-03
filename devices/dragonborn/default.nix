@@ -39,11 +39,21 @@
 
   services.live-captions = {
     enable = true;
+    # Flag banner stays up for the whole ~15s flag-capture celebration.
+    flagSeconds = 15.0;
     apiKeyFile = "/etc/live-captions/whisper-api-key";
     triggers = [
       {
         keyword = "agency";
         webhookUrl = "https://home.nixos.lv/api/webhook/agency-flash";
+      }
+      {
+        # CTF flag capture: fires the green flag-capture lights pattern AND flashes
+        # the flag text (from the file below, read live so it's editable without a
+        # rebuild) as a banner on the caption overlay.
+        keyword = "escape your fate";
+        webhookUrl = "https://home.nixos.lv/api/webhook/flag-capture";
+        captionFile = "/etc/nixctf/flag-caption";
       }
     ];
     # Framework expansion module

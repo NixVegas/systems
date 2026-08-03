@@ -107,12 +107,18 @@ class Trigger:
     ~one window of latency) with a per-trigger cooldown so the same spoken word,
     which shows up in several overlapping windows, fires only once."""
 
-    def __init__(self, keyword, webhook, cooldown, payload=None):
+    def __init__(self, keyword, webhook, cooldown, payload=None, caption_file=None):
         self.keyword = keyword
+        # re.escape leaves ASCII spaces intact, so multi-word phrases like
+        # "escape your fate" match as a literal phrase (single-spaced, as Whisper
+        # emits). \b guards word boundaries at each end.
         self.rx = re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE)
-        self.webhook = webhook
+        self.webhook = webhook  # optional HA webhook to POST
         self.cooldown = float(cooldown)
         self.payload = payload  # optional dict; default is {keyword,text,ts}
+        # optional file whose contents are flashed onto the overlay as a flag
+        # banner when this keyword fires (read live, so it's editable on the fly).
+        self.caption_file = caption_file
         self.last = 0.0
 
 
@@ -124,8 +130,9 @@ def build_triggers(args) -> list[Trigger]:
         with open(args.triggers_file) as f:
             for t in json.load(f):
                 out.append(Trigger(
-                    t["keyword"], t["webhook"],
+                    t["keyword"], t.get("webhook"),
                     t.get("cooldown", args.keyword_cooldown), t.get("payload"),
+                    t.get("caption_file"),
                 ))
     for spec in (args.trigger or []):
         kw, sep, url = spec.partition("=")
@@ -217,14 +224,33 @@ class Captioner:
             if now - tg.last < tg.cooldown or not tg.rx.search(text):
                 continue
             tg.last = now
-            payload = tg.payload or {"keyword": tg.keyword, "text": text, "ts": time.time()}
-            try:
-                async with sess.post(tg.webhook, json=payload,
-                                     timeout=aiohttp.ClientTimeout(total=3)) as r:
-                    await r.read()
-                    print(f"[trigger] heard '{tg.keyword}' -> {tg.webhook} ({r.status})")
-            except Exception as e:
-                print(f"[trigger] '{tg.keyword}' webhook failed: {e}")
+            # A trigger can flash a flag banner, POST a webhook, or both.
+            if tg.caption_file:
+                await self._show_flag(tg)
+            if tg.webhook:
+                payload = tg.payload or {"keyword": tg.keyword, "text": text, "ts": time.time()}
+                try:
+                    async with sess.post(tg.webhook, json=payload,
+                                         timeout=aiohttp.ClientTimeout(total=3)) as r:
+                        await r.read()
+                        print(f"[trigger] heard '{tg.keyword}' -> {tg.webhook} ({r.status})")
+                except Exception as e:
+                    print(f"[trigger] '{tg.keyword}' webhook failed: {e}")
+
+    async def _show_flag(self, tg):
+        """Read the trigger's caption file (each time, so it's editable live) and
+        push it to the overlay as a flag banner for flag_seconds."""
+        try:
+            text = open(tg.caption_file, encoding="utf-8").read().strip()
+        except Exception as e:
+            print(f"[flag] '{tg.keyword}': cannot read {tg.caption_file}: {e}")
+            return
+        if not text:
+            return
+        msg = json.dumps({"flag": text, "flag_seconds": self.args.flag_seconds})
+        for q in list(self.subscribers):
+            q.put_nowait(msg)
+        print(f"[flag] heard '{tg.keyword}' -> banner ({len(text)} chars, {self.args.flag_seconds}s)")
 
     async def _transcribe(self, sess, url, headers, audio) -> str | None:
         form = aiohttp.FormData()
@@ -314,6 +340,8 @@ def main():
     p.add_argument("--silence-rms", type=float, default=0.004,
                    help="skip transcribing windows quieter than this RMS")
     p.add_argument("--port", type=int, default=8090)
+    p.add_argument("--flag-seconds", type=float, default=10.0,
+                   help="how long a flag banner (a trigger's caption_file) stays on the overlay")
     # Hotword -> webhook triggers. Each hotword fires its own webhook (a distinct
     # Home Assistant automation), so different words do different things. Provide
     # them three ways (all combine): a JSON file, repeatable --trigger kw=url, or
