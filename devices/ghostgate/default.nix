@@ -1133,7 +1133,12 @@ in
         www.${baseDomain}. CNAME ghostgate.${domain}.
         cache.${baseDomain}. CNAME ghostgate.${domain}.
         git.${baseDomain}. CNAME ghostgate.${domain}.
-        home.${baseDomain}. CNAME ghostgate.${domain}.
+        ; Home Assistant is NOC-only (control plane: lights, flag-capture webhook).
+        ; Point it at ghostgate's NOC address, not the shared ctf target below, so
+        ; the AV box and the CTF server (both on noc) reach it over the noc L2 with
+        ; a real noc source -- which is what the /api/webhook/ `allow noc.subnet`
+        ; gate requires. Non-noc onsite nets can't reach it at all (desired).
+        home.${baseDomain}. CNAME ghostgate.${noc.dhcpDomain}.
         hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         runner.hydra.${baseDomain}. CNAME ghostgate.${build.dhcpDomain}.
         ; Shared CNAME target for the onsite service names (cache/git/www/home).
