@@ -56,6 +56,22 @@
         "type": "github"
       }
     },
+    "fix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785715719,
+        "narHash": "sha256-qLTYqSdaxPNMsI59PVgOCMVZjBn655xujFeraqxyK/M=",
+        "owner": "psyclyx",
+        "repo": "fix",
+        "rev": "fd675c2e938da6c9f444a00893b6716d66c89927",
+        "type": "github"
+      },
+      "original": {
+        "owner": "psyclyx",
+        "repo": "fix",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -567,11 +583,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785689137,
-        "narHash": "sha256-SFKt3FRTSS7P4gJzI/IMju40tmNl5T1OT8LafaDcExk=",
+        "lastModified": 1785734619,
+        "narHash": "sha256-bXIWT1XCrHYDLaNOl0rrnzn03cGBw4+Ie1pLJQjburU=",
         "owner": "NixVegas",
         "repo": "ctf-server",
-        "rev": "077d82e82f4e163d39073486d173501249e15cbc",
+        "rev": "fc0dc7e6685d909fcbf0dd16f0a1b25e591b0a65",
         "type": "github"
       },
       "original": {
@@ -1101,6 +1117,7 @@
       "inputs": {
         "dcwifi": "dcwifi",
         "deploy-rs": "deploy-rs",
+        "fix": "fix",
         "flake-parts": "flake-parts",
         "freescout": "freescout",
         "great-value-hydra": "great-value-hydra",

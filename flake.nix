@@ -72,6 +72,11 @@
       url = "github:NixVegas/ctf-server";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    fix = {
+      url = "github:psyclyx/fix";
+      flake = false;
+    };
   };
 
   outputs =
@@ -93,6 +98,7 @@
       meshos,
       tenstorrent-nix,
       nix-vegas-ctf,
+      fix,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -103,6 +109,8 @@
       flake =
         let
           inherit (nixpkgs-lib) lib;
+
+          fixProject = import fix { };
 
           # Maps nixpkgs instances to their version.
           nixpkgsVersions = builtins.listToAttrs (
@@ -218,6 +226,7 @@
               nix-vegas-ctf.nixosModules.default
               hydra.nixosModules.hydra
               dcwifi.nixosModules.default
+              fixProject.nixosModules.fix
             ];
             nixpkgs.config.gold = {
               acceptEula = true;

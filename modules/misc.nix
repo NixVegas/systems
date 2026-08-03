@@ -17,6 +17,8 @@
 
   systemd.services.nix-daemon.serviceConfig.LimitNOFILE = lib.mkForce 1073741816;
 
+  programs.fix.enable = true;
+
   nix.settings = {
     experimental-features = [
       "nix-command"

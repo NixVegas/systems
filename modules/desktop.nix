@@ -25,6 +25,7 @@
   # These boxes boot ZFS off partlabel'd disks (the fleet uses by-id; fs.nix
   # deliberately leaves devNodes to the NixOS default, so set it here).
   boot.zfs.devNodes = "/dev/disk/by-partlabel";
+
   # xanmod over boot.nix's `mkDefault linux_6_18`.
   boot.kernelPackages = pkgs.linuxKernel.packages.linux_xanmod;
 
