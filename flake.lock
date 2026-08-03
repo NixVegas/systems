@@ -1205,11 +1205,11 @@
         "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
-        "lastModified": 1785723944,
-        "narHash": "sha256-SSiRu8dzj60LzHn90UcOZIAuU2K21ibHIicpeGSXzlM=",
+        "lastModified": 1785726047,
+        "narHash": "sha256-4uVeAf8txr/h04vxxkOr8EypSaNy0YY9C6NLVt0B3Tg=",
         "owner": "RossComputerGuy",
         "repo": "tenstorrent.nix",
-        "rev": "a66593a9ba4a026c8bd462d11f65ed5eb57d46a6",
+        "rev": "3aeb76abedafc674ad7053d6a6debf2cfcb13dff",
         "type": "github"
       },
       "original": {

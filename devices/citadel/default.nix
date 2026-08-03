@@ -213,6 +213,7 @@ in
       maxNumSeqs = 1;
       maxModelLen = 8192;
       reasoningParser = "qwen3";
+      systemPromptFile = "/etc/tt-vllm/system-prompt.txt";
     };
   };
 
