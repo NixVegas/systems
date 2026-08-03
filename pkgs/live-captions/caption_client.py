@@ -22,9 +22,11 @@ import re
 import threading
 import time
 import wave
+from math import gcd
 
 import numpy as np
 import sounddevice as sd
+from scipy.signal import resample_poly
 import aiohttp
 from aiohttp import web
 
@@ -34,8 +36,9 @@ SAMPLE_RATE = 16000  # Whisper wants 16 kHz mono.
 class AudioRing:
     """Thread-safe ring of the most recent `seconds` of mono float32 audio."""
 
-    def __init__(self, seconds: float):
-        self._buf = np.zeros(int(seconds * SAMPLE_RATE), dtype=np.float32)
+    def __init__(self, seconds: float, rate: int = SAMPLE_RATE):
+        self._rate = rate
+        self._buf = np.zeros(int(seconds * rate), dtype=np.float32)
         self._lock = threading.Lock()
 
     def push(self, frames: np.ndarray):
@@ -48,7 +51,7 @@ class AudioRing:
                 self._buf[-n:] = frames
 
     def tail(self, seconds: float) -> np.ndarray:
-        n = int(seconds * SAMPLE_RATE)
+        n = int(seconds * self._rate)
         with self._lock:
             return self._buf[-n:].copy()
 
@@ -136,21 +139,52 @@ def build_triggers(args) -> list[Trigger]:
 class Captioner:
     def __init__(self, args):
         self.args = args
-        self.ring = AudioRing(seconds=max(args.window * 2, 12))
+        # Capture at a rate the device actually supports (many only offer their
+        # native 44.1/48 kHz -- opening a raw 16 kHz InputStream fails with
+        # PaErrorCode -9997). Keep the ring at that rate and resample each window
+        # to 16 kHz for Whisper. Resampling the contiguous window once (not each
+        # callback block) avoids per-block filter discontinuities.
+        self.capture_rate = self._pick_capture_rate()
+        if self.capture_rate != SAMPLE_RATE:
+            g = gcd(SAMPLE_RATE, self.capture_rate)
+            self._resamp = (SAMPLE_RATE // g, self.capture_rate // g)
+            print(f"[audio] device native {self.capture_rate} Hz -> resample to {SAMPLE_RATE} Hz")
+        else:
+            self._resamp = None
+        self.ring = AudioRing(seconds=max(args.window * 2, 12), rate=self.capture_rate)
         self.committed: list[str] = []
         self.subscribers: set[asyncio.Queue] = set()
         self.loop: asyncio.AbstractEventLoop | None = None
         self.triggers = build_triggers(args)
 
     # --- audio ---
+    def _pick_capture_rate(self) -> int:
+        """Prefer 16 kHz (no resample); fall back to the device's native rate if
+        it won't open a 16 kHz stream."""
+        try:
+            sd.check_input_settings(
+                device=self.args.device, channels=1, dtype="float32",
+                samplerate=SAMPLE_RATE,
+            )
+            return SAMPLE_RATE
+        except Exception:
+            info = sd.query_devices(self.args.device, "input")
+            return int(round(info["default_samplerate"]))
+
+    def _to_16k(self, audio: np.ndarray) -> np.ndarray:
+        if self._resamp is None:
+            return audio
+        up, down = self._resamp
+        return resample_poly(audio, up, down).astype(np.float32)
+
     def _audio_cb(self, indata, frames, time_info, status):
         mono = indata[:, 0] if indata.ndim > 1 else indata
         self.ring.push(np.asarray(mono, dtype=np.float32))
 
     def start_audio(self):
         self.stream = sd.InputStream(
-            samplerate=SAMPLE_RATE, channels=1, dtype="float32",
-            device=self.args.device, blocksize=int(0.1 * SAMPLE_RATE),
+            samplerate=self.capture_rate, channels=1, dtype="float32",
+            device=self.args.device, blocksize=int(0.1 * self.capture_rate),
             callback=self._audio_cb,
         )
         self.stream.start()
@@ -164,7 +198,7 @@ class Captioner:
             await asyncio.sleep(self.args.window)
             while True:
                 t0 = time.monotonic()
-                audio = self.ring.tail(self.args.window)
+                audio = self._to_16k(self.ring.tail(self.args.window))
                 if rms(audio) < self.args.silence_rms:
                     await self._broadcast_tentative([])  # keep last state
                 else:

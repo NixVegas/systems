@@ -15,6 +15,15 @@
 
 let
   baseDomain = "nixos.lv";
+
+  # The Govee lamps the AGENCY flash drives. Single source of truth: used for the
+  # pre-flash state snapshot, the flash on/off, and the restore below -- fill in
+  # the real entity_ids ONCE here. (Developer Tools -> States, filter `light.`;
+  # govee_light_local names them like light.govee_h6076_xxxx.)
+  goveeLights = [
+    "light.govee_1"
+    "light.govee_2"
+  ];
 in
 {
   services.home-assistant = {
@@ -60,19 +69,24 @@ in
             }
           ];
           actions = [
+            # Snapshot the lamps' current state (on/off, color, brightness) into a
+            # throwaway scene so we can put them back exactly as they were after
+            # the flash -- otherwise the sequence ends on turn_off and leaves them
+            # dark. `scene` ships in default_config.
+            {
+              action = "scene.create";
+              data = {
+                scene_id = "agency_flash_restore";
+                snapshot_entities = goveeLights;
+              };
+            }
             {
               repeat = {
                 count = 3;
                 sequence = [
                   {
                     action = "light.turn_on";
-                    # TODO: replace with the real Govee entity_ids (Developer
-                    # Tools -> States, filter `light.` -- govee_light_local names
-                    # them like light.govee_h6076_xxxx).
-                    target.entity_id = [
-                      "light.govee_1"
-                      "light.govee_2"
-                    ];
+                    target.entity_id = goveeLights;
                     data = {
                       rgb_color = [
                         255
@@ -85,14 +99,16 @@ in
                   { delay = "00:00:00.35"; }
                   {
                     action = "light.turn_off";
-                    target.entity_id = [
-                      "light.govee_1"
-                      "light.govee_2"
-                    ];
+                    target.entity_id = goveeLights;
                   }
                   { delay = "00:00:00.35"; }
                 ];
               };
+            }
+            # Restore whatever they were before the flash (lit -> lit, off -> off).
+            {
+              action = "scene.turn_on";
+              target.entity_id = "scene.agency_flash_restore";
             }
           ];
         }

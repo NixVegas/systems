@@ -21,6 +21,24 @@
     max-width: 84vw;
     font-size: 3.2vw;
     line-height: 1.35;
+    background: rgba(0,0,0,0.28);
+    padding: 0.35em 0.7em;
+    border-radius: 0.35em;
+    /* Show the LAST few lines, like TV captions: cap the height at 3 line-boxes
+       and bottom-anchor the text so new speech (appended at the end) is always
+       visible and the OLDEST lines scroll off the top -- not the reverse.
+       -webkit-line-clamp kept the top lines and cut the bottom, hiding exactly
+       the newest text. Flex column + justify-flex-end pins content to the bottom;
+       overflow:hidden clips the overflow off the top. */
+    max-height: calc(3 * 1.35em);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  /* Continuous inline text flow (committed + tentative wrap together). Kept as a
+     single flex child so justify-end bottom-anchors the whole block. */
+  #text {
     font-weight: 700;
     color: #ffffff;
     text-align: center;
@@ -28,14 +46,6 @@
     text-shadow:
       -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
       0 0 8px rgba(0,0,0,0.9);
-    background: rgba(0,0,0,0.28);
-    padding: 0.35em 0.7em;
-    border-radius: 0.35em;
-    /* Clamp to the last few lines so it reads like TV captions. */
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
   }
   /* Words not yet locked in by the overlap-merge: slightly dimmed. */
   .tentative { color: #d7d7d7; opacity: 0.82; }
@@ -49,7 +59,7 @@
 </head>
 <body>
   <div id="status">connecting…</div>
-  <div id="wrap"><div id="caption"><span id="committed"></span><span id="tentative" class="tentative"></span></div></div>
+  <div id="wrap"><div id="caption"><div id="text"><span id="committed"></span><span id="tentative" class="tentative"></span></div></div></div>
 <script>
   const committedEl = document.getElementById("committed");
   const tentativeEl = document.getElementById("tentative");

@@ -39,15 +39,14 @@
 
   services.live-captions = {
     enable = true;
+    apiKeyFile = "/etc/live-captions/whisper-api-key";
     triggers = [
       {
         keyword = "agency";
         webhookUrl = "https://home.nixos.lv/api/webhook/agency-flash";
       }
     ];
-    # TODO: set to the AV mixer's capture device. Run `live-captions
-    # --list-devices` on dragonborn and put the index or a unique name substring
-    # here. Left unset it uses the default input (the built-in mic).
-    # device = "USB Audio";
+    # Framework expansion module
+    device = "Audio Expansion Card Mono";
   };
 }
