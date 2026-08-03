@@ -99,6 +99,40 @@ def stitch(committed: list[str], hyp: list[str]) -> tuple[list[str], list[str]]:
     return committed + newly_committed, tentative
 
 
+class Trigger:
+    """One hotword -> one webhook. Matched on the raw window text (fast path,
+    ~one window of latency) with a per-trigger cooldown so the same spoken word,
+    which shows up in several overlapping windows, fires only once."""
+
+    def __init__(self, keyword, webhook, cooldown, payload=None):
+        self.keyword = keyword
+        self.rx = re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE)
+        self.webhook = webhook
+        self.cooldown = float(cooldown)
+        self.payload = payload  # optional dict; default is {keyword,text,ts}
+        self.last = 0.0
+
+
+def build_triggers(args) -> list[Trigger]:
+    """Collect triggers from --triggers-file (JSON), repeatable --trigger
+    kw=url, and the single --keyword/--webhook-url shorthand."""
+    out: list[Trigger] = []
+    if args.triggers_file:
+        with open(args.triggers_file) as f:
+            for t in json.load(f):
+                out.append(Trigger(
+                    t["keyword"], t["webhook"],
+                    t.get("cooldown", args.keyword_cooldown), t.get("payload"),
+                ))
+    for spec in (args.trigger or []):
+        kw, sep, url = spec.partition("=")
+        if kw and sep and url:
+            out.append(Trigger(kw, url, args.keyword_cooldown))
+    if args.keyword and args.webhook_url:
+        out.append(Trigger(args.keyword, args.webhook_url, args.keyword_cooldown))
+    return out
+
+
 class Captioner:
     def __init__(self, args):
         self.args = args
@@ -106,15 +140,7 @@ class Captioner:
         self.committed: list[str] = []
         self.subscribers: set[asyncio.Queue] = set()
         self.loop: asyncio.AbstractEventLoop | None = None
-        # Keyword trigger (e.g. "agency" -> Home Assistant flashes the lights).
-        # Match on the raw window text (fast path, ~one window of latency) with a
-        # cooldown so the same spoken word, which shows up in several overlapping
-        # windows, fires the webhook only once.
-        self._kw_re = (
-            re.compile(rf"\b{re.escape(args.keyword)}\b", re.IGNORECASE)
-            if args.keyword and args.webhook_url else None
-        )
-        self._last_fire = 0.0
+        self.triggers = build_triggers(args)
 
     # --- audio ---
     def _audio_cb(self, indata, frames, time_info, status):
@@ -144,28 +170,27 @@ class Captioner:
                 else:
                     text = await self._transcribe(sess, url, headers, audio)
                     if text is not None:
-                        await self._maybe_fire(sess, text)
+                        await self._check_triggers(sess, text)
                         words = text.split()
                         self.committed, tentative = stitch(self.committed, words)
                         await self._broadcast(tentative)
                 dt = time.monotonic() - t0
                 await asyncio.sleep(max(0.0, self.args.hop - dt))
 
-    async def _maybe_fire(self, sess, text: str):
-        if self._kw_re is None or not self._kw_re.search(text):
-            return
+    async def _check_triggers(self, sess, text: str):
         now = time.monotonic()
-        if now - self._last_fire < self.args.keyword_cooldown:
-            return
-        self._last_fire = now
-        payload = {"keyword": self.args.keyword, "text": text, "ts": time.time()}
-        try:
-            async with sess.post(self.args.webhook_url, json=payload,
-                                 timeout=aiohttp.ClientTimeout(total=3)) as r:
-                await r.read()
-                print(f"[trigger] heard '{self.args.keyword}' -> HA webhook ({r.status})")
-        except Exception as e:
-            print(f"[trigger] webhook failed: {e}")
+        for tg in self.triggers:
+            if now - tg.last < tg.cooldown or not tg.rx.search(text):
+                continue
+            tg.last = now
+            payload = tg.payload or {"keyword": tg.keyword, "text": text, "ts": time.time()}
+            try:
+                async with sess.post(tg.webhook, json=payload,
+                                     timeout=aiohttp.ClientTimeout(total=3)) as r:
+                    await r.read()
+                    print(f"[trigger] heard '{tg.keyword}' -> {tg.webhook} ({r.status})")
+            except Exception as e:
+                print(f"[trigger] '{tg.keyword}' webhook failed: {e}")
 
     async def _transcribe(self, sess, url, headers, audio) -> str | None:
         form = aiohttp.FormData()
@@ -245,6 +270,8 @@ def main():
     p.add_argument("--whisper-url", default=os.environ.get(
         "WHISPER_URL", "http://10.4.1.2:8031/v1/audio/transcriptions"))
     p.add_argument("--api-key", default=os.environ.get("WHISPER_API_KEY", "sk-whisper"))
+    p.add_argument("--api-key-file", default=os.environ.get("WHISPER_API_KEY_FILE"),
+                   help="read the whisper Bearer key from this file (keeps it out of argv/store)")
     p.add_argument("--model", default=os.environ.get("WHISPER_MODEL", "whisper-large-v3"))
     p.add_argument("--device", default=os.environ.get("AUDIO_DEVICE"),
                    help="input device index or name substring (see --list-devices)")
@@ -253,21 +280,30 @@ def main():
     p.add_argument("--silence-rms", type=float, default=0.004,
                    help="skip transcribing windows quieter than this RMS")
     p.add_argument("--port", type=int, default=8090)
-    # Keyword -> Home Assistant trigger. When the keyword is heard, POST the
-    # webhook (HA automation flashes the Govee lights). Leave --webhook-url unset
-    # to just caption with no trigger.
+    # Hotword -> webhook triggers. Each hotword fires its own webhook (a distinct
+    # Home Assistant automation), so different words do different things. Provide
+    # them three ways (all combine): a JSON file, repeatable --trigger kw=url, or
+    # the single --keyword/--webhook-url shorthand. No webhook set = caption only.
+    p.add_argument("--triggers-file", default=os.environ.get("TRIGGERS_FILE"),
+                   help='JSON: [{"keyword":"agency","webhook":"http://...",'
+                        '"cooldown":6.0,"payload":{...}}, ...]')
+    p.add_argument("--trigger", action="append", metavar="KEYWORD=URL",
+                   help="hotword -> webhook (repeatable), e.g. --trigger agency=http://...")
     p.add_argument("--keyword", default=os.environ.get("TRIGGER_KEYWORD", "agency"),
-                   help="word that fires the webhook (case-insensitive, whole word)")
+                   help="single-trigger shorthand: word that fires --webhook-url")
     p.add_argument("--webhook-url", default=os.environ.get("HA_WEBHOOK_URL"),
-                   help="Home Assistant webhook URL to POST when the keyword is heard")
+                   help="single-trigger shorthand: webhook for --keyword")
     p.add_argument("--keyword-cooldown", type=float, default=6.0,
-                   help="min seconds between webhook fires (dedupes overlapping windows)")
+                   help="default min seconds between fires per hotword (dedupes windows)")
     p.add_argument("--list-devices", action="store_true")
     args = p.parse_args()
 
     if args.list_devices:
         print(sd.query_devices())
         return
+    if args.api_key_file:
+        with open(args.api_key_file) as f:
+            args.api_key = f.read().strip()
     if args.device is not None and args.device.isdigit():
         args.device = int(args.device)
 

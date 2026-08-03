@@ -6,6 +6,12 @@
 }:
 
 let
+  # Out-of-store secret: the Whisper Bearer key, validated by tt-whisper and sent
+  # by the tt-studio backend. A STRING path (not a nix path literal) so it is
+  # never copied into the store. Operator places it (see the comment at the
+  # tt-whisper block): install -m600 the key at this path before deploying.
+  whisperKeyFile = "/var/lib/secrets/whisper-api-key";
+
   nocInterface1 = "enp200s0";
   nocInterface2 = "enp201s0";
 
@@ -212,7 +218,9 @@ in
     enable = true;
     cloudChatUrl = "http://127.0.0.1:8000/v1/chat/completions";
     cloudSpeechUrl = "http://127.0.0.1:8030/v1/audio/transcriptions";
-    cloudSpeechAuthToken = "sk-whisper";
+    # File-backed: same key file the tt-whisper server validates against. Read at
+    # runtime, so the token never enters the nix store. See whisperKeyFile below.
+    cloudSpeechAuthTokenFile = whisperKeyFile;
     frontend = pkgs.tt-studio-frontend.override {
       servedModelName = "Qwen/Qwen3-8B";
     };
@@ -220,17 +228,18 @@ in
 
   # Native speech-to-text (Whisper distil-large-v3) on a disjoint p150. The LLM
   # above holds chip 0 (visibleDevices = "0"); DEVICE_IDS = "(1)" puts Whisper on
-  # a different chip so the two coexist. The apiKey matches the console's
-  # cloudSpeechAuthToken; the default port 8030 matches cloudSpeechUrl.
+  # a different chip so the two coexist. The Bearer key comes from whisperKeyFile
+  # (below), matching the console's cloudSpeechAuthTokenFile; port 8030 matches
+  # cloudSpeechUrl.
   #
-  # Bind on all interfaces so off-box clients (Home Assistant on ghostgate, over
-  # the build net) can reach the OpenAI /v1/audio/transcriptions endpoint; the
+  # Bind on all interfaces so off-box clients (Home Assistant / captions on the
+  # build net) can reach the OpenAI /v1/audio/transcriptions endpoint; the
   # firewall below scopes it to the build bridge only (NOT ctf/public). The
-  # apiKey Bearer token is the second layer.
+  # Bearer token is the second layer.
   services.tt-whisper = {
     enable = true;
     deviceIds = "(1)";
-    apiKey = "sk-whisper";
+    apiKeyFile = whisperKeyFile;
     host = "0.0.0.0";
   };
 
