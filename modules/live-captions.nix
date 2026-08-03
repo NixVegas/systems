@@ -142,7 +142,6 @@ in
       example = lib.literalExpression ''
         [
           { keyword = "agency"; webhookUrl = "https://home.nixos.lv/api/webhook/agency-flash"; }
-          { keyword = "sponsor"; webhookUrl = "https://home.nixos.lv/api/webhook/sponsor-scene"; cooldown = 30.0; }
         ]
       '';
       type = types.listOf (
