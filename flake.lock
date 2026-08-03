@@ -454,13 +454,17 @@
     },
     "hydra": {
       "inputs": {
-        "foreman": [],
+        "foreman": [
+          "nixpkgs"
+        ],
         "nix": "nix",
         "nix-eval-jobs": "nix-eval-jobs",
         "nixpkgs": [
           "nixpkgs"
         ],
-        "treefmt-nix": []
+        "treefmt-nix": [
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1783580739,

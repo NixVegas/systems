@@ -18,8 +18,13 @@
     hydra = {
       url = "github:NixOS/hydra/hydra.nixos.org";
       inputs = {
-        foreman.follows = "";
-        treefmt-nix.follows = "";
+        # Neutralize these unused dev inputs by aliasing them to nixpkgs rather
+        # than `follows = ""` (follow-the-root). An empty-string follows locks as
+        # `[]` -- an edge pointing at the root node, which the `fix` evaluator
+        # rejects (InvalidFlakeLock: the root node has no `locked`). Following a
+        # concrete input de-dupes them identically and keeps the lock fix-parseable.
+        foreman.follows = "nixpkgs";
+        treefmt-nix.follows = "nixpkgs";
         nixpkgs.follows = "nixpkgs";
       };
     };
