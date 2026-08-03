@@ -19,6 +19,15 @@ let
   baseDomain = "nixos.lv";
   domain = "ctf.${baseDomain}";
 
+  # NOC management network (citadel is bridged onto it). Only used here for
+  # noc.subnet (the whisper vhost allow); citadel gets its noc address by DHCP.
+  noc = erlib.mkNet {
+    id = 1;
+    base = "10.4.0";
+    subdomain = "noc";
+    inherit domain;
+  };
+
   # Build machines.
   build = erlib.mkNet {
     id = 2;
@@ -310,6 +319,15 @@ in
           locations."/" = {
             proxyPass = "http://127.0.0.1:${toString config.services.tt-whisper.port}";
             extraConfig = ''
+              # NOC-only, mirroring the home.nixos.lv webhook restriction. Onsite
+              # DNS resolves whisper.nixos.lv to citadel's noc address (10.4.0.2),
+              # so the NOC AV box reaches this vhost directly over the noc L2 --
+              # real source preserved (no ghostgate ctf hairpin / masquerade). So
+              # $remote_addr is the genuine noc client here: allow the noc subnet,
+              # deny the rest. The Bearer token is the auth behind this.
+              allow ${noc.subnet};
+              deny all;
+
               # Audio uploads + transcription latency: allow large request bodies
               # and a long read/send timeout so a caption window isn't cut off.
               client_max_body_size 64m;

@@ -1058,7 +1058,7 @@ in
               # consistently. Uses citadel's real noc NIC MAC (comes up the same
               # every boot, no citadel-side change); .2 sits just outside the pool.
               reservations = [
-                (mkReservation noc "9c:6b:00:4f:26:aa" 2 "citadel")
+                (mkReservation noc "9c:6b:00:4f:26:ab" 2 "citadel")
               ];
             })
             (erlib.mkDhcp4Subnet {
@@ -1253,7 +1253,13 @@ in
           "nixc.tf" = erlib.ctfServer;
           "www.nixc.tf" = erlib.ctfServer;
           "nixie.nixos.lv" = erlib.ctfServer;
-          "whisper.nixos.lv" = erlib.ctfServer;
+          # whisper is NOC-only: resolve it to citadel's *noc* address (its pinned
+          # .2 reservation, = citadel.noc), NOT the ctf server. The AV box is on
+          # noc, so it reaches citadel directly over the noc L2 with its real
+          # source -- no ghostgate ctf hairpin, no noc->ctf masquerade -- and
+          # citadel's vhost allow can be the real noc subnet. Literal to match the
+          # `citadel.noc A 10.4.0.2` static record + the kea .2 reservation above.
+          "whisper.nixos.lv" = "10.4.0.2";
           # Livestream over the tunnel: point the owncast names at brass's Nebula
           # overlay IP so onsite clients watch it directly over Nebula (with the
           # arena->brass masq above closing the return path) instead of
