@@ -2,6 +2,7 @@
 {
   imports = [
     ../../modules/desktop.nix
+    ../../modules/swap.nix
     ./hardware-configuration.nix
   ];
 
