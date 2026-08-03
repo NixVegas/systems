@@ -1,0 +1,128 @@
+--- a/src/sensors/cpu.rs
++++ b/src/sensors/cpu.rs
+@@ -104,6 +104,10 @@
+     graph_options: Vec<&'static str>,
+     /// colors cached so we don't need to convert to string every time
+     svg_colors: SvgColors,
++    // Current average core clock in MHz (0.0 if cpufreq is unavailable). Read
++    // from sysfs each update; appended to the value text so a stuck-low clock
++    // (e.g. the Framework 16 amd_pstate 600MHz cap) is visible on the panel.
++    freq_mhz: f64,
+     config: CpuConfig,
+ }
+ 
+@@ -211,6 +215,7 @@
+ 
+     fn update(&mut self) {
+         self.update_stats();
++        self.freq_mhz = Self::read_avg_freq_mhz();
+         self.samples_split.push_back(self.total_cpu_load);
+         self.samples_sum
+             .push_back(self.total_cpu_load.user_pct + self.total_cpu_load.system_pct);
+@@ -482,6 +487,7 @@
+             ),
+             graph_options: graph_opts.to_vec(),
+             svg_colors: SvgColors::new(&ChartColors::default()),
++            freq_mhz: 0.0,
+             config: CpuConfig::default(),
+         };
+         cpu.set_colors(&ChartColors::default());
+@@ -496,6 +502,51 @@
+         self.core_loads.len()
+     }
+ 
++    /// Average current core clock in MHz, read from the kernel cpufreq sysfs
++    /// (`scaling_cur_freq`, reported in kHz). Returns 0.0 if cpufreq is
++    /// unavailable (e.g. no scaling driver), in which case the value is hidden.
++    fn read_avg_freq_mhz() -> f64 {
++        let Ok(entries) = std::fs::read_dir("/sys/devices/system/cpu/cpufreq") else {
++            return 0.0;
++        };
++
++        let mut sum_khz: u64 = 0;
++        let mut count: u64 = 0;
++        for entry in entries.flatten() {
++            let name = entry.file_name();
++            // Only per-policy dirs (policy0, policy1, ...); skip boost/etc.
++            if !name.to_string_lossy().starts_with("policy") {
++                continue;
++            }
++            let path = entry.path().join("scaling_cur_freq");
++            if let Ok(contents) = std::fs::read_to_string(&path) {
++                if let Ok(khz) = contents.trim().parse::<u64>() {
++                    sum_khz += khz;
++                    count += 1;
++                }
++            }
++        }
++
++        if count == 0 {
++            0.0
++        } else {
++            (sum_khz as f64 / count as f64) / 1000.0
++        }
++    }
++
++    /// Current average clock formatted compactly for the panel/value text
++    /// (e.g. "4.8G", "0.6G"). None when cpufreq is unavailable, so callers can
++    /// omit it entirely.
++    pub fn freq_string(&self) -> Option<String> {
++        if self.freq_mhz <= 0.0 {
++            None
++        } else if self.freq_mhz >= 1000.0 {
++            Some(format!("{:.1}G", self.freq_mhz / 1000.0))
++        } else {
++            Some(format!("{:.0}M", self.freq_mhz))
++        }
++    }
++
+     fn read_cpu_stats(cpu_stats: &mut HashMap<usize, CpuStat>) {
+         // Open /proc/stat file
+         let Ok(file) = File::open(Path::new("/proc/stat")) else {
+@@ -619,14 +670,23 @@
+         let current_val = self.latest_sample();
+ 
+         if self.config.no_decimals {
+-            write!(f, "{}%", current_val.round())
++            write!(f, "{}%", current_val.round())?;
+         } else if current_val < 10.0 {
+-            write!(f, "{current_val:.2}%")
++            write!(f, "{current_val:.2}%")?;
+         } else if current_val < 100.0 {
+-            write!(f, "{current_val:.1}%")
++            write!(f, "{current_val:.1}%")?;
+         } else {
+-            write!(f, "{current_val}%")
++            write!(f, "{current_val}%")?;
++        }
++
++        // Append current average clock so a stuck-low frequency is visible next
++        // to load in the popup too (e.g. "100% 0.6G" == the Framework 16
++        // amd_pstate cap under load). Hidden when cpufreq isn't available.
++        if let Some(freq) = self.freq_string() {
++            write!(f, " {freq}")?;
+         }
++
++        Ok(())
+     }
+ }
+ 
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -1684,6 +1684,16 @@
+             );
+         }
+ 
++        // Current average clock, shown on the panel whenever the CPU sensor is
++        // present -- independent of the "value" toggle, so an icon-only CPU
++        // applet still surfaces a stuck-low frequency (the Framework 16
++        // amd_pstate ~600 MHz cap) at a glance without opening the popup.
++        if cpu_has_content {
++            if let Some(freq) = self.cpu.freq_string() {
++                elements.push_back(self.figure_value(freq, None).into());
++            }
++        }
++
+         let width: u16 = if self.config.cpu.chart == ChartKind::StackedBars {
+             StackedBarSvg::new(
+                 self.config.cpu.bar_width,
