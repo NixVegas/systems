@@ -298,6 +298,14 @@
               badapple2ipxe = pkgs.callPackage ./pkgs/badapple-ipxe { };
               live-captions = pkgs.callPackage ./pkgs/live-captions { };
               tt-chat-proxy = pkgs.callPackage ./pkgs/tt-chat-proxy { };
+              # `deploy` wrapper that routes deploy-rs's eval through fix (~4x
+              # faster). See pkgs/deploy-fix + docs/fix-evaluator.md.
+              deploy-fix = pkgs.callPackage ./pkgs/deploy-fix {
+                deploy-rs = deploy-rs.packages.${system}.default;
+                # The exact fix package the fleet runs (programs.fix), pinned via a
+                # host config so it's pure (import fix {} would hit currentSystem).
+                fix = self.nixosConfigurations.dragonborn.config.programs.fix.package;
+              };
             };
 
           packages = {
@@ -312,7 +320,8 @@
 
           devShells.default = pkgs.mkShell {
             buildInputs = [
-              deploy-rs.packages.${system}.default
+              # `deploy` here evals with fix (~4x faster); DEPLOY_NO_FIX=1 for stock.
+              pkgs.deploy-fix
               pkgs.nixfmt
             ];
           };

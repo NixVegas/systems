@@ -2,9 +2,16 @@
 
 [`fix`](https://github.com/psyclyx/fix) is a from-scratch, parallel Nix evaluator
 (written in Zig). We carry it as a `flake = false` input (rev `fd675c2` at time of
-writing) and it's on `PATH` as `fix`. The draw is **parallel evaluation**: a full
-NixOS `system.build.toplevel` that `nix` evaluates single-threaded in ~2m39s,
-`fix` does in ~1m8s wall (≈7× CPU parallelism).
+writing) and it's on `PATH` as `fix`. The draw is **parallel evaluation** plus a
+**persistent nixpkgs eval cache**: a full NixOS `system.build.toplevel` that `nix`
+re-evaluates cold on every config edit (~3m) comes in at ~1m under `fix`, because
+config tweaks only re-eval the delta while nixpkgs stays cached. Measured on
+citadel: nix ~3m09s vs fix ~59s–1m08s per edit→rebuild.
+
+Two timing caveats: (1) right after a **nixpkgs bump**, the first `fix` run pays a
+one-time ~3–4m rebuild of that cache (subsequent config edits are ~1m again);
+(2) instantiate/switch (store-writing) is only ~1m *when isolated* — under heavy
+concurrent load + swap a single run was seen at ~4m, so measure on a quiet box.
 
 As of the investigated revision it is **not** a drop-in replacement for
 `nixos-rebuild` / `nix` — see limitations below. Treat it as a fast eval
@@ -102,8 +109,29 @@ fix eval --impure --flake ".#nixosConfigurations.<host>.config.system.build.topl
 # fix installables use --flake, not a bare `.#…` (that's read as a file path).
 ```
 
-Do **not** `fix switch`; use `nixos-rebuild` / `nix`. Revisit when `fix`
-ingests inputs into the store (that single change fixes #1–#3).
+### `deploy` in the devShell evals with fix
+
+The devShell's `deploy` is a wrapper (`pkgs/deploy-fix`) that routes **only**
+deploy-rs's own `nix eval --apply` through `fix` (via a `nix` shim on the
+wrapper's PATH) and passes every other nix call to real nix. Net effect: the
+per-deploy eval drops from ~4m (nix `--apply`, cache-cold every time) to ~1m.
+
+```bash
+deploy .#ghostgate            # evals with fix (prints "[deploy-fix] evaluating … with fix")
+DEPLOY_NO_FIX=1 deploy .#host  # stock nix eval (no fix; no 19700101 label)
+```
+
+Mechanics: the shim `fix instantiate`s the node's `activate` package (writing the
+`.drv` so deploy-rs's `show-derivation → build → copy → activate` resolve it),
+then emits deploy-rs's JSON with `path` overridden to that out-path. It is
+**fail-safe** — on any anomaly (unrecognized eval, multi-node, fix error) it
+`exec`s real nix with the original args, so a deploy can't be broken by it. The
+tradeoff is the same `19700101` label (#3) on fix-deployed systems; use
+`DEPLOY_NO_FIX=1` for a byte-identical-to-nix deploy.
+
+For **in-place** rebuilds, `fix switch --impure --flake .#<host>` works too (same
+~1m eval + `19700101` label); plain `fix switch` (pure) fails on `<nix/fetchurl.nix>`
+(cause B), so keep the `--impure`.
 
 ## Upstream report
 
