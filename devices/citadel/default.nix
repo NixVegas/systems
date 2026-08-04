@@ -402,14 +402,32 @@ in
       # webhook's `allow noc.subnet` gate. Best-effort; scoring is unaffected if HA
       # is down. The "escape your fate" caption hotword fires the same webhook.
       homeAssistantWebhookUrl = "https://home.nixos.lv/api/webhook/flag-capture";
-      # Ration remote use of the hardware: a client off the attendee LANs must
-      # redeem a one-time invite code to register, while on-floor players
-      # register freely. localNetworks is every router's arena /16 supernet
-      # (erlib.arenaAggregates, from arena-hosts.nix), so it tracks new routers.
-      # The gate reads the real client address from nginx's X-Real-IP header
-      # (set on the nixc.tf vhost above), which the ctf path preserves (no NAT).
+      # Ration remote use of the hardware: a client that isn't "local" must
+      # redeem a one-time invite code to register; local clients register freely.
+      # Local = everyone physically at the event, plus staff:
+      #   - every arena LAN (erlib.arenaCidrs, from arena-hosts.nix): the onsite
+      #     floor arena on ghostgate (10.7.0/24) plus each travel 2420's attendee
+      #     /24 (ayem 10.8.1, seht 10.8.2, vehk 10.8.3). Attendee devices reach the
+      #     CTF from their real arena source -- a device on vehk's wifi shows up as
+      #     10.8.3.x -- because arena->ctf is not masqueraded.
+      #   - each arena router's own Nebula /32, so the router itself counts as
+      #     local when it sources from its overlay IP (a service on the box, or an
+      #     operator ssh'd onto it, hits the CTF at e.g. 10.6.8.x rather than an
+      #     arena /24).
+      #   - noc, the staff/management net.
+      # Everything else -- brass-proxied internet players, anything off these nets
+      # -- stays invite-gated. The gate reads the real client address from nginx's
+      # X-Real-IP header (set on the nixc.tf vhost above); the ctf path now
+      # preserves it end to end (loose rpf on citadel + ghostgate, no
+      # noc/overlay->ctf masquerade). All derived from arena-hosts.nix, so a new
+      # router carries into the gate automatically.
       requireInviteCodes = true;
-      localNetworks = erlib.arenaAggregates;
+      localNetworks =
+        erlib.arenaCidrs
+        ++ lib.mapAttrsToList (
+          name: _: "${config.networking.mesh.plan.hosts.${name}.nebula.address}/32"
+        ) erlib.arenaHosts
+        ++ [ noc.subnet ];
       # Front-facing domain the app presents (Phoenix PHX_HOST): nixc.tf. The
       # nginx vhost + cert stay ctf.nixos.lv (canonical) — brass proxies with
       # Host: ctf.nixos.lv, so citadel needn't be on the nixc.tf cert.
