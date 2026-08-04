@@ -175,6 +175,29 @@ in
       nogateway
     '';
 
+    # Symmetric replies for the CTF service address on this multi-homed box.
+    # citadel serves the CTF on its ctf address (${erlib.ctfServer}); a client on a
+    # subnet citadel is ALSO directly attached to (noc, build) would otherwise get
+    # the reply out that connected interface instead of ctf -- asymmetric, which
+    # breaks the DNAT'd challenge-VM SSH (26000-27023) reached from noc. (arena and
+    # overlay clients aren't directly connected here, so they already reply via the
+    # ctf default route and stay symmetric -- hence only noc was broken.) The old
+    # noc->ctf masquerade hid this; now that we keep the real client source, policy-
+    # route everything sourced from the ctf address out the ctf gateway
+    # (${ctf.address}) via a dedicated table, so ctf replies always return over the
+    # ctf backbone. Driven from the dhcpcd hook so it re-applies on every ctf lease.
+    dhcpcd.runHook =
+      let
+        ip = lib.getExe' pkgs.iproute2 "ip";
+      in
+      ''
+        if [ "$interface" = "ctf" ]; then
+          ${ip} route replace default via ${ctf.address} dev ctf table 100 || true
+          ${ip} rule del from ${erlib.ctfServer} lookup 100 2>/dev/null || true
+          ${ip} rule add from ${erlib.ctfServer} lookup 100 priority 100 || true
+        fi
+      '';
+
     # Consume the cnl cache set (-> https://cache.nixos.lv:443, see mesh.nix).
     # useHydra = false: don't let the module inject cache.nixos.org?priority=10
     # ahead of the local cache; the nixpkgs default cache.nixos.org/ (40)
