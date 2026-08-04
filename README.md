@@ -34,7 +34,13 @@ ghostgate, adamantia, brass, crystal, dagoth, ayem, vehk. The rest (bigzam,
 saitama, genos, tatsumaki, seht) are updated on the machine itself:
 
 ```console
-$ sudo nixos-rebuild switch --flake .#<host>
+$ nixos-rebuild switch --flake . --sudo
+```
+
+If you use [fix](https://github.com/psyclyx/fix) it will likely be much faster:
+
+```console
+$ fix switch --flake . --impure
 ```
 
 deploy-rs exits nonzero if activation fails. To double-check what a host is
