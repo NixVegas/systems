@@ -415,14 +415,10 @@ in
       # Host: ctf.nixos.lv, so citadel needn't be on the nixc.tf cert.
       host = "nixc.tf";
       vmSshHost = "nixc.tf";
-      # 1024 per-challenge-VM SSH forwarding ports, anchored on id Software's
-      # Quake (IANA 26000 = "quake"). On the way up it also squats FlexLM license
-      # servers (27000-27009), Steam (27015), and MongoDB (27017-19) — a CTF host
-      # will run none of them in a million years, and none bind these ports here.
-      vmPortRange = {
-        from = 26000;
-        to = 27023;
-      };
+      # 1024 per-challenge-VM SSH forwarding ports (26000-27023). Single source of
+      # truth in erlib.ctfVmSshPorts, which brass's DNAT reads too so its public
+      # forward can never drift from this range. See there for the port rationale.
+      vmPortRange = { inherit (erlib.ctfVmSshPorts) from to; };
 
       # Allow egress out the CTF subnet
       egressInterface = "ctf";
@@ -439,6 +435,14 @@ in
     80
     443
   ];
+
+  # citadel is multi-homed (noc + ctf) and only the ctf interface carries the
+  # default route, so a packet from a noc/overlay source that arrives on the ctf
+  # backbone would be answered out noc -- asymmetric, which strict rpf drops.
+  # Loose rpf accepts it (and citadel replies out noc), which lets ghostgate stop
+  # masquerading noc/overlay -> ctf so citadel and the CTF app see real source
+  # IPs instead of ghostgate's 10.4.2.1. Same rationale as the vp2420 routers.
+  networking.firewall.checkReversePath = "loose";
 
   services.hydra-queue-builder-dev.maxJobs = 1;
 

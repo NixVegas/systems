@@ -246,6 +246,20 @@ in
           # Redirect Nebula DNS and NTP queries
           iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 53 -j REDIRECT
           iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 123 -j REDIRECT
+
+          # CTF challenge-VM SSH. Publicly nixc.tf resolves to exit.brass, and players
+          # connect `ssh -p <port> nixc.tf`, so publish citadel's per-attempt SSH
+          # range (${toString erlib.ctfVmSshPorts.from}-${toString erlib.ctfVmSshPorts.to})
+          # on brass's public CTF IP and DNAT it to citadel (${citadelCtf}) over
+          # Nebula. MASQUERADE the forwarded flow onto nebula.arena so citadel's
+          # replies come back through brass (ghostgate then masquerades nebula->ctf
+          # as usual); the FORWARD path is already accepted, like the nebula NAT above.
+          iptables -t nat -A PREROUTING -p tcp -d ${nebulaEgress} \
+            --dport ${toString erlib.ctfVmSshPorts.from}:${toString erlib.ctfVmSshPorts.to} \
+            -j DNAT --to-destination ${citadelCtf}
+          iptables -t nat -A POSTROUTING -p tcp -d ${nebulaEgress} \
+            --dport ${toString erlib.ctfVmSshPorts.from}:${toString erlib.ctfVmSshPorts.to} \
+            -o nebula.arena -j MASQUERADE
         '';
       };
     };

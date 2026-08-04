@@ -19,6 +19,7 @@ let
   thisHost = config.networking.mesh.plan.hosts.${config.networking.hostName};
 
   brassNebula = config.networking.mesh.plan.hosts.brass.nebula.address;
+  ghostgateNebula = config.networking.mesh.plan.hosts.ghostgate.nebula.address;
   ghostgateMesh = lib.head (
     lib.splitString "/" config.networking.mesh.plan.hosts.ghostgate.wifi.address
   );
@@ -703,6 +704,37 @@ in
           '';
         in
         "+${modemInitWrapper} ${atCommandDevice} ${atCommandMode}";
+
+      # The arena Nebula tunnels to the ctf/build backbone are lazy: an idle one
+      # goes cold, so the FIRST flow to nixc.tf / the build net -- from this router
+      # or an attendee behind it -- stalls on a cold, relayed handshake until
+      # something primes it (observed: `curl https://nixc.tf` hangs on a fresh
+      # 2420 until a ping to brass wakes the relay). Keep the two legs warm: brass
+      # (relay + lighthouse) and ghostgate (the `via` for both ctfUnsafeRoute and
+      # buildUnsafeRoute). ghostgate<->citadel is a wired VLAN, so warming these
+      # two keeps ctf (10.4.2.0/24) and build (10.4.1.0/24) reachable without a
+      # first-packet stall.
+      nebula-arena-keepalive = {
+        description = "Warm the Nebula tunnels to the ctf/build backbone (relay + ghostgate)";
+        after = [ "nebula@arena.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "nebula-arena-keepalive" ''
+            for ip in ${brassNebula} ${ghostgateNebula}; do
+              ${pkgs.iputils}/bin/ping -c1 -W2 "$ip" >/dev/null 2>&1 || true
+            done
+          '';
+        };
+      };
+    };
+
+    timers.nebula-arena-keepalive = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "20s";
+        OnUnitActiveSec = "30s";
+        AccuracySec = "5s";
+      };
     };
   };
 

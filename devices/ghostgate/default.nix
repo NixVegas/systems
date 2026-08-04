@@ -390,6 +390,12 @@ in
     nat.enable = lib.mkForce false;
     firewall = {
       enable = true;
+      # Loose rpf. With the noc->ctf / overlay->ctf masquerades dropped (see the
+      # postrouting chain), citadel replies to those flows out its noc interface,
+      # so the reply reaches us on noc carrying a ctf-routed source (10.4.2.2).
+      # Strict rpf would drop that asymmetric return; loose forwards it. Spoofing
+      # is still constrained by the per-zone iifname/oifname accepts below.
+      checkReversePath = "loose";
       allowedTCPPorts = [
         22
         53
@@ -706,8 +712,13 @@ in
             chain postrouting {
               type nat hook postrouting priority filter; policy accept;
               # Note: no "arena" or "ctf" here — traffic delivered to the arena
-              # LANs and the CTF backbone keeps its real source IP (so the CTF
-              # sees real attendee IPs; reachable both ways).
+              # LANs and the CTF backbone keeps its real source IP, so the CTF app
+              # (and per-team attribution) sees real client IPs. noc/overlay -> ctf
+              # was masqueraded here to satisfy citadel's strict reverse-path filter
+              # (citadel routes noc + 10.6/16 back out its noc interface, so a
+              # ctf-arriving reply was asymmetric). citadel now runs loose rpf and
+              # replies asymmetrically instead -- which our own loose rpf forwards --
+              # so no ctf masquerade is needed and citadel sees the real source.
               oifname {
                 "build",
                 "noc",
@@ -716,20 +727,6 @@ in
                 "wwan2",
                 "mesh2"
               } masquerade
-              # NOC (management) reaching the CTF backbone: citadel is multi-homed
-              # onto noc, so a real-source noc packet arriving on its ctf interface
-              # fails citadel's strict reverse-path filter (its route back to noc is
-              # the noc interface, not ctf). Masquerade noc->ctf so citadel replies
-              # to us symmetrically. Arena traffic keeps its real source (attendee
-              # IPs) because this only matches the noc subnet.
-              oifname "ctf" ip saddr ${noc.subnet} masquerade
-              # Nebula overlay peers (e.g. brass at 10.6.x) reaching citadel at
-              # 10.4.2.2 land on citadel's ctf interface, but citadel routes 10.6/16
-              # back out noc (the noc DHCP extraRoute 10.6.0.0/16 -> 10.4.0.1), so
-              # its strict rpf drops the ctf-arriving packet and it never replies.
-              # Masquerade overlay->ctf to a ctf-local source (10.4.2.1) so citadel
-              # replies symmetrically over ctf -- same fix as noc->ctf above.
-              oifname "ctf" ip saddr ${config.networking.mesh.plan.constants.nebula.subnet} masquerade
               # NOC is a management network with no presence in Nebula, so hosts
               # reached over the overlay (the builders at 10.6.9.x, other arenas)
               # can't route back to it. Masquerade its Nebula egress so they reply
