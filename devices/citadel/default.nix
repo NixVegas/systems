@@ -175,17 +175,25 @@ in
       nogateway
     '';
 
-    # Symmetric replies for the CTF service address on this multi-homed box.
-    # citadel serves the CTF on its ctf address (${erlib.ctfServer}); a client on a
-    # subnet citadel is ALSO directly attached to (noc, build) would otherwise get
-    # the reply out that connected interface instead of ctf -- asymmetric, which
-    # breaks the DNAT'd challenge-VM SSH (26000-27023) reached from noc. (arena and
-    # overlay clients aren't directly connected here, so they already reply via the
-    # ctf default route and stay symmetric -- hence only noc was broken.) The old
-    # noc->ctf masquerade hid this; now that we keep the real client source, policy-
-    # route everything sourced from the ctf address out the ctf gateway
-    # (${ctf.address}) via a dedicated table, so ctf replies always return over the
-    # ctf backbone. Driven from the dhcpcd hook so it re-applies on every ctf lease.
+    # Symmetric replies for CTF traffic on this multi-homed box. citadel serves the
+    # CTF on its ctf address (${erlib.ctfServer}) and runs the challenge VMs; a reply
+    # to a client on a subnet citadel is ALSO directly attached to (noc, build) would
+    # otherwise egress that connected interface instead of ctf -- asymmetric, which
+    # breaks the DNAT'd challenge-VM SSH (26000-27023) reached from noc. (arena,
+    # overlay and internet-via-brass clients aren't directly connected here, so they
+    # already reply via the ctf default route and stay symmetric -- only noc was
+    # broken.) The old noc->ctf masquerade hid this; now that we keep the real client
+    # source, force everything that should return over the ctf backbone out the ctf
+    # gateway (${ctf.address}) via a dedicated table (only a default route -- no
+    # connected noc/build route to steal the reply). Two source classes need it:
+    #   (a) citadel's own ctf-service replies (nginx nixc.tf): sourced from the ctf
+    #       address at OUTPUT routing time.
+    #   (b) challenge-VM replies: after the ingress DNAT the source at routing time
+    #       is the guest, not ${erlib.ctfServer}, so (a) can't see them. The VM
+    #       subnets are 10.{150..199}.x (ctf_utils subnet_octets), all inside
+    #       10.128.0.0/9 -- a range citadel never sources from -- so route all
+    #       guest-sourced traffic out ctf (also matches the VM egress pinned to ctf).
+    # Driven from the dhcpcd hook so it re-applies on every ctf lease.
     dhcpcd.runHook =
       let
         ip = lib.getExe' pkgs.iproute2 "ip";
@@ -195,6 +203,8 @@ in
           ${ip} route replace default via ${ctf.address} dev ctf table 100 || true
           ${ip} rule del from ${erlib.ctfServer} lookup 100 2>/dev/null || true
           ${ip} rule add from ${erlib.ctfServer} lookup 100 priority 100 || true
+          ${ip} rule del from 10.128.0.0/9 lookup 100 2>/dev/null || true
+          ${ip} rule add from 10.128.0.0/9 lookup 100 priority 101 || true
         fi
       '';
 
