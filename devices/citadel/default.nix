@@ -294,6 +294,14 @@ in
           locations."/" = {
             proxyPass = "http://nixctf";
             proxyWebsockets = true;
+            # The CTF app decides local vs remote (the invite-code gate) from
+            # X-Real-IP, which it trusts only from this loopback proxy. Set it to
+            # the real client address. $remote_addr is the true peer on the ctf
+            # path (no NAT), and this directive overwrites any client-supplied
+            # X-Real-IP, so a remote client cannot forge a local address.
+            extraConfig = ''
+              proxy_set_header X-Real-IP $remote_addr;
+            '';
           };
         };
 
@@ -394,6 +402,14 @@ in
       # webhook's `allow noc.subnet` gate. Best-effort; scoring is unaffected if HA
       # is down. The "escape your fate" caption hotword fires the same webhook.
       homeAssistantWebhookUrl = "https://home.nixos.lv/api/webhook/flag-capture";
+      # Ration remote use of the hardware: a client off the attendee LANs must
+      # redeem a one-time invite code to register, while on-floor players
+      # register freely. localNetworks is every router's arena /16 supernet
+      # (erlib.arenaAggregates, from arena-hosts.nix), so it tracks new routers.
+      # The gate reads the real client address from nginx's X-Real-IP header
+      # (set on the nixc.tf vhost above), which the ctf path preserves (no NAT).
+      requireInviteCodes = true;
+      localNetworks = erlib.arenaAggregates;
       # Front-facing domain the app presents (Phoenix PHX_HOST): nixc.tf. The
       # nginx vhost + cert stay ctf.nixos.lv (canonical) — brass proxies with
       # Host: ctf.nixos.lv, so citadel needn't be on the nixc.tf cert.
