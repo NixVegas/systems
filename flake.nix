@@ -292,6 +292,7 @@
             inherit (pkgs) nix-vegas-site nix-vegas-site-onsite;
             inherit (pkgs) nixos-lv-root-ca;
             inherit (pkgs) badapple2ipxe;
+            inherit (pkgs) prometheus-nixos-exporter;
           };
 
           devShells.default = pkgs.mkShell {
