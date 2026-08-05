@@ -185,6 +185,17 @@ rec {
   # server terminates TLS here; internal split-horizon points nixc.tf at it.
   ctfServer = "10.4.2.2";
 
+  # The challenge-VM SSH forwarding range citadel's ctf-server publishes (host
+  # ports 26000-27023 -> per-attempt VMs), anchored on id Software's Quake
+  # (IANA 26000 = "quake"). Players connect `ssh -p <port> nixc.tf`; publicly
+  # nixc.tf resolves to brass, so brass DNATs this whole range to `ctfServer`
+  # over Nebula. Single source of truth: citadel's services.ctf-server.vmPortRange
+  # and brass's DNAT both read this, so the two can never drift apart.
+  ctfVmSshPorts = {
+    from = 26000;
+    to = 27023;
+  };
+
   # Nebula unsafe_route to the CTF backbone via ghostgate (kernel route managed
   # in the postStart, matching the arena aggregates — hence install = false).
   ctfUnsafeRoute =

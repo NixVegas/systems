@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# `nix` shim, active ONLY inside the `deploy` wrapper (pkgs/deploy-fix). It routes
+# deploy-rs's slow `nix eval --json <ref>#deploy --apply <fn>` (the toplevel eval)
+# to the parallel `fix` evaluator, and passes every OTHER nix subcommand
+# (build / copy / show-derivation / sign / path-info / flake / --version / ...)
+# straight through to real nix.
+#
+# Fail-safe: on ANY deviation or fix error it transparently `exec`s real nix with
+# the original args, so a deploy can never be broken by this -- worst case it runs
+# at plain-nix speed.
+#
+# Tradeoff (accepted): systems deployed through this path are stamped
+# 26.05.19700101.* -- fix's store-write date bug, cosmetic (os-release BUILD_ID /
+# generation label). Set DEPLOY_NO_FIX=1 to bypass entirely (see the wrapper).
+set -uo pipefail
+
+REAL_NIX="@nix@/bin/nix"
+REAL_NIX_STORE="@nix@/bin/nix-store"
+FIX="@fix@/bin/fix"
+
+orig=("$@")
+fallback() { exec "$REAL_NIX" "${orig[@]}"; }
+
+# Only the deploy-rs metadata eval is special-cased.
+[ "${1:-}" = "eval" ] || fallback
+
+# Extract the `<ref>#deploy` installable and the value of --apply.
+ref=""; fn=""; grab=0
+for a in "$@"; do
+  if [ "$grab" = 1 ]; then fn="$a"; grab=0; continue; fi
+  case "$a" in
+    *"#deploy") ref="$a" ;;
+    --apply)    grab=1 ;;
+  esac
+done
+[ -n "$ref" ] && [ -n "$fn" ] || fallback
+
+# Resolve the flakeref for getFlake (deploy-rs usually passes `.#deploy`).
+flk="${ref%#deploy}"
+case "$flk" in
+  ""|".") gf="git+file://$PWD" ;;
+  /*)     gf="git+file://$flk" ;;
+  *)      gf="$flk" ;;
+esac
+
+# deploy-rs filters --apply to a single node; repo invariant: one "system" profile
+# per node. deploy-rs writes the node two ways -- `deploy.nodes."x"` (node+profile)
+# and `inherit (deploy.nodes) "x"` (node only) -- so match both. If we can't pin
+# exactly one node, fall back to real nix.
+node="$(printf '%s' "$fn" | grep -oE 'deploy\.nodes(\."[^"]+"|\) *"[^"]+")' | grep -oE '"[^"]+"' | tr -d '"' | sort -u)"
+[ "$(printf '%s\n' "$node" | grep -c .)" = 1 ] && [ -n "$node" ] || fallback
+printf '[deploy-fix] evaluating %s with fix\n' "$node" >&2
+
+# 1) The one heavy step, via fix: instantiate the node's activation package (this
+#    writes the .drv closure to the store so real nix's later show-derivation /
+#    build resolve it).
+drv="$("$FIX" instantiate --impure --flake "${gf}#deploy.nodes.${node}.profiles.system.path" 2>/dev/null | tail -1)" || fallback
+case "$drv" in /nix/store/*.drv) ;; *) fallback ;; esac
+out="$("$REAL_NIX_STORE" -q --outputs "$drv" 2>/dev/null | tail -1)" || fallback
+case "$out" in /nix/store/*) ;; *) fallback ;; esac
+
+# 2) The cheap step, via fix: the full deploy JSON deploy-rs expects, with every
+#    profile's `path` overridden to the instantiated out-path -- so no toplevel is
+#    re-forced here and the path matches the .drv we just wrote. Buffer it and emit
+#    only on success, so a mid-stream fix failure can't corrupt deploy-rs's input.
+expr="let d = (${fn}) (builtins.getFlake \"${gf}\").deploy;
+      in d // { nodes = builtins.mapAttrs (_: n: n // {
+        profiles = builtins.mapAttrs (_: p: p // { path = \"${out}\"; }) (n.profiles or {});
+      }) (d.nodes or {}); }"
+json="$("$FIX" eval --json --impure -E "$expr" 2>/dev/null)" || fallback
+[ -n "$json" ] || fallback
+printf '%s\n' "$json"

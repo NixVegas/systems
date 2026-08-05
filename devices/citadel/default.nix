@@ -175,6 +175,39 @@ in
       nogateway
     '';
 
+    # Symmetric replies for CTF traffic on this multi-homed box. citadel serves the
+    # CTF on its ctf address (${erlib.ctfServer}) and runs the challenge VMs; a reply
+    # to a client on a subnet citadel is ALSO directly attached to (noc, build) would
+    # otherwise egress that connected interface instead of ctf -- asymmetric, which
+    # breaks the DNAT'd challenge-VM SSH (26000-27023) reached from noc. (arena,
+    # overlay and internet-via-brass clients aren't directly connected here, so they
+    # already reply via the ctf default route and stay symmetric -- only noc was
+    # broken.) The old noc->ctf masquerade hid this; now that we keep the real client
+    # source, force everything that should return over the ctf backbone out the ctf
+    # gateway (${ctf.address}) via a dedicated table (only a default route -- no
+    # connected noc/build route to steal the reply). Two source classes need it:
+    #   (a) citadel's own ctf-service replies (nginx nixc.tf): sourced from the ctf
+    #       address at OUTPUT routing time.
+    #   (b) challenge-VM replies: after the ingress DNAT the source at routing time
+    #       is the guest, not ${erlib.ctfServer}, so (a) can't see them. The VM
+    #       subnets are 10.{150..199}.x (ctf_utils subnet_octets), all inside
+    #       10.128.0.0/9 -- a range citadel never sources from -- so route all
+    #       guest-sourced traffic out ctf (also matches the VM egress pinned to ctf).
+    # Driven from the dhcpcd hook so it re-applies on every ctf lease.
+    dhcpcd.runHook =
+      let
+        ip = lib.getExe' pkgs.iproute2 "ip";
+      in
+      ''
+        if [ "$interface" = "ctf" ]; then
+          ${ip} route replace default via ${ctf.address} dev ctf table 100 || true
+          ${ip} rule del from ${erlib.ctfServer} lookup 100 2>/dev/null || true
+          ${ip} rule add from ${erlib.ctfServer} lookup 100 priority 100 || true
+          ${ip} rule del from 10.128.0.0/9 lookup 100 2>/dev/null || true
+          ${ip} rule add from 10.128.0.0/9 lookup 100 priority 101 || true
+        fi
+      '';
+
     # Consume the cnl cache set (-> https://cache.nixos.lv:443, see mesh.nix).
     # useHydra = false: don't let the module inject cache.nixos.org?priority=10
     # ahead of the local cache; the nixpkgs default cache.nixos.org/ (40)
@@ -294,6 +327,14 @@ in
           locations."/" = {
             proxyPass = "http://nixctf";
             proxyWebsockets = true;
+            # The CTF app decides local vs remote (the invite-code gate) from
+            # X-Real-IP, which it trusts only from this loopback proxy. Set it to
+            # the real client address. $remote_addr is the true peer on the ctf
+            # path (no NAT), and this directive overwrites any client-supplied
+            # X-Real-IP, so a remote client cannot forge a local address.
+            extraConfig = ''
+              proxy_set_header X-Real-IP $remote_addr;
+            '';
           };
         };
 
@@ -394,19 +435,41 @@ in
       # webhook's `allow noc.subnet` gate. Best-effort; scoring is unaffected if HA
       # is down. The "escape your fate" caption hotword fires the same webhook.
       homeAssistantWebhookUrl = "https://home.nixos.lv/api/webhook/flag-capture";
+      # Ration remote use of the hardware: a client that isn't "local" must
+      # redeem a one-time invite code to register; local clients register freely.
+      # Local = everyone physically at the event, plus staff:
+      #   - every arena LAN (erlib.arenaCidrs, from arena-hosts.nix): the onsite
+      #     floor arena on ghostgate (10.7.0/24) plus each travel 2420's attendee
+      #     /24 (ayem 10.8.1, seht 10.8.2, vehk 10.8.3). Attendee devices reach the
+      #     CTF from their real arena source -- a device on vehk's wifi shows up as
+      #     10.8.3.x -- because arena->ctf is not masqueraded.
+      #   - each arena router's own Nebula /32, so the router itself counts as
+      #     local when it sources from its overlay IP (a service on the box, or an
+      #     operator ssh'd onto it, hits the CTF at e.g. 10.6.8.x rather than an
+      #     arena /24).
+      #   - noc, the staff/management net.
+      # Everything else -- brass-proxied internet players, anything off these nets
+      # -- stays invite-gated. The gate reads the real client address from nginx's
+      # X-Real-IP header (set on the nixc.tf vhost above); the ctf path now
+      # preserves it end to end (loose rpf on citadel + ghostgate, no
+      # noc/overlay->ctf masquerade). All derived from arena-hosts.nix, so a new
+      # router carries into the gate automatically.
+      requireInviteCodes = true;
+      localNetworks =
+        erlib.arenaCidrs
+        ++ lib.mapAttrsToList (
+          name: _: "${config.networking.mesh.plan.hosts.${name}.nebula.address}/32"
+        ) erlib.arenaHosts
+        ++ [ noc.subnet ];
       # Front-facing domain the app presents (Phoenix PHX_HOST): nixc.tf. The
       # nginx vhost + cert stay ctf.nixos.lv (canonical) — brass proxies with
       # Host: ctf.nixos.lv, so citadel needn't be on the nixc.tf cert.
       host = "nixc.tf";
       vmSshHost = "nixc.tf";
-      # 1024 per-challenge-VM SSH forwarding ports, anchored on id Software's
-      # Quake (IANA 26000 = "quake"). On the way up it also squats FlexLM license
-      # servers (27000-27009), Steam (27015), and MongoDB (27017-19) — a CTF host
-      # will run none of them in a million years, and none bind these ports here.
-      vmPortRange = {
-        from = 26000;
-        to = 27023;
-      };
+      # 1024 per-challenge-VM SSH forwarding ports (26000-27023). Single source of
+      # truth in erlib.ctfVmSshPorts, which brass's DNAT reads too so its public
+      # forward can never drift from this range. See there for the port rationale.
+      vmPortRange = { inherit (erlib.ctfVmSshPorts) from to; };
 
       # Allow egress out the CTF subnet
       egressInterface = "ctf";
@@ -423,6 +486,14 @@ in
     80
     443
   ];
+
+  # citadel is multi-homed (noc + ctf) and only the ctf interface carries the
+  # default route, so a packet from a noc/overlay source that arrives on the ctf
+  # backbone would be answered out noc -- asymmetric, which strict rpf drops.
+  # Loose rpf accepts it (and citadel replies out noc), which lets ghostgate stop
+  # masquerading noc/overlay -> ctf so citadel and the CTF app see real source
+  # IPs instead of ghostgate's 10.4.2.1. Same rationale as the vp2420 routers.
+  networking.firewall.checkReversePath = "loose";
 
   services.hydra-queue-builder-dev.maxJobs = 1;
 
