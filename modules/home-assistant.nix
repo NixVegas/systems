@@ -17,12 +17,14 @@ let
   baseDomain = "nixos.lv";
 
   # The Govee lamps the AGENCY flash drives. Single source of truth: used for the
-  # pre-flash state snapshot, the flash on/off, and the restore below -- fill in
-  # the real entity_ids ONCE here. (Developer Tools -> States, filter `light.`;
-  # govee_light_local names them like light.govee_h6076_xxxx.)
+  # pre-flash state snapshot, the flash on/off, and the restore below. The four
+  # H6076 lamps were renamed in HA by position/role (stage_left, stage_right,
+  # rear, ctf), so the entity_ids follow those names.
   goveeLights = [
-    "light.govee_1"
-    "light.govee_2"
+    "light.stage_left"
+    "light.stage_right"
+    "light.rear"
+    "light.ctf"
   ];
 
   # The resting look both flash automations settle on afterward, so the normal
