@@ -495,6 +495,10 @@ in
                 # bootstrap admin user pass
                 admin_password = "$__file{/var/lib/grafana/admin.pass}";
               };
+              # https://github.com/grafana/grafana/blob/4bb3ededcbf81f4214b1b496852e382b9d2f9018/conf/defaults.ini#L2472-L2474
+              public_dashboards = {
+                enabled = true;
+              };
             };
             provision = {
               enable = true;
