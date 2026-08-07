@@ -201,6 +201,18 @@ in
       ''
         if [ "$interface" = "ctf" ]; then
           ${ip} route replace default via ${ctf.address} dev ctf table 100 || true
+          # Local delivery to the guest subnets must win over the guest-source
+          # rules below. The per-attempt bridge IPs (10.{150..199}.x.1) are also in
+          # 10.128.0.0/9, so a host-originated reply to a guest -- e.g. that net's
+          # dnsmasq answering DNS -- would otherwise match `from 10.128.0.0/9` and
+          # be routed by table 100 (default via ctf) straight out the uplink,
+          # never reaching the guest (every in-VM lookup then times out). Sending
+          # anything *destined* to the supernet through `main` picks the connected
+          # ctf-<id> bridge route instead. Guest replies to external clients
+          # (noc SSH, internet) have a non-10.128/9 destination, so they still fall
+          # through to the guest-source rules and stay symmetric out ctf.
+          ${ip} rule del to 10.128.0.0/9 lookup main 2>/dev/null || true
+          ${ip} rule add to 10.128.0.0/9 lookup main priority 99 || true
           ${ip} rule del from ${erlib.ctfServer} lookup 100 2>/dev/null || true
           ${ip} rule add from ${erlib.ctfServer} lookup 100 priority 100 || true
           ${ip} rule del from 10.128.0.0/9 lookup 100 2>/dev/null || true
