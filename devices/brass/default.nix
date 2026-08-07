@@ -47,15 +47,23 @@ let
           && lib.hasPrefix "10.5.1." (lib.head (lib.splitString "/" h.wifi.address))
         ) config.networking.mesh.plan.hosts
       );
-  # Nothing is SNI-passed through to the public. Every heavy onsite service is
-  # onsite-only (302'd); attendees reach everything via split-horizon straight
-  # to ghostgate. (The livestream stays public — brass's own owncast vhost.)
-  publicBackends = { };
-  onsiteBackends = {
+  # publicBackends are SNI-passed through :443 to the backend that owns the name,
+  # so it is reachable from the public internet (the backend terminates its own
+  # TLS). The CTF and the onboarding site are meant to be reachable off-site.
+  # Heavier or more sensitive services stay in onsiteBackends (onsite-only, 302'd
+  # off-site) — attendees reach those via split-horizon straight to ghostgate.
+  # (The livestream stays public via brass's own owncast vhost.)
+  publicBackends = {
     "nixc.tf" = citadelCtf;
     "www.nixc.tf" = citadelCtf;
     "ctf.nixos.lv" = citadelCtf;
     "ctf.nix.vegas" = citadelCtf;
+    # The onboarding site: ISOs, netboot images, channel tarball. Public so
+    # off-site folks can pull artifacts; brass forwards ACME so ghostgate's
+    # cert renews.
+    "nixos.lv" = ghostgateNebula;
+  };
+  onsiteBackends = {
     # tt-studio console
     "nixie.nixos.lv" = citadelCtf;
     # Whisper transcription API on citadel (onsite-only; nginx-fronted, Bearer-
@@ -64,9 +72,6 @@ let
     # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
     "git.nixos.lv" = ghostgateNebula;
     "git.nix.vegas" = ghostgateNebula;
-    # The onboarding site itself, which serves the (big) ISOs, netboot images,
-    # and channel tarball. brass still forwards ACME so ghostgate's certs renew.
-    "nixos.lv" = ghostgateNebula;
     # Hydra CI: the web UI and the gRPC runner endpoint. Builders live onsite
     # (build net / nebula) and reach these via split-horizon straight to
     # ghostgate; public visitors get the 302 and brass forwards ACME so
@@ -74,8 +79,9 @@ let
     "hydra.nixos.lv" = ghostgateNebula;
     "runner.hydra.nixos.lv" = ghostgateNebula;
     # Home Assistant web UI: onsite-only (reached via split-horizon straight to
-    # ghostgate); brass forwards ACME so ghostgate's LE cert renews. No :443
-    # passthrough (publicBackends stays empty), so it is not publicly reachable.
+    # ghostgate); brass forwards ACME so ghostgate's LE cert renews. Not in
+    # publicBackends, so there is no :443 passthrough and it stays unreachable
+    # publicly.
     "home.nixos.lv" = ghostgateNebula;
   };
   # The binary cache is like onsiteBackends (onsite -> ghostgate's harmonia via
