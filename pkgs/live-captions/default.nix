@@ -30,9 +30,12 @@ stdenvNoCC.mkDerivation {
     # caption_client.py finds overlay.html next to itself (via __file__), so keep
     # them together in libexec and wrap the interpreter over the script.
     mkdir -p $out/libexec/live-captions $out/bin
-    cp $src/caption_client.py $src/overlay.html $out/libexec/live-captions/
+    cp $src/caption_client.py $src/caption_align.py $src/overlay.html $out/libexec/live-captions/
     makeWrapper ${pyEnv}/bin/python3 $out/bin/live-captions \
       --add-flags $out/libexec/live-captions/caption_client.py
+    # Post-hoc: shift a session's .ass onto a specific OBS recording's timeline.
+    makeWrapper ${pyEnv}/bin/python3 $out/bin/caption-align \
+      --add-flags $out/libexec/live-captions/caption_align.py
     runHook postInstall
   '';
 

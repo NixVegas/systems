@@ -43,6 +43,10 @@
     # Flag banner stays up for the whole ~15s flag-capture celebration.
     flagSeconds = 15.0;
     apiKeyFile = "/etc/live-captions/whisper-api-key";
+    # Save one .ass per session next to OBS's default recording dir (~/Videos), so
+    # `caption-align <session>.ass <recording>` can shift captions onto a take.
+    # The user service runs as numinit; the dir is created on first write.
+    subtitleDir = "/home/numinit/Videos/captions";
     triggers = [
       {
         keyword = "agency";

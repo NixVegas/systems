@@ -59,6 +59,12 @@ let
     "--flag-seconds"
     (toString cfg.flagSeconds)
   ]
+  ++ optionals (cfg.subtitleDir != null) [
+    "--subtitle-dir"
+    cfg.subtitleDir
+    "--subtitle-latency"
+    (toString cfg.subtitleLatency)
+  ]
   ++ optionals (cfg.device != null) [
     "--device"
     cfg.device
@@ -209,6 +215,34 @@ in
       type = types.float;
       default = 10.0;
       description = "How long a flag banner (a trigger's captionFile) stays on the overlay.";
+    };
+
+    subtitleDir = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "/home/av/Videos/captions";
+      description = ''
+        If set, write one `.ass` subtitle file per service start into this
+        directory (`captions-YYYYMMDD-HHMMSS.ass`), with event times relative to
+        session start and the start epoch stamped in the header. Use the
+        `caption-align` CLI (shipped in the same package) to shift a session file
+        onto a specific OBS recording's timeline. Must be writable by the desktop
+        user running the service; it's created if missing. Null disables capture.
+
+        Note: the STT path returns plain text (no word timestamps), so lines are
+        timed at commit and are roughly (~1-2s) aligned, not frame-accurate --
+        `subtitleLatency` and `caption-align` absorb the constant part.
+      '';
+    };
+
+    subtitleLatency = mkOption {
+      type = types.float;
+      default = 1.5;
+      description = ''
+        Seconds subtracted from each subtitle line's commit time to approximate
+        when it was actually spoken. A constant nudge; fold any residual offset
+        into `caption-align` rather than chasing it here.
+      '';
     };
 
     openFirewall = mkOption {
