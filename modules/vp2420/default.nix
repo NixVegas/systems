@@ -70,6 +70,7 @@ in
     ../citadel-builder.nix
     ../pxe.nix
     ../swap.nix
+    ../mt76.nix
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 

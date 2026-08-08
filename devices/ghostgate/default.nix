@@ -134,6 +134,7 @@ in
     ../../modules/citadel-builder.nix
     ../../modules/pxe.nix
     ../../modules/home-assistant.nix
+    ../../modules/mt76.nix
     ../../modules/ctf-recon-bluetooth.nix
     ../../modules/ctf-recon-ipxe.nix
     ./hardware-configuration.nix
