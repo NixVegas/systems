@@ -164,6 +164,7 @@
     # recorded (or streamed) independently of the Program, e.g. a caption-free
     # "clean" recording alongside the captioned stream on dragonborn.
     (wrapOBS { plugins = with obs-studio-plugins; [ obs-source-record ]; })
+    vlc
     wireshark
     yubikey-manager
     yubioath-flutter
