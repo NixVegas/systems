@@ -33,5 +33,8 @@
   environment.systemPackages = with pkgs; [ sbctl ];
 
   console.font = lib.mkDefault "sun12x22";
+
+  boot.binfmt.emulatedSystems = lib.mkDefault [ "aarch64-linux" "riscv64-linux" ];
+
   hardware.enableRedistributableFirmware = true;
 }
