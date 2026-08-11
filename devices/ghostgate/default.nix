@@ -667,11 +667,16 @@ in
               # Nebula lighthouses via the clear WAN to bootstrap their own
               # Nebula. Scoped to the lighthouse UDP ports only — all other mesh
               # traffic stays encrypted over Nebula (matching the carve-out in
-              # the nebula@arena postStart).
-              iifname "mesh2" oifname "wan1" udp dport { ${
+              # the nebula@arena postStart). Cover every WAN uplink, not just
+              # wan1: ghostgate's active uplink is whichever it roamed onto (the
+              # onboard WiFi ${wwan1}, or wwan2), so a wan1-only rule drops the
+              # forwarded handshake when ghostgate is on WiFi — the arena's whole
+              # internet egress (clients route out over brass) then has no way to
+              # bootstrap the brass tunnel.
+              iifname "mesh2" oifname { "wan1", "${wwan1}", "wwan2" } udp dport { ${
                 lib.concatMapStringsSep ", " toString lighthousePorts
               } } counter accept comment "mesh -> lighthouse (clear bootstrap)"
-              iifname "wan1" oifname "mesh2" ct state established,related counter accept comment "lighthouse reply -> mesh"
+              iifname { "wan1", "${wwan1}", "wwan2" } oifname "mesh2" ct state established,related counter accept comment "lighthouse reply -> mesh"
 
               # Let NOC get to build, ctf, and the WiFi mesh (10.5 via mesh2).
               iifname { "noc" } oifname { "build", "ctf", "mesh2" } counter accept
