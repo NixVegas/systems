@@ -252,13 +252,16 @@ in
             "${noc.subnet}" = false;
             "0.0.0.0/0" = true;
           };
-          # Roaming: ghostgate is off the WiFi mesh, so the 2420s' mesh (10.5)
-          # addresses are dead to it — trying them just wastes handshake attempts
-          # and delays the relay fallback. Deny the mesh for *remote* peers so
-          # ghostgate goes straight to the relay (which rides the lighthouses'
-          # public addresses, unaffected by this).
+          # ghostgate IS on the WiFi mesh (mesh2, 10.5.0.1), so the 2420s' mesh
+          # (10.5) addresses are a real low-latency underlay and they handshake
+          # ghostgate there directly. Allow the mesh for *remote* peers: denying it
+          # made ghostgate silently drop every inbound mesh handshake (no reply, no
+          # log — remote_allow_list filters the handshake source address), so the
+          # travel routers could never establish Nebula with ghostgate and their
+          # arena clients lost egress. local_allow_list already advertises 10.5, so
+          # the deny also contradicted the address we hand peers.
           remote_allow_list = deny // {
-            "${config.networking.mesh.plan.constants.wifi.subnet}" = false; # 10.5/16 mesh
+            "${config.networking.mesh.plan.constants.wifi.subnet}" = true; # 10.5/16 mesh
             "0.0.0.0/0" = true;
           };
         };
