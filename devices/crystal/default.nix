@@ -230,11 +230,17 @@ in
           globalRedirect = "relive.nix.vegas";
         };
 
+        # Full immich for everyone (login-gated), so attendees/speakers can upload
+        # post-talk photos, not just browse the read-only public-proxy gallery.
+        # Onsite traffic egresses via brass and arrives as `public`, so the old
+        # `$source = nebula` split never gave them the upload UI; proxy straight to
+        # immich instead. immich's own auth is the gate (fail2ban jail below covers
+        # brute force). immich-public-proxy is left running but unreferenced.
         "relive.nix.vegas" = {
           forceSSL = true;
           enableACME = true;
           locations."/" = {
-            proxyPass = "http://$upstream";
+            proxyPass = "http://immich";
             proxyWebsockets = true;
             extraConfig = ''
               client_max_body_size 10000m;
@@ -243,11 +249,6 @@ in
               proxy_read_timeout   600s;
               proxy_send_timeout   600s;
               send_timeout         600s;
-
-              set $upstream immich-public-proxy;
-              if ($source = nebula) {
-                set $upstream immich;
-              }
             '';
           };
         };
