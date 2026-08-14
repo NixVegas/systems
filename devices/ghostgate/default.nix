@@ -254,15 +254,27 @@ in
           };
           # ghostgate IS on the WiFi mesh (mesh2, 10.5.0.1), so the 2420s' mesh
           # (10.5) addresses are a real low-latency underlay and they handshake
-          # ghostgate there directly. Allow the mesh for *remote* peers: denying it
-          # made ghostgate silently drop every inbound mesh handshake (no reply, no
-          # log — remote_allow_list filters the handshake source address), so the
-          # travel routers could never establish Nebula with ghostgate and their
-          # arena clients lost egress. local_allow_list already advertises 10.5, so
-          # the deny also contradicted the address we hand peers.
+          # ghostgate there directly. But remote_allow_list is bidirectional and
+          # unscoped: a blanket 10.5 allow made ghostgate also DIAL every peer's
+          # advertised 10.5 address — dead for off-mesh peers — stalling
+          # handshakes/relay selection fleet-wide. And a blanket deny silently
+          # dropped the 2420s' inbound mesh handshakes (no reply, no log —
+          # remote_allow_list filters the handshake source address), so they
+          # could never establish Nebula and their arena clients lost egress.
+          # Scope it instead: mesh addresses are valid ONLY for the travel
+          # routers (remote_allow_ranges keys on the peer's VPN address).
           remote_allow_list = deny // {
-            "${config.networking.mesh.plan.constants.wifi.subnet}" = true; # 10.5/16 mesh
+            "${config.networking.mesh.plan.constants.wifi.subnet}" = false; # 10.5/16 dead off-mesh
             "0.0.0.0/0" = true;
+          };
+          # The VP2420 travel routers (ayem/seht/vehk, 10.6.8.x in the plan):
+          # their 10.5 mesh underlay is real and is how they reach us behind
+          # the venue NAT.
+          remote_allow_ranges = {
+            "10.6.8.0/24" = deny // {
+              "${config.networking.mesh.plan.constants.wifi.subnet}" = true;
+              "0.0.0.0/0" = true;
+            };
           };
         };
     };
