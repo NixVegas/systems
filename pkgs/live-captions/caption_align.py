@@ -74,6 +74,11 @@ def main():
                     help="recording start: epoch seconds or 'YYYY-MM-DD HH:MM:SS'")
     ap.add_argument("--offset", type=float,
                     help="explicit shift in seconds (overrides record-start)")
+    ap.add_argument("--clamp", type=float, metavar="SECONDS",
+                    help="drop events starting at/after SECONDS and cut ends to "
+                         "it (the recording's duration) -- otherwise a session "
+                         "that keeps running inflates the muxed container's "
+                         "duration to the last caption")
     ap.add_argument("-o", "--out",
                     help="output .ass (default: <recording>.ass, else <captions>.aligned.ass)")
     a = ap.parse_args()
@@ -101,6 +106,11 @@ def main():
                 if end <= 0:  # ended before the recording began
                     dropped += 1
                     continue
+                if a.clamp is not None:
+                    if start >= a.clamp:  # began after the recording ended
+                        dropped += 1
+                        continue
+                    end = min(end, a.clamp)
                 fields[1] = _fmt_ts(start)
                 fields[2] = _fmt_ts(end)
                 w.write("Dialogue:" + ",".join(fields))
