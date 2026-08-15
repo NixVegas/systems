@@ -1441,12 +1441,13 @@ in
           SSH_DOMAIN = "git.${baseDomain}";
         };
 
-        # Registration is enabled so attendees can make accounts. It's
-        # inherently onsite-only: the whole of git.nixos.lv is onsite-only
-        # (brass 302s public clients away; see devices/brass and the vhost
-        # above), so signups aren't reachable from the public internet.
+        # Registration was open during the event, when git.nixos.lv was
+        # onsite-only. Now that brass SNI-passes it to the public internet
+        # (devices/brass publicBackends), open signup would be a spam-account
+        # magnet: closed. Existing attendee accounts keep working; admins can
+        # still create accounts via the admin UI / CLI.
         service = {
-          DISABLE_REGISTRATION = false;
+          DISABLE_REGISTRATION = true;
           REQUIRE_SIGNIN_VIEW = false;
         };
         session.COOKIE_SECURE = true;
