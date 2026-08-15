@@ -56,6 +56,12 @@ printf '[deploy-fix] evaluating %s with fix\n' "$node" >&2
 #    build resolve it).
 drv="$("$FIX" instantiate --impure --flake "${gf}#deploy.nodes.${node}.profiles.system.path" 2>/dev/null | tail -1)" || fallback
 case "$drv" in /nix/store/*.drv) ;; *) fallback ;; esac
+# fix must have REGISTERED the drv in the nix db, not just written the file:
+# an unregistered .drv still parses for `nix-store -q --outputs`, but
+# deploy-rs's later `nix path-info` / `nix build` reject it ("path ... is not
+# valid") and nothing downstream can realize it. Seen on a deploy box after a
+# GC; degrade to plain nix instead of wedging the deploy.
+"$REAL_NIX" path-info "$drv" >/dev/null 2>&1 || fallback
 out="$("$REAL_NIX_STORE" -q --outputs "$drv" 2>/dev/null | tail -1)" || fallback
 case "$out" in /nix/store/*) ;; *) fallback ;; esac
 
