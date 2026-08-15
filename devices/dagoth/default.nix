@@ -295,13 +295,6 @@ in
         };
       };
 
-      # Legacy distractions.tw infra
-      virtualHosts."chat.distractions.tw" = letsEncryptEndpoint {
-        enableACME = true;
-        forceSSL = true;
-        globalRedirect = "chat.nix.vegas";
-      };
-
       virtualHosts."webmail.nix.vegas" = letsEncryptEndpoint {
         http2 = true;
         locations."/" = {

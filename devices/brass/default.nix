@@ -62,6 +62,10 @@ let
     # off-site folks can pull artifacts; brass forwards ACME so ghostgate's
     # cert renews.
     "nixos.lv" = ghostgateNebula;
+    # Forgejo: public post-event. ghostgate serves forgejo on git.nixos.lv and
+    # 301s git.nix.vegas to it, both with its own certs.
+    "git.nixos.lv" = ghostgateNebula;
+    "git.nix.vegas" = ghostgateNebula;
   };
   onsiteBackends = {
     # tt-studio console
@@ -69,9 +73,6 @@ let
     # Whisper transcription API on citadel (onsite-only; nginx-fronted, Bearer-
     # gated). Public gets the 302; onsite AV box resolves it split-horizon.
     "whisper.nixos.lv" = citadelCtf;
-    # Forgejo (nixpkgs mirror): a public clone endpoint is a bandwidth sink.
-    "git.nixos.lv" = ghostgateNebula;
-    "git.nix.vegas" = ghostgateNebula;
     # Hydra CI: the web UI and the gRPC runner endpoint. Builders live onsite
     # (build net / nebula) and reach these via split-horizon straight to
     # ghostgate; public visitors get the 302 and brass forwards ACME so

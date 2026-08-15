@@ -1385,9 +1385,9 @@ in
           globalRedirect = "git.${baseDomain}";
         };
 
-        # Forgejo (git.nixos.lv). Onsite-only: brass 302s public clients to
-        # nix.vegas (a public nixpkgs clone endpoint is a bandwidth sink), so
-        # this vhost only ever serves onsite traffic. ghostgate still terminates
+        # Forgejo (git.nixos.lv). Public post-event: brass SNI-passes :443
+        # through (see devices/brass publicBackends), so this serves onsite
+        # (split-horizon) and public traffic alike; ghostgate terminates
         # TLS with its own ACME cert (brass forwards the HTTP-01 token). Proxies
         # to the loopback-bound forgejo on :3001 (NOT :3000, hydra-server binds
         # *:3000, which would otherwise shadow forgejo's loopback socket and make
