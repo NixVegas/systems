@@ -131,6 +131,13 @@ in
       ];
     };
 
+  # Builds go DIRECT to citadel: at home that's plain routing over the 802.11s
+  # mesh (build-net route via ghostgate, metric-preferred in the postStart
+  # below); away it falls back to the Nebula unsafe route. If the overlay path
+  # proves too flaky while roaming, `nixVegas.citadelBuilder.viaBrass = true`
+  # switches builds to a TCP ProxyJump through brass instead (jump user is
+  # provisioned on brass either way).
+
   # Modern, memory-safe NTP (shared module: modules/ntp.nix). Serves the arena
   # (nftables redirects udp/123 to us); upstream is ghostgate first, plus the
   # local GPS via gpsd. Metrics scraped automatically via alloy's ntpCollector.
@@ -310,9 +317,20 @@ in
     ${erlib.ctfTableRoutes { }}
     ${erlib.ctfTableRoutes { table = "main"; }}
     # Reach the build net (citadel) over Nebula too — arena table for LAN
-    # clients, main table so the router itself can offload builds.
+    # clients, main table so the router itself can offload builds. The main
+    # route is demoted (metric 2000) behind the direct MESH route below: at
+    # home the router reaches citadel via ghostgate over 802.11s, plain
+    # routed, no Nebula in the path; when the mesh route is absent/linkdown
+    # the tunnel route takes over.
     ${erlib.buildTableRoutes { }}
-    ${erlib.buildTableRoutes { table = "main"; }}
+    ${erlib.buildTableRoutes {
+      table = "main";
+      metric = 2000;
+    }}
+    _ip route replace ${erlib.buildNet} via ${ghostgateMesh} dev mesh2 metric 100 2>/dev/null
+    # Don't blackhole into a peerless mesh: skip mesh2 routes on carrier loss
+    # so the demoted Nebula route above takes over while roaming.
+    ${lib.getExe' pkgs.procps "sysctl"} -w net.ipv4.conf.mesh2.ignore_routes_with_linkdown=1 2>/dev/null || true
     # Attendee internet exits at the normal Nebula endpoint (brass): `dev
     # nebula.arena`, and Nebula's 0.0.0.0/0 unsafe_route tunnels it to brass.
     # This is underlay-agnostic — it works near ghostgate (Nebula rides the

@@ -163,10 +163,7 @@ in
 
     "net.ipv6.conf.${wanInterface}.accept_ra" = 2;
     "net.ipv6.conf.${wanInterface}.autoconf" = 1;
-
-    # Fleet default (modules/boot.nix) is 1, which suppresses swapping and pushes
-    # this box straight to OOM-kills. Let it page out idle anon memory instead.
-    "vm.swappiness" = 60;
+    # (No vm.swappiness override: swap is off now, so it has nothing to act on.)
   };
   boot.extraModprobeConfig = ''
     # Feed the L2ARC at 256 MB/s until it's full
@@ -206,6 +203,8 @@ in
   services.nebula.networks.arena = {
     tun.device = lib.mkForce "nebula.arena";
     settings = {
+      # Socket buffers: modules/nebula-socket-buffers.nix (fleet-wide; the
+      # measured drop evidence in its comment came from THIS host's socket).
       tun = {
         unsafe_routes = [
           # Default route for arena traffic sent into Nebula: exit via the
@@ -263,9 +262,17 @@ in
           # could never establish Nebula and their arena clients lost egress.
           # Scope it instead: mesh addresses are valid ONLY for the travel
           # routers (remote_allow_ranges keys on the peer's VPN address).
+          # "::/0" = false: the current (home) uplink has NO IPv6 route, but
+          # peers advertise AAAA underlays -- every handshake cycle dialed them,
+          # got instant `sendto: network is unreachable`, and nebula's failure
+          # path escalated to CreateRelayRequest churn through brass for hosts
+          # that were ALSO directly reachable over v4 (observed Aug 23). The
+          # allow lists are per-family: v4-only rules leave v6 fully allowed by
+          # default. Flip back to true when the uplink has real v6 again.
           remote_allow_list = deny // {
             "${config.networking.mesh.plan.constants.wifi.subnet}" = false; # 10.5/16 dead off-mesh
             "0.0.0.0/0" = true;
+            "::/0" = false;
           };
           # The VP2420 travel routers (ayem/seht/vehk, 10.6.8.x in the plan):
           # their 10.5 mesh underlay is real and is how they reach us behind
@@ -274,6 +281,7 @@ in
             "10.6.8.0/24" = deny // {
               "${config.networking.mesh.plan.constants.wifi.subnet}" = true;
               "0.0.0.0/0" = true;
+              "::/0" = false; # no v6 route on the current uplink (see above)
             };
           };
         };
@@ -652,8 +660,17 @@ in
               iifname "arena" oifname "build" counter accept comment "arena -> build"
               iifname "nebula.arena" oifname "build" counter accept comment "nebula -> build (remote arena)"
               iifname "build" oifname { "arena", "nebula.arena" } counter accept comment "build -> arena (replies)"
+              # Post-event: the travel routers reach citadel (the builder,
+              # 10.4.1.2) directly over the mesh -- no Nebula in the path.
+              # Egress to build is masqueraded (postrouting above), so citadel
+              # replies to ghostgate's build IP and the return is symmetric.
+              iifname "mesh2" oifname "build" counter accept comment "mesh -> build (citadel builds)"
+              iifname "build" oifname "mesh2" ct state established,related counter accept comment "build -> mesh (replies)"
 
-              # Allow only localhost WAN access
+              # Allow only localhost WAN access. Everything else (mesh
+              # included) egresses the internet via the Nebula tunnel — the
+              # mesh's only direct-forward exceptions are the lighthouse
+              # bootstrap notch and the build net (citadel) below.
               iifname {
                 "lo"
               } oifname {

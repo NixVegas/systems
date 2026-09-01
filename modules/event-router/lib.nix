@@ -238,12 +238,17 @@ rec {
 
   # Shell line installing the build route into a policy table (nebula@arena
   # postStart). `dev nebula.arena`, no `via` — same reasoning as ctfTableRoutes.
+  # `metric` lets a caller demote this to a fallback behind a preferred path
+  # (e.g. the 2420s' direct mesh route to the build net when they're home).
   buildTableRoutes =
     {
       table ? "arena",
       dev ? "nebula.arena",
+      metric ? null,
     }:
-    "_ip route replace ${buildNet} dev ${dev} table ${table}\n";
+    "_ip route replace ${buildNet} dev ${dev} table ${table}${
+      lib.optionalString (metric != null) " metric ${toString metric}"
+    }\n";
 
   # A single kea `subnet4` entry from a net descriptor. `reservations` is
   # omitted entirely when empty, and `ntp` controls whether an ntp-servers

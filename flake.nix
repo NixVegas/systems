@@ -227,6 +227,10 @@
                 ];
               }
               meshos.nixosModules.default
+              # Big nebula socket buffers for every planned nebula host (brass,
+              # the sole relay, benefits most). See the module for the measured
+              # drop evidence.
+              ./modules/nebula-socket-buffers.nix
               tenstorrent-nix.nixosModules.default
               nix-vegas-ctf.nixosModules.default
               hydra.nixosModules.hydra
@@ -270,6 +274,42 @@
               };
             in
             {
+              nebula = pkgs.nebula.overrideAttrs (final: prev: {
+                version = "1.11.1";
+                src = pkgs.fetchFromGitHub {
+                  owner = "slackhq";
+                  repo = "nebula";
+                  tag = "v${final.version}";
+                  hash = "sha256-3YxOq9kxNShkIbFZ6P9kCkNl8nraICMlp2jSCBnlSP4=";
+                };
+                vendorHash = "sha256-I0pV4nosm1j7FqGmgkQWe24umRzBnMb2gvEiZr0uTFo=";
+                # Cache the pkcs11 client instead of re-opening the HSM/TPM per
+                # DH. Upstream's noiseutil.nistP11Curve.DH opened+initialized+
+                # closed the whole PKCS#11 module on every handshake DH, run
+                # inline on the single packet-reader goroutine -- so a handshake
+                # storm (mesh/relay reconnect churn from the travel routers)
+                # blocked the reader in the slow serialized TPM and stalled the
+                # WHOLE overlay for seconds-to-minutes (361KB Recv-Q backlog,
+                # verified by goroutine dump: reader parked in pkcs11._Cfunc_
+                # Initialize). Root cause of the post-DC34 stalls. Upstream PR
+                # pending; the diff caches one long-lived client per URI.
+                patches = (prev.patches or [ ]) ++ [ ./pkgs/nebula/pkcs11-cache-client.patch ];
+              });
+
+              immich-public-proxy = pkgs.immich-public-proxy.overrideAttrs (final: prev: {
+                version = "3.2.1";
+                src = pkgs.fetchFromGitHub {
+                  owner = "alangrainger";
+                  repo = "immich-public-proxy";
+                  tag = "v${final.version}";
+                  hash = "sha256-RA9CzIH6JJucRKDZS+kqqFSZht8OphWQsxLoWnoJA5I=";
+                };
+                npmDeps = prev.npmDeps.overrideAttrs (prevDeps: {
+                  inherit (final) src;
+                  outputHash = "sha256-jBn3Vt3S3AHstVp3gy5PaAnMAlHcqgkMdAPEEkC3+b8=";
+                });
+              });
+
               nixos-lv-onboarding-artifacts = onboardingArtifacts;
               nix-vegas-site = nix-vegas-site.packages.${system}.default;
               # The event flavor: same site with the onboarding artifacts baked

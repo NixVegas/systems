@@ -156,9 +156,10 @@ in
       enable = true;
       immichUrl = "http://localhost:${toString config.services.immich.port}";
       settings = {
+        allowSlugLinks = true;
         downloadOriginalPhoto = false;
         showGalleryTitle = true;
-        allowDownloadAll = 1; # follow Immich setting
+        allowDownload = 1; # follow Immich setting
         showHomePage = false;
       };
     };
@@ -230,26 +231,39 @@ in
           globalRedirect = "relive.nix.vegas";
         };
 
-        # Full immich for everyone (login-gated), so attendees/speakers can upload
-        # post-talk photos, not just browse the read-only public-proxy gallery.
-        # Onsite traffic egresses via brass and arrives as `public`, so the old
-        # `$source = nebula` split never gave them the upload UI; proxy straight to
-        # immich instead. immich's own auth is the gate (fail2ban jail below covers
-        # brute force). immich-public-proxy is left running but unreferenced.
+        # relive.nix.vegas is full immich (login-gated) so attendees/speakers can
+        # upload, EXCEPT /share/... which stays on immich-public-proxy: IPP owns
+        # that URL scheme (e.g. /share/photo/<key>/<id>/preview) and those are
+        # the read-only permalinks the blog references. immich itself does not
+        # serve /share/... paths, so without this split the blog's photo links
+        # 404. immich's own shared links use /s/<slug>, which falls through to
+        # the immich upstream below and keeps working. immich's auth gates the
+        # app (fail2ban jail covers brute force).
         "relive.nix.vegas" = {
           forceSSL = true;
           enableACME = true;
-          locations."/" = {
-            proxyPass = "http://immich";
-            proxyWebsockets = true;
-            extraConfig = ''
-              client_max_body_size 10000m;
-              proxy_max_temp_file_size 128m;
-              proxy_request_buffering off;
-              proxy_read_timeout   600s;
-              proxy_send_timeout   600s;
-              send_timeout         600s;
-            '';
+          locations = {
+            # Read-only public galleries + asset permalinks (blog-referenced).
+            "/share/" = {
+              proxyPass = "http://immich-public-proxy";
+              extraConfig = ''
+                proxy_read_timeout 600s;
+                proxy_buffering off; # stream media instead of buffering to disk
+              '';
+            };
+            # The immich app, its /s/<slug> native shares, /api, uploads.
+            "/" = {
+              proxyPass = "http://immich";
+              proxyWebsockets = true;
+              extraConfig = ''
+                client_max_body_size 10000m;
+                proxy_max_temp_file_size 128m;
+                proxy_request_buffering off;
+                proxy_read_timeout   600s;
+                proxy_send_timeout   600s;
+                send_timeout         600s;
+              '';
+            };
           };
         };
 
