@@ -24,11 +24,17 @@
 #   and the d= drop counter stops climbing.
 { config, lib, ... }:
 let
-  me = config.networking.mesh.plan.hosts.${config.networking.hostName} or { };
+  # Gate on hosts that actually RUN the mesh nebula network -- not merely those
+  # with a plan entry. A host like citadel has a nebula plan entry (for its
+  # address/cert naming) but does not enable the network; touching
+  # `services.nebula.networks.<name>` there would instantiate the submodule
+  # (whose `enable` defaults true) and make the upstream module demand a `ca`
+  # that only real nodes set, breaking eval.
+  cfg = config.networking.mesh.nebula;
 in
 {
-  config = lib.mkIf (me ? nebula) {
-    services.nebula.networks.arena.settings.listen = {
+  config = lib.mkIf cfg.enable {
+    services.nebula.networks.${cfg.networkName}.settings.listen = {
       read_buffer = 67108864;
       write_buffer = 67108864;
     };
