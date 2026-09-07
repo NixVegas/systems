@@ -101,7 +101,8 @@ in
   };
 
   crystal = {
-    version = "26.05";
+    # need immich updates
+    version = "26.11";
     modules = [
       ./devices/crystal
     ]

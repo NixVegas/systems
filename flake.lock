@@ -9,11 +9,11 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1788767674,
-        "narHash": "sha256-RqNcaBocvh1lqb1fszd8vdZ8cqjXmAxBUN6NfUbz4Xk=",
+        "lastModified": 1788780445,
+        "narHash": "sha256-nXKfJxK5G61PrUWk2IoG9BNNMrLqccODCLE4+4/FjPs=",
         "ref": "refs/heads/hardware-signing-experiments",
-        "rev": "077614a3bedf1029eab49559ebf9e1dfd2f37dcf",
-        "revCount": 44,
+        "rev": "3e785fe0fee8ea69a2d08ff26211af0cce97e7a8",
+        "revCount": 49,
         "type": "git",
         "url": "ssh://forgejo@git.nixos.lv/noc/autopen.git"
       },

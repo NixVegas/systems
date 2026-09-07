@@ -379,7 +379,7 @@ in
     gpsd
     iw
 
-    openssl
+    (openssl.withPkcs11Module { pkcs11Module = tpm2-pkcs11.pkcs11Module; })
     firefox
 
     iproute2
