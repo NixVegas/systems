@@ -82,6 +82,11 @@
       url = "github:psyclyx/fix";
       flake = false;
     };
+
+    autopen = {
+      url = "git+ssh://forgejo@git.nixos.lv/noc/autopen.git";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -104,6 +109,7 @@
       tenstorrent-nix,
       nix-vegas-ctf,
       fix,
+      autopen,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -224,6 +230,7 @@
                   self.overlays.default
                   nixpkcs.overlays.default
                   nixpkgs-gold.overlays.gold
+                  autopen.overlays.default
                 ];
               }
               meshos.nixosModules.default
@@ -236,6 +243,7 @@
               hydra.nixosModules.hydra
               dcwifi.nixosModules.default
               fixProject.nixosModules.fix
+              autopen.nixosModules.default
             ];
             nixpkgs.config.gold = {
               acceptEula = true;
@@ -294,20 +302,6 @@
                 # Initialize). Root cause of the post-DC34 stalls. Upstream PR
                 # pending; the diff caches one long-lived client per URI.
                 patches = (prev.patches or [ ]) ++ [ ./pkgs/nebula/pkcs11-cache-client.patch ];
-              });
-
-              immich-public-proxy = pkgs.immich-public-proxy.overrideAttrs (final: prev: {
-                version = "3.2.1";
-                src = pkgs.fetchFromGitHub {
-                  owner = "alangrainger";
-                  repo = "immich-public-proxy";
-                  tag = "v${final.version}";
-                  hash = "sha256-RA9CzIH6JJucRKDZS+kqqFSZht8OphWQsxLoWnoJA5I=";
-                };
-                npmDeps = prev.npmDeps.overrideAttrs (prevDeps: {
-                  inherit (final) src;
-                  outputHash = "sha256-jBn3Vt3S3AHstVp3gy5PaAnMAlHcqgkMdAPEEkC3+b8=";
-                });
               });
 
               nixos-lv-onboarding-artifacts = onboardingArtifacts;
