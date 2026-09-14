@@ -119,6 +119,21 @@ in
     };
   };
 
+  # Advertise the `autopen` build feature so derivations that MUST sign on this
+  # host can pin themselves to it with requiredSystemFeatures = [ "autopen" ].
+  # The SG2000 signed/encrypted FIPs do exactly this (sophgone's fip-sign.nix):
+  # signing reaches the local TPM through the autopen daemon socket, so the build
+  # cannot run on citadel or any other builder. Without this feature that pin
+  # would make the FIP unbuildable everywhere; with it, the sign always lands
+  # here. The four defaults are restated because setting this replaces the list.
+  nix.settings.system-features = [
+    "nixos-test"
+    "benchmark"
+    "big-parallel"
+    "kvm"
+    "autopen"
+  ];
+
   systemd.services.autopen = {
     after = [
       "nixpkcs@sg1-sb.service"
