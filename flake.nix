@@ -65,6 +65,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    sophgone-site = {
+      url = "github:NixVegas/www.sophg.one";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     deploy-rs.url = "github:serokell/deploy-rs";
     flake-parts.url = "github:hercules-ci/flake-parts";
 
@@ -105,6 +110,7 @@
       deploy-rs,
       nixos-pagefind,
       nix-vegas-site,
+      sophgone-site,
       meshos,
       tenstorrent-nix,
       nix-vegas-ctf,
@@ -272,9 +278,6 @@
             ];
           };
 
-          # let-bound: nix-vegas-site-onsite consumes the artifacts directly —
-          # `pkgs.` doesn't see overlayAttrs from inside overlayAttrs, and
-          # `rec` would shadow the nix-vegas-site flake input.
           overlayAttrs =
             let
               onboardingArtifacts = pkgs.callPackage ./pkgs/onboarding {
@@ -313,6 +316,7 @@
               nix-vegas-site-onsite = nix-vegas-site.packages.${system}.nixVegasOnsite.override {
                 inherit onboardingArtifacts;
               };
+
               # 26.05 nixpkgs has packages whose meta.platforms mixes attrset
               # (structured cross) entries with strings; upstream's guard only
               # checks the first element and jinja's sort then dies comparing
@@ -329,6 +333,9 @@
               };
               nixos-lv-root-ca = pkgs.callPackage ./pkgs/nixos-lv-root-ca { };
               great-value-hydra = great-value-hydra.packages.${system};
+
+              sophgone-website = sophgone-site.packages.${system}.default;
+
               badapple2ipxe = pkgs.callPackage ./pkgs/badapple-ipxe { };
               live-captions = pkgs.callPackage ./pkgs/live-captions { };
               tt-chat-proxy = pkgs.callPackage ./pkgs/tt-chat-proxy { };

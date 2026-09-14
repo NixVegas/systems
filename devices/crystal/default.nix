@@ -267,6 +267,19 @@ in
           };
         };
 
+        # strip www
+        "www.sophg.one" = {
+          addSSL = true;
+          enableACME = true;
+          globalRedirect = "sophg.one";
+        };
+
+        "sophg.one" = {
+          forceSSL = true;
+          enableACME = true;
+          locations."/".root = "${pkgs.sophgone-website}/public";
+        };
+
         ${config.services.pretalx.nginx.domain} = {
           forceSSL = true;
           enableACME = true;
