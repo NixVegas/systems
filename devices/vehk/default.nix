@@ -14,6 +14,11 @@ let
     verificationKey = pkgs.autopen.lib.verificationKey.fromCertificate ./sg1-enc.crt;
     socketPath = "/run/autopen/socket";
   };
+  sg1Image = pkgs.autopen.lib.signingKey.remote {
+    name = "sg1-image";
+    verificationKey = pkgs.autopen.lib.verificationKey.fromCertificate ./sg1-image.crt;
+    socketPath = "/run/autopen/socket";
+  };
 in
 {
   imports = [
@@ -92,6 +97,11 @@ in
             "keyUsage=critical,nonRepudiation,keyCertSign,digitalSignature,cRLSign"
           ];
         };
+        sg1-image = mkRsaKey {
+          name = "sg1-image";
+          id = 19;
+          cn = "SG1 Boot Image";
+        };
       };
   };
 
@@ -117,6 +127,10 @@ in
       inherit (config.security.pkcs11.keypairs.sg1-enc) uri;
       fileRef = sg1Encryption.fileRefPath;
     };
+    hardwareKeys.sg1-image = {
+      inherit (config.security.pkcs11.keypairs.sg1-image) uri;
+      fileRef = sg1Image.fileRefPath;
+    };
   };
 
   # Advertise the `autopen` build feature so derivations that MUST sign on this
@@ -138,13 +152,16 @@ in
     after = [
       "nixpkcs@sg1-sb.service"
       "nixpkcs@sg1-enc.service"
+      "nixpkcs@sg1-image.service"
     ];
 
     serviceConfig.ReadWritePaths = lib.mkAfter [ "/etc/tpm2-pkcs11" ];
 
     # Need these environment variables for signing.
     environment = 
-      config.security.pkcs11.keypairs.sg1-sb.extraEnv // config.security.pkcs11.keypairs.sg1-enc.extraEnv;
+      config.security.pkcs11.keypairs.sg1-sb.extraEnv
+      // config.security.pkcs11.keypairs.sg1-enc.extraEnv
+      // config.security.pkcs11.keypairs.sg1-image.extraEnv;
   };
 
   networking.hostName = "vehk";

@@ -84,6 +84,8 @@ let
     # publicBackends, so there is no :443 passthrough and it stays unreachable
     # publicly.
     "home.nixos.lv" = ghostgateNebula;
+    "cache.nixos.lv" = ghostgateNebula;
+    "cache.nix.vegas" = ghostgateNebula;
   };
   # The binary cache is like onsiteBackends (onsite -> ghostgate's harmonia via
   # split-horizon; brass terminates TLS + forwards ACME; no :443 passthrough),
@@ -91,11 +93,7 @@ let
   # instead of a 302 to nix.vegas — so cache.nixos.lv stays a drop-in substituter
   # off-site (a public `nix` fetch of cache.nixos.lv/<hash>.narinfo lands on
   # cache.nixos.org/<hash>.narinfo).
-  cacheBackends = {
-    "cache.nixos.lv" = ghostgateNebula;
-    "cache.nix.vegas" = ghostgateNebula;
-  }
-  // vp2420CacheBackends;
+  cacheBackends = vp2420CacheBackends;
 in
 {
   imports = [
@@ -215,6 +213,7 @@ in
           22
           80
           443
+          42070
         ];
         allowedUDPPorts = [
           5000 # nebula
@@ -254,6 +253,20 @@ in
           iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 53 -j REDIRECT
           iptables -t nat -I PREROUTING -p udp -s ${nebulaSubnet} --dport 123 -j REDIRECT
 
+          # Forward public git SSH to forgejo on ghostgate. git.nix.vegas /
+          # git.nixos.lv resolve to brass's public IP; brass's own admin sshd now
+          # lives on 42070 (services.openssh.ports below), freeing :22 to DNAT to
+          # ghostgate's forgejo (built-in SSH on :22, reachable over Nebula).
+          # MASQUERADE the forwarded flow onto nebula.arena so ghostgate's replies
+          # return through brass instead of egressing ghostgate's own WAN (which
+          # would be asymmetric and break the connection) -- same shape as the CTF
+          # DNAT just below. FORWARD is default-accept on brass, so no extra accept
+          # is needed (unlike ghostgate).
+          iptables -t nat -A PREROUTING -p tcp -d ${nebulaIngress} \
+            --dport 22 -j DNAT --to-destination ${ghostgateNebula}
+          iptables -t nat -A POSTROUTING -p tcp -d ${ghostgateNebula} \
+            --dport 22 -o nebula.arena -j MASQUERADE
+
           # CTF challenge-VM SSH. Publicly nixc.tf resolves to exit.brass, and players
           # connect `ssh -p <port> nixc.tf`, so publish citadel's per-attempt SSH
           # range (${toString erlib.ctfVmSshPorts.from}-${toString erlib.ctfVmSshPorts.to})
@@ -288,6 +301,8 @@ in
   };
 
   services = {
+    openssh.ports = [ 42070 ];
+
     owncast = {
       enable = true;
     };
