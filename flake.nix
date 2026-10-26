@@ -14,6 +14,7 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     nixpkgs-gold.url = "github:Jaculabilis/nixpkgs-gold";
+    funkyenv.url = "github:NixVegas/funkyenv";
 
     hydra = {
       url = "github:NixOS/hydra/hydra.nixos.org";
@@ -89,7 +90,7 @@
     };
 
     autopen = {
-      url = "git+ssh://forgejo@git.nixos.lv/noc/autopen.git";
+      url = "git+ssh://forgejo@git.nixos.lv/NixSec/autopen.git";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -103,6 +104,7 @@
       nixpkgs-prev,
       nixpkgs-lib,
       nixpkgs-gold,
+      funkyenv,
       hydra,
       great-value-hydra,
       dcwifi,
@@ -237,6 +239,7 @@
                   nixpkcs.overlays.default
                   nixpkgs-gold.overlays.gold
                   autopen.overlays.default
+                  funkyenv.overlays.funky
                 ];
               }
               meshos.nixosModules.default

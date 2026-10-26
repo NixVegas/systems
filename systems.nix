@@ -98,6 +98,12 @@ in
     ]
     ++ commonModules;
     address = "brass.arena.nixos.lv";
+
+    # admin sshd moved to 42070; public :22 DNATs to ghostgate's forgejo git ssh
+    profile.sshOpts = [
+      "-t"
+      "-p42070"
+    ];
   };
 
   crystal = {
