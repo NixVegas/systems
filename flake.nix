@@ -289,25 +289,20 @@
             in
             {
               nebula = pkgs.nebula.overrideAttrs (final: prev: {
-                version = "1.11.1";
+                version = "1.11.2";
                 src = pkgs.fetchFromGitHub {
                   owner = "slackhq";
                   repo = "nebula";
                   tag = "v${final.version}";
-                  hash = "sha256-3YxOq9kxNShkIbFZ6P9kCkNl8nraICMlp2jSCBnlSP4=";
+                  hash = "sha256-jzXfKPefw+V2RQBUuxXWoKj1CsVrB4GHdzZJD0zZ0g8=";
                 };
-                vendorHash = "sha256-I0pV4nosm1j7FqGmgkQWe24umRzBnMb2gvEiZr0uTFo=";
-                # Cache the pkcs11 client instead of re-opening the HSM/TPM per
-                # DH. Upstream's noiseutil.nistP11Curve.DH opened+initialized+
-                # closed the whole PKCS#11 module on every handshake DH, run
-                # inline on the single packet-reader goroutine -- so a handshake
-                # storm (mesh/relay reconnect churn from the travel routers)
-                # blocked the reader in the slow serialized TPM and stalled the
-                # WHOLE overlay for seconds-to-minutes (361KB Recv-Q backlog,
-                # verified by goroutine dump: reader parked in pkcs11._Cfunc_
-                # Initialize). Root cause of the post-DC34 stalls. Upstream PR
-                # pending; the diff caches one long-lived client per URI.
-                patches = (prev.patches or [ ]) ++ [ ./pkgs/nebula/pkcs11-cache-client.patch ];
+                vendorHash = "sha256-5+DTf3muD82UKZ+toBh1Ypz/5pvIVZIaqA5j3DBhppU=";
+                patches = (prev.patches or [ ]) ++ [
+                  (pkgs.fetchpatch {
+                    url = "https://patch-diff.githubusercontent.com/raw/slackhq/nebula/pull/1926.patch";
+                    hash = "sha256-WsYF9qOrXmsrw8mLe0Bzo6qPeiId7vlABRj4si4VoGc=";
+                  })
+                ];
               });
 
               nixos-lv-onboarding-artifacts = onboardingArtifacts;
