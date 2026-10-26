@@ -1,12 +1,11 @@
 {
-  config,
   pkgs,
   ...
 }:
 
 {
   services.kanidm = {
-    package = pkgs.kanidm_1_9.withSecretProvisioning;
+    package = pkgs.kanidm_1_11.withSecretProvisioning;
 
     enableServer = true;
     serverSettings = {
