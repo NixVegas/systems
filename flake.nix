@@ -299,8 +299,8 @@
                 vendorHash = "sha256-5+DTf3muD82UKZ+toBh1Ypz/5pvIVZIaqA5j3DBhppU=";
                 patches = (prev.patches or [ ]) ++ [
                   (pkgs.fetchpatch {
-                    url = "https://patch-diff.githubusercontent.com/raw/slackhq/nebula/pull/1926.patch";
-                    hash = "sha256-WsYF9qOrXmsrw8mLe0Bzo6qPeiId7vlABRj4si4VoGc=";
+                    url = "https://github.com/SlackHQ/nebula/pull/1926.patch";
+                    hash = "sha256-zbkD+6+ZlAskvSCnbmgVODuj92DllVsUEbVKreMHfSU=";
                   })
                 ];
               });

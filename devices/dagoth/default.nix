@@ -60,15 +60,6 @@ in
 
   boot.zfs.devNodes = "/dev/disk/by-partlabel";
 
-  fileSystems."/zones/gitea" = {
-    device = "dagoth/user/zones/gitea";
-    fsType = "zfs";
-    options = [
-      "rw"
-      "nofail"
-    ];
-  };
-
   fileSystems."/zones/mattermost" = {
     device = "dagoth/user/zones/mattermost";
     fsType = "zfs";
