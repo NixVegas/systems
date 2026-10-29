@@ -1575,11 +1575,12 @@ in
   };
 
   # Patched stream-through harmonia (shared module: modules/harmonia-cache.nix).
-  # ghostgate is the root cache — stream-through straight from the real upstream.
-  # (The VP2420 edge caches point their upstream at cache.nixos.lv = here.)
+  # ghostgate is cache.nixos.lv: it serves what Hydra builds (nixpkgs included) and
+  # passes no misses through, since it's reachable from outside the event. Clients
+  # list cache.nixos.org after it.
   nixVegas.harmoniaCache = {
     enable = true;
-    upstreamUrl = "https://cache.nixos.org";
+    substituteOnMiss = false;
   };
 
   nixVegas.alloy = {

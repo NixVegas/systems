@@ -7,10 +7,9 @@
 # its own HTTPS), decodes it, and fans the bytes to the client(s) AND into the
 # store via the nix daemon — one uplink fetch, no amplification, no stall.
 #
-# Used by ghostgate (upstream cache.nixos.org) and the VP2420s (upstream
-# cache.nixos.lv = ghostgate, so a table's misses hop 2420 -> ghostgate ->
-# internet, deduped once at ghostgate). Each host fronts harmonia's [::]:5000
-# with its own nginx vhost.
+# Used by ghostgate, which serves only what Hydra builds (substituteOnMiss off),
+# and the VP2420s (upstream cache.nixos.lv = ghostgate). Each host fronts
+# harmonia's [::]:5000 with its own nginx vhost.
 {
   config,
   lib,
@@ -51,8 +50,17 @@ in
       example = "https://cache.nixos.lv";
       description = ''
         Upstream binary cache harmonia stream-through fetches from on a narinfo
-        miss. ghostgate points at the real cache.nixos.org; the VP2420 edge
-        caches point at cache.nixos.lv (ghostgate) so misses fan in there.
+        miss. The VP2420 edge caches point at cache.nixos.lv (ghostgate).
+      '';
+    };
+
+    substituteOnMiss = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether a miss streams through from `upstreamUrl`. Off, harmonia only
+        serves the local store, as on ghostgate: Hydra fills it, and the cache
+        is reachable from outside the event.
       '';
     };
   };
@@ -68,7 +76,7 @@ in
           enable_compression = false;
           # Stream-through cache: on a narinfo miss fetch upstream once, fan the
           # bytes to the client(s) and into the store.
-          substitute_on_miss = true;
+          substitute_on_miss = cfg.substituteOnMiss;
           miss_upstream_url = cfg.upstreamUrl;
           # In-flight narinfo LRU (low + self-cleaning; entries drop when their
           # NAR job completes).
@@ -85,7 +93,7 @@ in
     # HTTPS to the upstream — reqwest can't even socket(AF_INET) under that
     # sandbox, so every miss silently fell back to a stock 404. Open the unit up
     # just enough to reach upstream. (The daemon socket stays AF_UNIX.)
-    systemd.services.harmonia.serviceConfig = {
+    systemd.services.harmonia.serviceConfig = lib.mkIf cfg.substituteOnMiss {
       PrivateNetwork = lib.mkForce false;
       RestrictAddressFamilies = lib.mkForce [
         "AF_UNIX"

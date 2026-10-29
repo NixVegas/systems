@@ -157,8 +157,8 @@ in
 
   # Patched stream-through harmonia edge cache (shared module:
   # modules/harmonia-cache.nix). Upstream is cache.nixos.lv, which resolves to
-  # ghostgate via the /etc/hosts entry above — so a miss hops this box ->
-  # ghostgate (dedup'd store) -> internet, and never loops back on itself.
+  # ghostgate via the /etc/hosts entry above and has what Hydra built; anything
+  # else is a 404 here, and clients go on to cache.nixos.org.
   nixVegas.harmoniaCache = {
     enable = true;
     upstreamUrl = "https://cache.nixos.lv";
@@ -179,10 +179,12 @@ in
   # add_to_store_nar's fetched paths back into it; if the local client also
   # substituted from it, the client's import and harmonia's store-write race for
   # the same store-path lock and deadlock. Point the client at ghostgate's
-  # harmonia (a *different* store), which pulls through to cache.nixos.org there.
+  # harmonia (a *different* store), which serves what Hydra built, then at
+  # cache.nixos.org for the rest (ghostgate passes no misses through).
   # mkForce past MeshOS to keep it explicit.
   nix.settings.substituters = lib.mkForce [
     "https://cache.nixos.lv"
+    "https://cache.nixos.org"
   ];
 
   # harmonia's HTTPS vhost gets a real Let's Encrypt cert; brass forwards the
