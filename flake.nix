@@ -17,14 +17,13 @@
     funkyenv.url = "github:NixVegas/funkyenv";
 
     hydra = {
-      url = "github:NixOS/hydra/hydra.nixos.org";
+      url = "github:NixOS/hydra";
       inputs = {
         # Neutralize these unused dev inputs by aliasing them to nixpkgs rather
         # than `follows = ""` (follow-the-root). An empty-string follows locks as
         # `[]` -- an edge pointing at the root node, which the `fix` evaluator
         # rejects (InvalidFlakeLock: the root node has no `locked`). Following a
         # concrete input de-dupes them identically and keeps the lock fix-parseable.
-        foreman.follows = "nixpkgs";
         treefmt-nix.follows = "nixpkgs";
         nixpkgs.follows = "nixpkgs";
       };
@@ -300,7 +299,7 @@
                 patches = (prev.patches or [ ]) ++ [
                   (pkgs.fetchpatch {
                     url = "https://github.com/slackhq/nebula/pull/1926.patch";
-                    hash = "sha256-x1WQ2mEdX91n0gUd06Q93rV2tqQLrM7yRkvcu4spjmU=";
+                    hash = "sha256-Q/Ey/0We7eT8DNUzr1J+XjtSvC5kfGCXzyckqWs8OnI=";
                   })
                 ];
               });
