@@ -15,7 +15,7 @@ in
   services.hydra-queue-builder-dev = {
     enable = true;
     queueRunnerAddr = "https://${domainName}";
-    maxJobs = lib.mkDefault 2;
+    settings.maxJobs = lib.mkDefault 2;
 
     mtls = {
       # Signed with Let's Encrypt, which is in here.

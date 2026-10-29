@@ -512,7 +512,7 @@ in
   # IPs instead of ghostgate's 10.4.2.1. Same rationale as the vp2420 routers.
   networking.firewall.checkReversePath = "loose";
 
-  services.hydra-queue-builder-dev.maxJobs = 1;
+  services.hydra-queue-builder-dev.settings.maxJobs = 1;
 
   # Required by the nginx `enableACME` on ctf.nixos.lv (matches the other hosts).
   security.acme = {
