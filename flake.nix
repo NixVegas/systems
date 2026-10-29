@@ -89,7 +89,7 @@
     };
 
     autopen = {
-      url = "git+ssh://forgejo@git.nixos.lv/NixSec/autopen.git";
+      url = "github:NixVegas/autopen/hardware-signing-experiments";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
