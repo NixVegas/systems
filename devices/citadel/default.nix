@@ -65,6 +65,11 @@ in
     ../../modules/tt-chat-proxy.nix
   ];
 
+  # Everything citadel builds (Hydra builds and offloads) is signed with its key, and
+  # the queue runner carries the signatures into cache.nixos.lv. The private key never
+  # leaves citadel; the public half sits on cache.nixos.lv in mesh.nix.
+  nix.settings.secret-key-files = [ "/etc/nix/citadel.build.dc.nixos.lv-1.key" ];
+
   # citadel is the shared remote builder (the "huge box"). nix.sshServe sets up
   # the nix-ssh user restricted to the nix protocol only: protocol = "ssh-ng"
   # force-commands `nix-daemon --stdio` (no shell, no forwarding — see the

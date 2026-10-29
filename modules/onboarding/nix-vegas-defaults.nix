@@ -75,6 +75,11 @@ in
 
   # Use our binary cache as the first substituter
   nix.settings.substituters = lib.mkForce [ "https://cache.nixos.lv" ];
+  # What the Nix Vegas Hydra builds is signed on citadel; this file goes to /etc/nixos,
+  # so the key is spelled out rather than read from the repo.
+  nix.settings.extra-trusted-public-keys = [
+    "citadel.build.dc.nixos.lv-1:UZbkvFcWZr/VP7cvNPLRpcMTCvaYw7X5XQDzA+nPVxY="
+  ];
 
   # Customize the vendor name and hostname
   system.nixos.vendorName = "Nix Vegas";

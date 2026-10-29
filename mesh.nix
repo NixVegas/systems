@@ -150,6 +150,9 @@
               hostOverride = "cache.nixos.lv";
               secure = true;
               sets = [ "cnl" ];
+              # What the Nix Vegas Hydra builds is signed on citadel; MeshOS puts the
+              # key in the trusted keys of every client of this set.
+              pubkey = "citadel.build.dc.nixos.lv-1:UZbkvFcWZr/VP7cvNPLRpcMTCvaYw7X5XQDzA+nPVxY=";
             };
             client = {
               # The gvh builders (saitama/bigzam) don't exist this year; an
