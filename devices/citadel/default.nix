@@ -6,6 +6,14 @@
 }:
 
 let
+  # TEMPORARILY PARKED 2026-10-29: the four Tenstorrent p150 (Blackhole) cards
+  # are powered down to protect the hardware. This single toggle gates the whole
+  # TT stack -- the kmd driver (hardware.tenstorrent), vLLM, Whisper, the
+  # tt-studio console, and the 1GB-hugepage reservation. With it false the driver
+  # is also blacklisted so udev never binds the cards on a PCI match. Flip to true
+  # to bring everything back; the service definitions below are left intact.
+  ttEnable = false;
+
   whisperKeyFile = "/etc/whisper/api-key";
 
   nocInterface1 = "enp200s0";
@@ -98,12 +106,17 @@ in
     ];
     kernelModules = [ "kvm-amd" ];
 
+    # Parked with the cards (ttEnable): keep the kmd driver from binding on a PCI
+    # match so the powered-down p150s stay dark even if the module is present.
+    blacklistedKernelModules = lib.optionals (!ttEnable) [ "tenstorrent" ];
+
     # Reserve one 1GB hugepage per Tenstorrent p150 (four in the mesh) for the
     # UMD sysmem buffer. Without these tt-metal falls back to 4K pages and warns
     # "Sysmem using regular pages", which slows host-device DMA and, for a mesh,
     # the per-layer fabric collectives. The pages must be reserved at boot
-    # because 1GB pages need contiguous physical memory.
-    kernelParams = [
+    # because 1GB pages need contiguous physical memory. Gated on ttEnable so the
+    # parked box doesn't waste 4GB of RAM on reservations nothing uses.
+    kernelParams = lib.optionals ttEnable [
       "hugepagesz=1G"
       "hugepages=4"
     ];
@@ -112,7 +125,7 @@ in
   # tt-metal's UMD maps its 1GB sysmem buffers from a hugetlbfs mounted at
   # /dev/hugepages-1G (the default /dev/hugepages is 2MB). mode=1777 lets the
   # unprivileged serving user create its hugepage files.
-  systemd.mounts = [
+  systemd.mounts = lib.optionals ttEnable [
     {
       description = "Tenstorrent 1G hugepages";
       what = "hugetlbfs";
@@ -238,7 +251,7 @@ in
   };
 
   hardware.tenstorrent = {
-    enable = true;
+    enable = ttEnable;
     # Single-card descriptor: the LLM below is pinned to one p150 so the other
     # chips stay free (Whisper runs on a disjoint chip via services.tt-whisper).
     # This sets TT_MESH_GRAPH_DESC_PATH for the vLLM service to match its one
@@ -253,7 +266,7 @@ in
     # and leaves room for the speech-to-text service. Pinned to chip 0 with
     # visibleDevices so the UMD cluster does not lock the whole box.
     vllm = {
-      enable = true;
+      enable = ttEnable;
       model = "Qwen/Qwen3-8B";
       hfModel = "Qwen/Qwen3-8B";
       # The console's frontend must send this same id (set via
@@ -275,13 +288,13 @@ in
   # Reasoning-hiding, flag-redacting proxy in front of vLLM. Keeps Qwen3 thinking
   # on (quality) but removes the chain-of-thought and any Nix{...} before the
   # answer reaches the console. Defaults: listen :8009, forward to vLLM :8000.
-  services.tt-chat-proxy.enable = true;
+  services.tt-chat-proxy.enable = ttEnable;
 
   # The native tt-studio web console, chatting through the vLLM server above and
   # transcribing mic audio through the tt-whisper server below. The frontend is
   # rebuilt to send the same model id the vLLM server advertises.
   services.tt-studio = {
-    enable = true;
+    enable = ttEnable;
     # Chat goes through tt-chat-proxy (below), which strips the model's reasoning
     # from the stream and redacts Nix{...} from answers, so the CTF flag in the
     # system prompt cannot leak via the visible chain-of-thought. The proxy
@@ -310,7 +323,7 @@ in
   # auth is the gate now, replacing the old build-net firewall exception (removed
   # deliberately; no raw 8030 is exposed on any interface).
   services.tt-whisper = {
-    enable = true;
+    enable = ttEnable;
     deviceIds = "(1)";
     apiKeyFile = whisperKeyFile;
     host = "127.0.0.1";
