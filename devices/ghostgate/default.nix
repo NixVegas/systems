@@ -622,24 +622,39 @@ in
               iifname "wwan2" drop
             }
 
+            # MSS clamp for everything crossing the Nebula tunnel. The tun MTU
+            # (1300) is smaller than the 1500 LAN, so full-size TCP segments (TLS
+            # handshakes, real payloads) get black-holed while tiny packets (DNS,
+            # small GETs) pass -- looks like "no internet". A masqueraded net
+            # (iot, noc) can't even self-heal via PMTUD, since the "frag needed"
+            # ICMP can't get back to the real client. Clamp on the tunnel
+            # interface in BOTH directions so both endpoints size to the tunnel
+            # MSS (1300-40=1260). Match SYN/SYN-ACK (where the maxseg option lives).
+            #
+            # These sit on the postrouting/prerouting hooks, NOT in `forward`,
+            # because ghostgate's OWN connections need clamping too and `forward`
+            # never sees them. Its own TCP does NOT size to the tun MTU natively:
+            # the socket picks its MSS from the route at connect() time, which is
+            # the UNMARKED lookup (main table -> wan1, MTU 1500 -> MSS 1460). Only
+            # afterwards does nebula_egress mark the packet and reroute it into
+            # the 1300 tun -- and a reroute never revisits the MSS. So ghostgate
+            # advertised 1460, github sent 1460-byte segments, and they could not
+            # enter the tunnel at brass: every ghostgate-originated download (nix
+            # fetches, Hydra eval) connected then hung, while forwarded clients
+            # worked because `forward` clamped them. postrouting runs after the
+            # reroute, so oifname matches the tun for local and forwarded alike;
+            # one pair of rules now covers every net plus ghostgate itself.
+            chain clamp_out {
+              type filter hook postrouting priority mangle; policy accept;
+              oifname "nebula.arena" tcp flags & (syn | rst) == syn tcp option maxseg size set 1260 counter comment "clamp MSS entering nebula tunnel"
+            }
+            chain clamp_in {
+              type filter hook prerouting priority mangle; policy accept;
+              iifname "nebula.arena" tcp flags & (syn | rst) == syn tcp option maxseg size set 1260 counter comment "clamp MSS leaving nebula tunnel"
+            }
+
             chain forward {
               type filter hook forward priority filter; policy drop;
-
-              # MSS clamp for everything crossing the Nebula tunnel. The tun MTU
-              # (1300) is smaller than the 1500 LAN, so full-size forwarded TCP
-              # segments (TLS handshakes, real payloads) get black-holed while tiny
-              # packets (DNS, small GETs) pass -- looks like "no internet". A
-              # masqueraded net (iot, noc) can't even self-heal via PMTUD, since
-              # the "frag needed" ICMP can't get back to the real client. Clamp on
-              # the tunnel interface in BOTH directions so both endpoints size to
-              # the tunnel MSS (1300-40=1260) -- covers every net (iot/noc/arena/
-              # build/ctf/mesh), not just the one that happened to break. Match
-              # SYN/SYN-ACK (where the maxseg option lives); these rules only
-              # mangle and fall through to the accept rules below. ghostgate's own
-              # tunnel traffic is OUTPUT (not forward) and already sizes to the tun
-              # MTU natively, so it needs no clamp.
-              oifname "nebula.arena" tcp flags & (syn | rst) == syn tcp option maxseg size set 1260 counter comment "clamp MSS entering nebula tunnel"
-              iifname "nebula.arena" tcp flags & (syn | rst) == syn tcp option maxseg size set 1260 counter comment "clamp MSS leaving nebula tunnel"
 
               # Route between arena LANs over Nebula (cert-authorized, no NAT).
               iifname "arena" oifname "nebula.arena" counter accept comment "arena -> nebula (inter-arena)"

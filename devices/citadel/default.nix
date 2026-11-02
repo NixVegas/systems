@@ -512,7 +512,10 @@ in
   # IPs instead of ghostgate's 10.4.2.1. Same rationale as the vp2420 routers.
   networking.firewall.checkReversePath = "loose";
 
-  services.hydra-queue-builder-dev.settings.maxJobs = 1;
+  # citadel is the fleet's "huge box" builder (504G RAM); 1 was an old cap that
+  # left Hydra running a single job here. 8 is the static ceiling -- the agent's
+  # dynamic capacity (load1Threshold / cpu+mem PSI) still throttles under load.
+  services.hydra-queue-builder-dev.settings.maxJobs = 8;
 
   # Required by the nginx `enableACME` on ctf.nixos.lv (matches the other hosts).
   security.acme = {

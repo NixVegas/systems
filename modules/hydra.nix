@@ -79,7 +79,6 @@ in
       queue_runner_endpoint = http://localhost:8080
       upload_logs_to_binary_cache = true
 
-      store_uri = local
       binary_cache_public_uri = https://cache.nixos.lv
 
       compress_build_logs = true
@@ -87,7 +86,12 @@ in
       max_unsupported_time = 86400
 
       max_output_size = ${toString (1024 * 1024 * 1024)}
-      allow_import_from_derivation = false
+      # Let jobsets import-from-derivation. Eval-time builds run through the
+      # evaluator's nix (offloading to citadel via /etc/nix/machines like any
+      # build), so they add eval time/memory but not a new build path. If IFD
+      # evals start OOMing, lower max_concurrent_evals before touching
+      # evaluator_max_memory_size (see above).
+      allow_import_from_derivation = true
     '';
   };
 

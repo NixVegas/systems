@@ -66,6 +66,9 @@ let
     # 301s git.nix.vegas to it, both with its own certs.
     "git.nixos.lv" = ghostgateNebula;
     "git.nix.vegas" = ghostgateNebula;
+    "hydra.nixos.lv" = ghostgateNebula;
+    "cache.nixos.lv" = ghostgateNebula;
+    "cache.nix.vegas" = ghostgateNebula;
   };
   onsiteBackends = {
     # tt-studio console
@@ -73,26 +76,13 @@ let
     # Whisper transcription API on citadel (onsite-only; nginx-fronted, Bearer-
     # gated). Public gets the 302; onsite AV box resolves it split-horizon.
     "whisper.nixos.lv" = citadelCtf;
-    # Hydra CI: the web UI and the gRPC runner endpoint. Builders live onsite
-    # (build net / nebula) and reach these via split-horizon straight to
-    # ghostgate; public visitors get the 302 and brass forwards ACME so
-    # ghostgate's hydra certs renew.
-    "hydra.nixos.lv" = ghostgateNebula;
     "runner.hydra.nixos.lv" = ghostgateNebula;
     # Home Assistant web UI: onsite-only (reached via split-horizon straight to
     # ghostgate); brass forwards ACME so ghostgate's LE cert renews. Not in
     # publicBackends, so there is no :443 passthrough and it stays unreachable
     # publicly.
     "home.nixos.lv" = ghostgateNebula;
-    "cache.nixos.lv" = ghostgateNebula;
-    "cache.nix.vegas" = ghostgateNebula;
   };
-  # The binary cache is like onsiteBackends (onsite -> ghostgate's harmonia via
-  # split-horizon; brass terminates TLS + forwards ACME; no :443 passthrough),
-  # but public visitors get a path-preserving 302 to the real cache.nixos.org
-  # instead of a 302 to nix.vegas — so cache.nixos.lv stays a drop-in substituter
-  # off-site (a public `nix` fetch of cache.nixos.lv/<hash>.narinfo lands on
-  # cache.nixos.org/<hash>.narinfo).
   cacheBackends = vp2420CacheBackends;
 in
 {
