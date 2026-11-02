@@ -46,9 +46,31 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/swap.nix
     ../../modules/lasuite-meet.nix
+    ../../modules/scraper-guard.nix
     #../../services/prometheus-exporter
     #../../services/prometheus-exporter/arena.nix
   ];
+
+  # Scraper / abuse control (modules/scraper-guard.nix): direct ingress, so
+  # the default nftables ban. High dedicated limits (still ceilings) for
+  # grafana (a dashboard load fans out dozens of panel queries at once, then
+  # refreshes) and meet (livekit signalling; its media is WebRTC/UDP, so the
+  # HTTP side is modest). chat (mattermost) loads a channel in a burst of API
+  # calls, so only its burst is raised a little above the default.
+  nixVegas.scraperGuard = {
+    enable = true;
+    vhostLimits = {
+      "chat.nix.vegas".burst = 80;
+      "grafana.nix.vegas" = {
+        rate = "30r/s";
+        burst = 200;
+      };
+      "meet.nix.vegas" = {
+        rate = "30r/s";
+        burst = 200;
+      };
+    };
+  };
 
   boot.loader = {
     limine.enable = false;

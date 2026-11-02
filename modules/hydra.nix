@@ -67,14 +67,23 @@ in
       <Plugin::Session>
         cache_size = 16m
       </Plugin::Session>
-      evaluator_workers = 4
+      # Eval memory budget. These two keys are read by hydra-eval-jobset (Perl)
+      # and passed to nix-eval-jobs as --workers / --max-memory-size; they are
+      # NOT part of the Rust hydra-evaluator's toml (only max_concurrent_evals
+      # is -- see services.hydra-evaluator-dev.settings below).
+      #
       # Full nixpkgs release.nix eval across ALL supportedSystems (linux x2 +
       # darwin x2 + 32-bit/arm variants) is the heaviest eval nixpkgs has and
-      # peaks well past 8G; 2048 OOM-kills the evaluator before it finishes.
-      # NB: this is a per-evaluator cap -- with max_concurrent_evals = 2 the
-      # worst case is 2x this. ghostgate caps ZFS ARC at 4G, so if the box OOMs
-      # on a concurrent nixpkgs+other eval, drop max_concurrent_evals to 1
-      # rather than lowering this (a truncated nixpkgs eval is useless).
+      # peaks well past 8G; 2048 OOM-kills the evaluator before it finishes, so
+      # max_memory_size stays at 4096 (a truncated nixpkgs eval is useless).
+      # Worst-case eval RSS ~= max_concurrent_evals * evaluator_workers *
+      # per-worker peak (4G restart threshold, ~8G on the heaviest attr).
+      # 2 evals * 3 workers ~= 24G typical on this 62G box (ZFS ARC capped at
+      # 4G); the MemoryMax fence on hydra-evaluator-dev (below) catches the
+      # theoretical extreme so a runaway eval fails instead of OOMing the host.
+      # If evals get fenced too often, drop max_concurrent_evals to 1 before
+      # lowering workers or this cap.
+      evaluator_workers = 3
       evaluator_max_memory_size = 4096
       queue_runner_endpoint = http://localhost:8080
       upload_logs_to_binary_cache = true
@@ -82,7 +91,8 @@ in
       binary_cache_public_uri = https://cache.nixos.lv
 
       compress_build_logs = true
-      max_concurrent_evals = 5
+      # max_concurrent_evals is NOT read from hydra.conf by the Rust evaluator;
+      # it lives in services.hydra-evaluator-dev.settings (below).
       max_unsupported_time = 86400
 
       max_output_size = ${toString (1024 * 1024 * 1024)}
@@ -94,6 +104,19 @@ in
       allow_import_from_derivation = true
     '';
   };
+
+  # The Rust hydra-evaluator reads ONLY this toml for concurrency; the
+  # hydra.conf value is ignored (it was silently running the module default
+  # of 4, i.e. up to 4 evals * 4 workers * 4G+ -- the likely source of the
+  # OOM history on this box).
+  services.hydra-evaluator-dev.settings.max_concurrent_evals = 2;
+
+  # Cgroup fence for the evaluator and the hydra-eval-jobset / nix-eval-jobs
+  # children it spawns: a runaway eval is OOM-killed inside this cgroup (that
+  # eval fails and is retried) rather than taking the host down. Sized above
+  # the ~24G typical worst case of 2 evals * 3 workers, leaving ~26G for ARC
+  # (4G), the queue-runner, forgejo, home-assistant and nebula.
+  systemd.services.hydra-evaluator-dev.serviceConfig.MemoryMax = "36G";
 
   services.hydra-queue-runner-dev = {
     enable = true;

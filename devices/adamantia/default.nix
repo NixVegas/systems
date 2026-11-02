@@ -27,7 +27,13 @@ in
     ../../modules/kanidm.nix
     ../../modules/mail
     ../../modules/unbound.nix
+    ../../modules/scraper-guard.nix
   ];
+
+  # Scraper / abuse control (modules/scraper-guard.nix): direct ingress, so
+  # the default nftables ban. The only app is auth (kanidm); the mail names
+  # are redirects. Nothing here needs excluding.
+  nixVegas.scraperGuard.enable = true;
 
   boot = {
     initrd.availableKernelModules = [

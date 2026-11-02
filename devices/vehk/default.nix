@@ -23,7 +23,27 @@ in
 {
   imports = [
     ../../modules/vp2420
+    # Hydra builder agent (same shape as citadel: mTLS to runner.hydra.nixos.lv).
+    ../../modules/hydra-builder.nix
   ];
+
+  # vehk is the only host with the autopen signing daemon (TPM-backed sg1
+  # keys behind /run/autopen/socket), so builds that declare
+  # `requiredSystemFeatures = [ "autopen" ]` can ONLY run here. It is also a
+  # resource-limited VP2420, so it must take NOTHING else. mandatoryFeatures
+  # does both: Hydra dispatches a step to a machine only if the machine's
+  # mandatory features are a subset of the step's required features, so vehk
+  # sees only autopen steps -- and since no other builder advertises autopen,
+  # those steps land only here. supportedFeatures is left at its default
+  # (derived from nix.settings.system-features, which already includes
+  # autopen plus the standard kvm/big-parallel/... set) so an autopen step
+  # that also needs a common feature still matches instead of stranding with
+  # no eligible builder. Prereq, as for citadel: the mTLS client cert/key at
+  # /etc/keys/hydra-builder-{cert,privkey}.pem, provisioned out of band.
+  services.hydra-queue-builder-dev.settings = {
+    maxJobs = 1;
+    mandatoryFeatures = [ "autopen" ];
+  };
 
   security.pkcs11 = {
     enable = true;

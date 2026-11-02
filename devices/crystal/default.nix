@@ -23,7 +23,19 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/swap.nix
     ../../modules/pretalx
+    ../../modules/scraper-guard.nix
   ];
+
+  # Scraper / abuse control (modules/scraper-guard.nix): direct ingress, so
+  # the default nftables ban. Everything is limited, immich included: its
+  # gallery legitimately bursts dozens of thumbnail requests per screen, so
+  # only its burst is raised to absorb a screen while sustained scraping is
+  # still capped at the default 10r/s; the other vhosts keep the default.
+  # The immich fail2ban jail (login failures) is unrelated and stays.
+  nixVegas.scraperGuard = {
+    enable = true;
+    vhostLimits."relive.nix.vegas".burst = 100;
+  };
 
   boot = {
     initrd.availableKernelModules = [

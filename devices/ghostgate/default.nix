@@ -137,6 +137,7 @@ in
     ../../modules/mt76.nix
     ../../modules/ctf-recon-bluetooth.nix
     ../../modules/ctf-recon-ipxe.nix
+    ../../modules/scraper-guard.nix
     ./hardware-configuration.nix
   ];
 
@@ -149,6 +150,66 @@ in
   # iPXE `set` variable into the menu this box serves at /boot/menu.ipxe. Flag
   # provisioned out-of-band at /etc/nixctf/flag-recon-ipxe (not committed).
   nixVegas.ctfReconIpxe.enable = true;
+
+  # Trust the key the fleet's Hydra signs with (citadel's). MeshOS only injects
+  # a cache set's server.pubkey into CLIENTS of that set, and this box is the
+  # server of the `cnl` set but deliberately a client of none
+  # (plan cache.client.sets = [ ], to keep the dead gvh substituters out of
+  # nix.conf) -- so it never received its own set's key. Reference the plan's
+  # constant rather than duplicating the literal; additive extra-* so MeshOS's
+  # mkForce of trusted-public-keys can't drop it. Also what /keys on
+  # cache.nixos.lv serves (see the nginx vhost).
+  nix.settings.extra-trusted-public-keys = [
+    config.networking.mesh.plan.hosts.ghostgate.cache.server.pubkey
+  ];
+
+  # Scraper / abuse control (modules/scraper-guard.nix). ghostgate sits behind
+  # brass's L4 SNI router, so every public packet arrives from 10.6.6.7: the
+  # real client address exists only via PROXY protocol (realIpFrom; the :4443
+  # proxyProtocol listener is in services.nginx.defaultListen), and bans must
+  # be enforced at the nginx layer, where that address is visible -- a
+  # firewall ban on the real IP would match nothing. Everything is limited;
+  # the caches get a high dedicated rate (a nix client sustains hundreds of
+  # narinfo requests per second across a build, and a nixpkgs eval bursts
+  # thousands) and the builder agents' gRPC endpoint a generous one -- still
+  # ceilings, just ones no legitimate client reaches.
+  nixVegas.scraperGuard = {
+    enable = true;
+    vhostLimits =
+      let
+        cacheLimit = {
+          rate = "200r/s";
+          burst = 2000;
+        };
+      in
+      {
+        "cache.${baseDomain}" = cacheLimit;
+        "cache.nix.vegas" = cacheLimit;
+        "runner.hydra.${baseDomain}" = {
+          rate = "100r/s";
+          burst = 500;
+        };
+      };
+    realIpFrom = [ config.networking.mesh.plan.hosts.brass.nebula.address ];
+    banAction = "nginx-deny";
+    # Per-client egress ceiling on the binary cache so one public puller can't
+    # hog the uplink: ~32 conns x 2 MB/s ~= 64 MB/s per client, applied only
+    # past the first 8 MB of a response (narinfos/small NARs untouched). Nix's
+    # 25 parallel connections fit under the 32-conn cap. Internal ranges (the
+    # never-ban set: nebula + onsite LANs) are unlimited -- citadel and the
+    # onsite boxes keep pulling at LAN speed.
+    egressLimit.vhosts = [ "cache.${baseDomain}" ];
+    # Every onsite range, so no attendee or fleet host can be banned by a 404
+    # storm (the Nebula subnet is already ignored fleet-wide).
+    extraIgnoreIP = [
+      noc.subnet
+      build.subnet
+      ctf.subnet
+      iot.subnet
+      config.networking.mesh.plan.constants.wifi.subnet # 802.11s mesh underlay
+    ]
+    ++ erlib.arenaCidrs; # 10.7.0/24 + each 2420's attendee LAN
+  };
 
   boot.kernelParams = [
     "console=ttyS1,115200n8"
@@ -1330,7 +1391,23 @@ in
 
     nginx = {
       enable = true;
-
+      # Stock :80/:443 for direct (onsite split-horizon, Nebula) clients, plus
+      # :4443 accepting PROXY protocol: brass's public SNI router sends the
+      # ghostgate names here so the real client address survives the L4
+      # passthrough. Only connections from brass (set_real_ip_from below) have
+      # their PROXY address trusted; anyone else on :4443 is logged as itself.
+      defaultListen = [
+        # ssl must be EXPLICIT on every entry: the module expands an entry that
+        # omits it into BOTH an ssl and a plain listen, which puts ":80 ssl" in
+        # every server and a duplicate :80 in the plain ones (nginx -t fails,
+        # nginx won't start -- this took the cache down once).
+        { addr = "0.0.0.0"; port = 80; ssl = false; }
+        { addr = "[::0]"; port = 80; ssl = false; }
+        { addr = "0.0.0.0"; port = 443; ssl = true; }
+        { addr = "[::0]"; port = 443; ssl = true; }
+        { addr = "0.0.0.0"; port = 4443; ssl = true; proxyProtocol = true; }
+        { addr = "[::0]"; port = 4443; ssl = true; proxyProtocol = true; }
+      ];
       upstreams = {
         "cache.dc.nixos.lv" = {
           servers = {
@@ -1397,7 +1474,30 @@ in
           http2 = true;
           enableACME = true;
           forceSSL = true;
-          locations."/".proxyPass = "http://cache.dc.nixos.lv";
+          locations = {
+            "/".proxyPass = "http://cache.dc.nixos.lv";
+            # The signing keys THIS host trusts, one per line (the base list
+            # plus extra-trusted-public-keys), so it is true by construction:
+            # citadel's build key (what the fleet's Hydra signs with) and the
+            # upstream cache.nixos.org key that stream-through NARs keep. Nix
+            # has no in-protocol way for a cache to advertise a key -- trust is
+            # client-side -- so this is the human-discoverable copy: paste a
+            # line into nix.settings.trusted-public-keys. Served as a store
+            # file via alias rather than `return 200 "..."`, which cannot
+            # reliably emit newlines.
+            "= /keys" = {
+              alias = "${pkgs.writeText "nix-vegas-cache-keys" (
+                lib.concatStringsSep "\n" (
+                  config.nix.settings.trusted-public-keys
+                  ++ (config.nix.settings.extra-trusted-public-keys or [ ])
+                )
+                + "\n"
+              )}";
+              extraConfig = ''
+                default_type text/plain;
+              '';
+            };
+          };
         };
 
         # ghostgate is now the passthrough backend for cache.nix.vegas too.
@@ -1577,7 +1677,13 @@ in
       iot = attendeeFirewall // {
         allowedUDPPorts = [ 4002 ];
       };
-      "nebula.arena" = attendeeFirewall;
+      # :4443 is the PROXY-protocol listener brass's SNI router delivers public
+      # :443 traffic into over Nebula (see services.nginx.defaultListen), on
+      # top of the attendee set (forgejo ssh). Opened on nebula.arena only; the
+      # custom inet filter drops the WAN interfaces regardless.
+      "nebula.arena" = attendeeFirewall // {
+        allowedTCPPorts = attendeeFirewall.allowedTCPPorts ++ [ 4443 ];
+      };
     };
 
   # PXE/iPXE netboot server (shared module: modules/pxe.nix). ghostgate hands

@@ -91,6 +91,7 @@ in
     ../../modules/swap.nix
     ../../modules/unbound.nix
     ../../modules/ctf-recon-owncast.nix
+    ../../modules/scraper-guard.nix
   ];
 
   # Stream scavenger-hunt find (Recon3 "On the Hour"): post the flag into the
@@ -98,6 +99,44 @@ in
   # out-of-band at /etc/nixctf/flag-recon-owncast and /etc/nixctf/owncast-token
   # (not committed).
   nixVegas.ctfReconOwncast.enable = true;
+
+  # Scraper / abuse control (modules/scraper-guard.nix). brass has direct
+  # public ingress, so the default nftables ban is the strong choice: a
+  # banned IP is dropped at the firewall and thereby cut off from EVERYTHING
+  # behind the front door, the :443 L4 passthroughs included. High dedicated
+  # limits (still ceilings) for: owncast -- a venue's worth of viewers behind
+  # one NAT polls HLS playlists/segments at ~1 r/s each -- and every cache
+  # name, which are 302 stubs to cache.nixos.org that an off-site nix client
+  # follows in bursts of hundreds of narinfo requests. realIpFrom trusts the
+  # local stream router's PROXY-protocol address so brass's own vhosts log
+  # real visitors.
+  nixVegas.scraperGuard = {
+    enable = true;
+    vhostLimits =
+      let
+        cacheLimit = {
+          rate = "200r/s";
+          burst = 2000;
+        };
+      in
+      {
+        "live.nix.vegas" = {
+          rate = "50r/s";
+          burst = 200;
+        };
+      }
+      // lib.genAttrs (
+        [
+          "cache.nixos.lv"
+          "cache.nix.vegas"
+        ]
+        ++ lib.attrNames cacheBackends # the per-2420 <host>.cache.nixos.lv stubs
+      ) (_: cacheLimit);
+    realIpFrom = [
+      "127.0.0.1"
+      "::1"
+    ];
+  };
 
   boot = {
     initrd.availableKernelModules = [
@@ -316,8 +355,20 @@ in
       };
 
       # brass's own TLS vhosts terminate here, but behind the SNI router on
-      # :8443 (the router's `default`). Public :443 is the passthrough router.
-      defaultSSLListenPort = 8443;
+      # :8443 (the router's `default`). Public :443 is the passthrough router,
+      # which now emits PROXY protocol to every target (so backends learn the
+      # real client address), so :8443 must accept it. Only the stream router
+      # reaches :8443 (it is not opened in the firewall), so requiring PROXY
+      # protocol here cannot break a direct client.
+      defaultListen = [
+        # ssl must be EXPLICIT on every entry: an entry that omits it is expanded
+        # into BOTH an ssl and a plain listen (":80 ssl" + duplicate :80, nginx
+        # -t fails and nginx won't start). gixy does not catch this.
+        { addr = "0.0.0.0"; port = 80; ssl = false; }
+        { addr = "[::0]"; port = 80; ssl = false; }
+        { addr = "0.0.0.0"; port = 8443; ssl = true; proxyProtocol = true; }
+        { addr = "[::0]"; port = 8443; ssl = true; proxyProtocol = true; }
+      ];
 
       virtualHosts = {
         # Catch-all default server. Any request we don't explicitly route — an
@@ -387,20 +438,49 @@ in
       # backend. Onsite-only names and brass's own vhosts (owncast/live) fall to
       # the local nginx on :8443, where each onsite name has a valid-cert redirect
       # vhost; only genuinely unknown SNI reaches the _default server's rejectSSL.
-      streamConfig = ''
-        map $ssl_preread_server_name $tls_upstream {
-          hostnames;
-        ${
-          lib.concatStrings (lib.mapAttrsToList (sni: be: "  ${sni} ${be}:443;\n") publicBackends)
-        }  default 127.0.0.1:8443;
-        }
-        server {
-          listen 443 reuseport;
-          listen [::]:443 reuseport;
-          proxy_pass $tls_upstream;
-          ssl_preread on;
-        }
-      '';
+      # The public router emits PROXY protocol to EVERY target so the real client
+      # address survives the L4 passthrough (ghostgate uses it for per-client
+      # rate limiting + nginx-layer fail2ban; without it every public visitor is
+      # 10.6.6.7). proxy_protocol is a stream server-level directive, so it can't
+      # be sent to some backends and not others; instead each kind of target
+      # accepts it:
+      #   * ghostgate names -> ghostgate:4443, its PROXY-protocol listener;
+      #   * brass's own vhosts -> local :8443, now listening with proxy_protocol;
+      #   * any other backend (citadel's CTF) -> a local strip hop that accepts
+      #     the PROXY header and forwards plain :443, so that path stays
+      #     byte-identical and the backend needs no change.
+      streamConfig =
+        let
+          # Non-ghostgate backends each get a strip hop on 127.0.0.1:(8445+i).
+          otherBackends = lib.unique (
+            lib.filter (be: be != ghostgateNebula) (lib.attrValues publicBackends)
+          );
+          stripPort = be: 8445 + lib.lists.findFirstIndex (x: x == be) 0 otherBackends;
+          target =
+            be:
+            if be == ghostgateNebula then "${ghostgateNebula}:4443" else "127.0.0.1:${toString (stripPort be)}";
+        in
+        ''
+          map $ssl_preread_server_name $tls_upstream {
+            hostnames;
+          ${lib.concatStrings (lib.mapAttrsToList (sni: be: "  ${sni} ${target be};\n") publicBackends)}  default 127.0.0.1:8443;
+          }
+          server {
+            listen 443 reuseport;
+            listen [::]:443 reuseport;
+            proxy_pass $tls_upstream;
+            ssl_preread on;
+            proxy_protocol on;
+          }
+          ${lib.concatStrings (
+            map (be: ''
+              server {
+                listen 127.0.0.1:${toString (stripPort be)} proxy_protocol;
+                proxy_pass ${be}:443;
+              }
+            '') otherBackends
+          )}
+        '';
 
       appendHttpConfig = ''
         geo $source {
