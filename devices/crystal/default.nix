@@ -210,14 +210,17 @@ in
       };
 
       virtualHosts = {
-        # Just issue redirects to nix.vegas.
-        "nixos.lv" = {
-          forceSSL = true;
-          enableACME = true;
-          locations."/".root = "${pkgs.nix-vegas-site}/public";
-        };
+        # No apex `nixos.lv` vhost here any more: public DNS points nixos.lv at
+        # brass, which SNI-passes :443 and forwards the ACME challenge to
+        # ghostgate (the onboarding site), and onsite split-horizon resolves it
+        # to ghostgate too -- so a vhost here got no traffic from anywhere, and
+        # its ACME order could never validate. Worse, nginx.service wants every
+        # acme-<cert>.service, so any nginx-changing deploy re-ran that doomed
+        # order and failed activation with exit 4. www.nixos.lv stays: its
+        # public CNAME lands on crystal, so its cert validates here, and it
+        # just redirects to the apex on ghostgate.
 
-        # strip www
+        # strip www (the apex lives on ghostgate; see above)
         "www.nixos.lv" = {
           addSSL = true;
           enableACME = true;

@@ -138,6 +138,8 @@ in
     ../../modules/ctf-recon-bluetooth.nix
     ../../modules/ctf-recon-ipxe.nix
     ../../modules/scraper-guard.nix
+    # pcscd access to the signing YubiKey (nixos-lv-ca lives on it).
+    ../../modules/yubikey-pcscd.nix
     ./hardware-configuration.nix
   ];
 
